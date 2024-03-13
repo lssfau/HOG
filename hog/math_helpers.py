@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import List
+from typing import List, Union
 import sympy as sp
 
 from hog.exception import HOGException
@@ -46,9 +46,13 @@ def abs(expr: sp.Expr) -> sp.Expr:
     return sp.Abs(expr)
 
 
-def grad(f: sp.Expr, symbols: List[sp.Symbol]) -> sp.MatrixBase:
+def grad(f: Union[sp.Expr, sp.MatrixBase], symbols: List[sp.Symbol]) -> sp.MatrixBase:
     """Returns the gradient of the passed sympy expression with respect to the passed symbols."""
-    return sp.simplify(sp.Matrix([[sp.diff(f, s)] for s in symbols]))
+    if isinstance(f, sp.MatrixBase):
+        return sp.simplify(f.jacobian(symbols).T)
+    elif isinstance(f, sp.Expr):
+        return sp.simplify(sp.Matrix([[sp.diff(f, s)] for s in symbols]))
+    raise HOGException("Invalid data type in grad().")
 
 
 def curl(u: sp.Matrix, symbols: List[sp.Symbol]) -> sp.Expr:

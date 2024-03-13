@@ -57,7 +57,7 @@ class FunctionSpace(Protocol):
         geometry: ElementGeometry,
         domain: str = "reference",
         dof_map: Optional[List[int]] = None,
-    ) -> List[sp.Expr]:
+    ) -> List[sp.MatrixBase]:
         """The basis functions of this FEM space."""
         ...
 
@@ -68,6 +68,17 @@ class FunctionSpace(Protocol):
         dof_map: Optional[List[int]] = None,
     ) -> List[sp.MatrixBase]:
         """Returns a list containing the gradients of the shape functions on the element.
+
+        Particularly, for each (vector- or scalar-valued) shape function N = (N_1, ..., N_n) returns the _transposed_
+        Jacobian
+
+                          ⎡∂N₁/∂x₁  ···  ∂Nₙ/∂x₁⎤
+                          ⎢   ·             ·   ⎥
+        grad(N) = J(N)ᵀ = ⎢   ·             ·   ⎥
+                          ⎢   ·             ·   ⎥
+                          ⎣∂N₁/∂xₖ  ···  ∂Nₙ/∂xₖ ⎦
+
+        i.e., the returned gradient is a column vector for scalar shape functions.
 
         :param dof_map: this list can be used to specify (remap) the DoF ordering of the element
         """
@@ -131,7 +142,7 @@ class LagrangianFunctionSpace(FunctionSpace):
         geometry: ElementGeometry,
         domain: str = "reference",
         dof_map: Optional[List[int]] = None,
-    ) -> List[sp.Expr]:
+    ) -> List[sp.MatrixBase]:
         """Returns a list containing the shape functions on the element.
 
         :param dof_map: this list can be used to specify (remap) the DoF ordering of the element
@@ -249,6 +260,7 @@ class LagrangianFunctionSpace(FunctionSpace):
             if dof_map:
                 raise HOGException("DoF reordering not implemented.")
 
+            basis_functions = [sp.Matrix([b]) for b in basis_functions]
             return basis_functions
 
         raise HOGException(f"Shape function not available for domain type {domain}")
@@ -266,9 +278,35 @@ class LagrangianFunctionSpace(FunctionSpace):
 
 
 class TensorialVectorFunctionSpace(FunctionSpace):
-    def __init__(self, component: int, function_space: FunctionSpace):
+    """
+    Given a scalar function space, this class can be used to construct a tensorial vector-function space.
+
+    Each shape function of the resulting tensorial space has only one non-zero component that is set to one of the
+    shape functions of the given scalar function space.
+
+    For instance, a tensorial function space of dim d = 3 that is based on a P1 (Lagrangian) scalar function space with
+    n shape functions N_1, ..., N_n has the shape functions
+
+      (N_1, 0, 0),
+      ...
+      (N_n, 0, 0),
+      (0, N_1, 0),
+      ...
+      (0, N_n, 0),
+      (0, 0, N_1),
+      ...
+      (0, 0, N_n).
+    """
+
+    def __init__(self, function_space: FunctionSpace, dim: int = None):
+        """
+        Initializes a tensorial vector function space from a scalar function space.
+
+        :param function_space: the (scalar) component function space
+        :param dim: optional parameter that is set to the dimensionality of the element later if left None here
+        """
         self._component_function_space = function_space
-        self._component = component
+        self._dim = None
 
     @property
     def is_vectorial(self) -> bool:
@@ -287,23 +325,21 @@ class TensorialVectorFunctionSpace(FunctionSpace):
         return self._component_function_space.family
 
     @property
-    def component(self) -> int:
-        return self._component
-
-    @property
     def is_continuous(self) -> bool:
         return self._component_function_space.is_continuous
 
-    def _to_vector(self, phi: sp.Expr, geometry: ElementGeometry) -> sp.MatrixBase:
-        dimensions = geometry.dimensions
+    def _to_vector(
+        self, phi: sp.MatrixBase, component: int, dimensions: int
+    ) -> sp.MatrixBase:
+        if phi.shape != (1, 1):
+            raise HOGException("Component of tensorial space must be scalar.")
         return sp.Matrix(
-            [
-                [phi if c == self._component else sp.sympify(0)]
-                for c in range(dimensions)
-            ]
+            [[phi if c == component else sp.sympify(0)] for c in range(dimensions)]
         )
 
-    def _to_matrix(self, grad_phi: sp.Expr, geometry: ElementGeometry) -> sp.MatrixBase:
+    def _to_matrix(
+        self, grad_phi: sp.MatrixBase, geometry: ElementGeometry
+    ) -> sp.MatrixBase:
         grad_phi = grad_phi.transpose().tolist()[0]
         dimensions = geometry.dimensions
         zero = [sp.sympify(0) for i in range(dimensions)]
@@ -316,40 +352,30 @@ class TensorialVectorFunctionSpace(FunctionSpace):
         geometry: ElementGeometry,
         domain: str = "reference",
         dof_map: Optional[List[int]] = None,
-    ) -> List[sp.Expr]:
+    ) -> List[sp.MatrixBase]:
+        # Defaulting to the dimensionality of the geometry if not specified otherwise.
+        dim = geometry.dimensions
+        if self._dim:
+            dim = self._dim
+
         shape_functions = self._component_function_space.shape(
             geometry, domain, dof_map
         )
-        return [self._to_vector(phi, geometry) for phi in shape_functions]
-
-    def grad_shape(
-        self,
-        geometry: ElementGeometry,
-        domain: str = "reference",
-        dof_map: Optional[List[int]] = None,
-    ) -> List[sp.MatrixBase]:
-        grad_shape_functions = self._component_function_space.grad_shape(
-            geometry, domain, dof_map
-        )
         return [
-            self._to_matrix(grad_shape, geometry) for grad_shape in grad_shape_functions
+            self._to_vector(phi, c, dim) for c in range(dim) for phi in shape_functions
         ]
-
-    def num_dofs(self, geometry: ElementGeometry) -> int:
-        """Returns the number of DoFs per element."""
-        return len(self.shape(geometry))
 
     def __eq__(self, other: Any) -> bool:
         if type(self) != type(other):
             return False
         if not hasattr(other, "_component_function_space"):
             return False
-        if self._component != other._component:
+        if self._dim != other._dim:
             return False
         return self._component_function_space == other._component_function_space
 
     def __str__(self):
-        return f"Vectorial({self._component_function_space})"
+        return f"TensorialVectorSpace({self._component_function_space})"
 
     def __repr__(self):
         return str(self)
