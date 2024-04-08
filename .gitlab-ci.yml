@@ -155,4 +155,4 @@ pages:
   tags:
     - docker
   only:
-    - master@hyteg/hog
+    - main@hyteg/hog
