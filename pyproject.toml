@@ -1,0 +1,36 @@
+[project]
+name = "hog"
+version = "0.1"
+dependencies = [
+  "islpy",
+  "numpy==1.24.3",
+  "quadpy-gpl==0.16.10",
+  "poly-cse-py",
+  "pystencils @ git+https://i10git.cs.fau.de/hyteg/pystencils.git@ce1ef1992c5d81833aa92e14553c4eb592ef9460",
+  "pytest==7.3.1",
+  "sympy==1.11.1",
+  "tabulate==0.9.0",
+]
+
+[tool.setuptools]
+packages = ["hog", "hog.operator_generation", "hog.quadrature"]
+
+[tool.mypy]
+pretty = true
+strict = true
+
+# disable because SymPy is untyped
+disallow_subclassing_any = false
+warn_return_any = false
+
+# TODO annotate all functions and enable these
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["quadpy.*", "poly_cse_py.*", "pystencils.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sympy.*"
+follow_imports = "skip"

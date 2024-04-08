@@ -1,0 +1,158 @@
+stages:
+  - test
+  - integration
+  - deploy
+
+default:
+  image: i10git.cs.fau.de:5005/pycodegen/pycodegen/full
+  before_script:
+    - python3 --version
+    - pip freeze
+    - pip install virtualenv
+    - virtualenv -p python3 env
+    - source env/bin/activate
+    - GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.https://gitlab-ci-token:${CI_JOB_TOKEN}@i10git.cs.fau.de/hyteg.insteadOf" GIT_CONFIG_VALUE_0="ssh://git@i10git.cs.fau.de/hyteg" pip install -r requirements.txt
+    - pip freeze
+  tags:
+    - docker
+
+static-type-check:
+  stage: test
+  script:
+    - pip install -r dev-requirements.txt
+    - pip freeze
+    - mypy hog generate_all_hyteg_forms.py generate_all_operators.py
+
+test:
+  stage: test
+  script:
+    - pytest hog_tests -v
+
+form-generation:
+  stage: integration
+  script:
+    - git clone https://i10git.cs.fau.de/hyteg/hyteg.git
+    - rm -rf hyteg/src/hyteg/forms/form_hyteg_generated
+    - python3 generate_all_hyteg_forms.py hyteg/
+    - cd hyteg
+    - git status
+    - git diff --exit-code --stat
+  when: manual
+  allow_failure: true
+
+operator-generation:
+  stage: integration
+  image: i10git.cs.fau.de:5005/walberla/buildenvs/gcc-12
+  script:
+    - cd hyteg_integration_tests
+
+    # clone HyTeG
+    - git clone --recurse-submodules https://i10git.cs.fau.de/hyteg/hyteg.git --depth 1 --shallow-submodules
+
+    # build HyTeG and tests (copied from HyTeG CI)
+    - rm -rf /usr/include/boost /opt/boost
+    - export
+    - export NUM_CORES=$(nproc --all)
+    - export MAX_BUILD_CORES=$(( $(awk '( $1 == "MemTotal:" ) { print $2 }' /proc/meminfo) / ( 4 * 1024 * 1024  ) ))
+    - "[[ $MAX_BUILD_CORES -lt $NUM_CORES ]] && export MAX_BUILD_CORES=$MAX_BUILD_CORES || export MAX_BUILD_CORES=$NUM_CORES"
+    - echo "NUM_CORES = $NUM_CORES - MAX_BUILD_CORES =  $MAX_BUILD_CORES"
+    - $CXX --version
+    - cmake --version
+    - ccache --version
+    - mpirun --version
+    - export CCACHE_BASEDIR=$CI_PROJECT_DIR
+    - mkdir build
+    - cd build
+    - if dpkg --compare-versions `ompi_info | head -2 | tail -1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/'` ge 1.10; then export MPIEXEC_PREFLAGS="--allow-run-as-root" ; fi
+    - CXXFLAGS='-fdiagnostics-color=always' cmake -G Ninja ..
+      -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      -DCMAKE_CXX_FLAGS=$CMAKE_CXX_FLAGS
+      -DWARNING_ERROR=$WARNING_ERROR
+      -DWALBERLA_DOUBLE_ACCURACY=$WALBERLA_DOUBLE_ACCURACY
+      -DWALBERLA_BUILD_WITH_MPI=$WALBERLA_BUILD_WITH_MPI
+      -DWALBERLA_BUILD_WITH_OPENMP=$WALBERLA_BUILD_WITH_OPENMP
+      -DWALBERLA_BUILD_WITH_METIS=$WALBERLA_BUILD_WITH_METIS
+      -DWALBERLA_BUILD_WITH_PARMETIS=$WALBERLA_BUILD_WITH_PARMETIS
+      -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+      -DMPIEXEC_PREFLAGS=$MPIEXEC_PREFLAGS
+      -DHYTEG_BUILD_WITH_PETSC=$HYTEG_BUILD_WITH_PETSC
+      -DPETSC_DIR=$PETSC_DIR
+      -DHYTEG_BUILD_WITH_TRILINOS=$HYTEG_BUILD_WITH_TRILINOS
+      -DHYTEG_TERRANEO_MODULE=$HYTEG_TERRANEO_MODULE
+      -DHYTEG_DOWNLOAD_BOOST=$HYTEG_DOWNLOAD_BOOST
+      -DHYTEG_BUILD_WITH_ADIOS2=$HYTEG_BUILD_WITH_ADIOS2
+      -DHYTEG_BUILD_WITH_MPFR=$HYTEG_BUILD_WITH_MPFR
+      -DWALBERLA_SANITIZE_ADDRESS=$WALBERLA_SANITIZE_ADDRESS
+      -DWALBERLA_SANITIZE_UNDEFINED=$WALBERLA_SANITIZE_UNDEFINED
+      -DWALBERLA_OPTIMIZE_FOR_LOCALHOST=$WALBERLA_OPTIMIZE_FOR_LOCALHOST
+      -DWALBERLA_BUILD_WITH_HALF_PRECISION_SUPPORT=$WALBERLA_BUILD_WITH_HALF_PRECISION_SUPPORT
+    - ninja -j $MAX_BUILD_CORES -l $NUM_CORES src/all
+
+    # run tests
+    - ctest --test-dir src -LE $CTEST_EXCLUDE_LABELS -C $CMAKE_BUILD_TYPE --output-on-failure -j NUM_CORES
+  variables:
+    CTEST_EXCLUDE_LABELS: "longrun"
+    WALBERLA_BUILD_WITH_MPI: "ON"
+    WALBERLA_BUILD_WITH_OPENMP: "OFF"
+    OMP_NUM_THREADS: "4"
+    OMP_WAIT_POLICY: "PASSIVE"
+    CMAKE_BUILD_TYPE: "Release"
+    HYTEG_BUILD_WITH_ADIOS2: "OFF"
+    HYTEG_BUILD_WITH_PETSC: "OFF"
+    HYTEG_BUILD_WITH_TRILINOS: "OFF"
+    HYTEG_BUILD_WITH_MPFR: "ON"
+    HYTEG_DOWNLOAD_BOOST: "OFF"
+    HYTEG_TERRANEO_MODULE: "OFF"
+    WALBERLA_BUFFER_DEBUG: "OFF"
+    WALBERLA_BUILD_WITH_HALF_PRECISION_SUPPORT: "OFF"
+    WALBERLA_DOUBLE_ACCURACY: "ON"
+    WALBERLA_BUILD_WITH_METIS: "ON"
+    WALBERLA_BUILD_WITH_PARMETIS: "ON"
+    WALBERLA_OPTIMIZE_FOR_LOCALHOST: "ON"
+    WARNING_ERROR: "OFF"
+
+deterministic:
+  stage: integration
+  allow_failure: true
+  script:
+    # generate some operators three times
+    - for i in 0 1 2; do
+        mkdir $i;
+        python3 generate_all_operators.py --output $i --no-clang-format -f CurlCurl --loop-strategy CUBES -o MOVECONSTANTS VECTORIZE POLYCSE --quad-degree 0 0;
+        python3 generate_all_operators.py --output $i --no-clang-format -f CurlCurlPlusMass --loop-strategy CUBES --quad-degree 2 2;
+        python3 generate_all_operators.py --output $i --no-clang-format -s P1 -f Diffusion -b AnnulusMap --quad-rule hillion_07 yu_3;
+        python3 generate_all_operators.py --output $i --no-clang-format -s P1 -f NonlinearDiffusionNewtonGalerkin --quad-degree 2 2 -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE;
+      done
+    # check that the result is the same
+    - diff -r 0 1
+    - diff -r 0 2
+
+
+build-documentation:
+  stage: test
+  image: i10git.cs.fau.de:5005/pycodegen/pycodegen/documentation
+  before_script:
+    - pip install -r requirements.txt
+    - pip install -r dev-requirements.txt
+  script:
+    - bash build_documentation.sh
+  tags:
+    - docker
+  artifacts:
+    paths:
+      - doc/html
+
+pages:
+  image: i10git.cs.fau.de:5005/pycodegen/pycodegen/full
+  stage: deploy
+  script:
+    - ls -l
+    - ls -l doc
+    - mv doc/html public  # folder has to be named "public" for gitlab to publish it
+  artifacts:
+    paths:
+      - public
+  tags:
+    - docker
+  only:
+    - master@hyteg/hog
