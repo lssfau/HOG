@@ -7,7 +7,13 @@ element matrices.
 While the entries of the element matrices are assembled as [sympy](https://www.sympy.org/ "sympy web page") symbols, and may be
 accessed as such, the generator creates C++ code that can be directly used in [HyTeG](https://i10git.cs.fau.de/hyteg/hyteg "HyTeG GitLab").
 
-Find the [full documentation here](https://hyteg.pages.i10git.cs.fau.de/hog/).
+For more information visit the [full documentation](https://hyteg.pages.i10git.cs.fau.de/hog/) and have a look at our [arXiv preprint](https://arxiv.org/abs/2404.08371).
+
+To cite us, please use the following reference:
+
+* Böhm, F., Bauer, D., Kohl, N., Alappat, C., Thönnes, D., Mohr, M., Köstler, H. & Rüde, U. (2024). 
+  _Code Generation and Performance Engineering for Matrix-Free Finite Element Methods on Hybrid Tetrahedral Grids_. 
+  Submitted. arXiv preprint [arXiv:2404.08371](https://arxiv.org/abs/2404.08371).
 
 # How to generate operators
 
