@@ -18,7 +18,7 @@ from typing import Dict, List, Tuple, Union
 
 import sympy as sp
 from pystencils import FieldType, Field
-from pystencils.astnodes import Block, LoopOverCoordinate, Node
+from pystencils.astnodes import Block, LoopOverCoordinate, Node, get_next_parent_of_type
 import pystencils as ps
 from pystencils.astnodes import (
     Block,
@@ -86,6 +86,60 @@ def loop_over_simplex(
         loops[d] = loops[d].new_loop_with_different_body(loops[d - 1])
 
     return loops[dim - 1]
+
+
+def loop_over_simplex_facet(dim: int, width: int, facet_id: int) -> LoopOverCoordinate:
+    """
+    Loops over one boundary facet of a simplex (e.g., one edge in 2D, one face in 3D).
+
+    The facet is specified by an integer. It is required that
+
+        0 ≤ facet_id ≤ dim
+
+    Let [x_0, x_1, ..., x_(dim-1)] be the coordinate of one element that is looped over.
+
+    For facet_id < dim, we have that
+
+        x_(dim - 1 - facet_id) = 0
+
+    and the remaining boundary is selected with facet_id == dim.
+
+    So in 2D for example, we get
+
+        facet_id = 0: (x_0, 0  )
+        facet_id = 1: (0,   x_1)
+        facet_id = 2: the xy- (or "diagonal") boundary
+    """
+    loop = loop_over_simplex(dim, width)
+    innermost_loops = get_innermost_loop(loop)
+    if len(innermost_loops) != 1:
+        raise HOGException("There should be only one innermost loop.")
+    innermost_loop: LoopOverCoordinate = innermost_loops[0]
+
+    if facet_id not in range(0, dim + 1):
+        raise HOGException(f"Bad facet_id ({facet_id}) for dim {dim}.")
+
+    if facet_id == dim:
+        # For the "diagonal" loop we can just iterate as usual but skip all but the last element of the innermost loop.
+        # I hope.
+        innermost_loop.start = innermost_loop.stop - 1
+        return loop
+
+    # For the other facet_ids we need to find the corresponding loop and set that counter to 0.
+    # I am doing this here by just traversing the loops from the inside out, assuming that no loop cutting etc.
+    # occurred.
+    loop_with_counter_to_be_set_to_zero = innermost_loop
+    for d in range(dim - 1 - facet_id):
+        loop_with_counter_to_be_set_to_zero = get_next_parent_of_type(
+            loop_with_counter_to_be_set_to_zero, LoopOverCoordinate
+        )
+    if loop_with_counter_to_be_set_to_zero is None:
+        raise HOGException("There was no parent loop. This should not happen. I think.")
+
+    loop_with_counter_to_be_set_to_zero.start = 0
+    loop_with_counter_to_be_set_to_zero.stop = 1
+
+    return loop
 
 
 def create_micro_element_loops(
