@@ -387,7 +387,7 @@ class AssembleDiagonal(KernelType):
             f"\n"
             f"for ( uint_t level = minLevel_; level <= maxLevel_; level++ )\n"
             f"{{\n"
-            f"    {self.dst.name}->setToZero( level );\n"
+            f"    {self.dst.name}->interpolate( 0, level );\n"
             f"\n"
             f"    if ( storage_->hasGlobalCells() )\n"
             f"    {{\n"
@@ -406,7 +406,7 @@ class AssembleDiagonal(KernelType):
             f"{indent(macro_loop(2), 2 * INDENT)}\n"
             f"    }}\n"
             f"\n"
-            f"{indent(self.dst.invert_elementwise(), INDENT)}\n"
+            f"{indent(self.dst.invert_elementwise(dim=0), INDENT)}\n"
             f"}}\n"
             f"\n"
             f'this->stopTiming( "{self.name}" );'

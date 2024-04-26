@@ -298,15 +298,13 @@ class TensorialVectorFunctionSpace(FunctionSpace):
       (0, 0, N_n).
     """
 
-    def __init__(self, function_space: FunctionSpace, dim: int = None):
+    def __init__(self, function_space: FunctionSpace):
         """
         Initializes a tensorial vector function space from a scalar function space.
 
         :param function_space: the (scalar) component function space
-        :param dim: optional parameter that is set to the dimensionality of the element later if left None here
         """
         self._component_function_space = function_space
-        self._dim = None
 
     @property
     def is_vectorial(self) -> bool:
@@ -328,6 +326,10 @@ class TensorialVectorFunctionSpace(FunctionSpace):
     def is_continuous(self) -> bool:
         return self._component_function_space.is_continuous
 
+    @property
+    def component_function_space(self) -> FunctionSpace:
+        return self._component_function_space
+
     def _to_vector(
         self, phi: sp.MatrixBase, component: int, dimensions: int
     ) -> sp.MatrixBase:
@@ -337,30 +339,19 @@ class TensorialVectorFunctionSpace(FunctionSpace):
             [[phi if c == component else sp.sympify(0)] for c in range(dimensions)]
         )
 
-    def _to_matrix(
-        self, grad_phi: sp.MatrixBase, geometry: ElementGeometry
-    ) -> sp.MatrixBase:
-        grad_phi = grad_phi.transpose().tolist()[0]
-        dimensions = geometry.dimensions
-        zero = [sp.sympify(0) for i in range(dimensions)]
-        return sp.Matrix(
-            [(grad_phi if c == self._component else zero) for c in range(dimensions)]
-        )
-
     def shape(
         self,
         geometry: ElementGeometry,
         domain: str = "reference",
         dof_map: Optional[List[int]] = None,
     ) -> List[sp.MatrixBase]:
-        # Defaulting to the dimensionality of the geometry if not specified otherwise.
+
         dim = geometry.dimensions
-        if self._dim:
-            dim = self._dim
 
         shape_functions = self._component_function_space.shape(
             geometry, domain, dof_map
         )
+
         return [
             self._to_vector(phi, c, dim) for c in range(dim) for phi in shape_functions
         ]
@@ -369,8 +360,6 @@ class TensorialVectorFunctionSpace(FunctionSpace):
         if type(self) != type(other):
             return False
         if not hasattr(other, "_component_function_space"):
-            return False
-        if self._dim != other._dim:
             return False
         return self._component_function_space == other._component_function_space
 

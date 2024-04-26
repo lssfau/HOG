@@ -43,7 +43,12 @@ from hog.forms import (
     nonlinear_diffusion_newton_galerkin,
 )
 from hog.forms_vectorial import curl_curl, curl_curl_plus_mass, mass_n1e1
-from hog.function_space import FunctionSpace, LagrangianFunctionSpace, N1E1Space
+from hog.function_space import (
+    FunctionSpace,
+    LagrangianFunctionSpace,
+    N1E1Space,
+    TensorialVectorFunctionSpace,
+)
 from hog.logger import get_logger, TimedLogger
 from hog.operator_generation.kernel_types import (
     Apply,
@@ -516,6 +521,7 @@ def all_operators(
     blending: GeometryMap,
 ) -> List[OperatorInfo]:
     P1 = LagrangianFunctionSpace(1, symbolizer)
+    P1Vector = TensorialVectorFunctionSpace(P1)
     P2 = LagrangianFunctionSpace(2, symbolizer)
     N1E1 = N1E1Space(symbolizer)
 
@@ -555,6 +561,10 @@ def all_operators(
                             test_space=P1, form=partial(nonlinear_diffusion_newton_galerkin,
                             coefficient_function_space=P1, onlyNewtonGalerkinPartOfForm=False),
                             type_descriptor=type_descriptor, opts=opts, blending=blending))
+
+    ops.append(OperatorInfo(mapping="P1Vector", name="Diffusion", trial_space=P1Vector, test_space=P1Vector,
+                            form=diffusion, type_descriptor=type_descriptor, opts=opts, blending=blending,
+                            geometries=[TriangleElement()]))
 
     # fmt: on
 

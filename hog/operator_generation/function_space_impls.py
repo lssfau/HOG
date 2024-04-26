@@ -27,7 +27,12 @@ from pystencils.backends.cbackend import CustomCodeNode
 
 from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
-from hog.function_space import FunctionSpace, LagrangianFunctionSpace, N1E1Space
+from hog.function_space import (
+    FunctionSpace,
+    LagrangianFunctionSpace,
+    TensorialVectorFunctionSpace,
+    N1E1Space,
+)
 from hog.operator_generation.indexing import (
     CellType,
     FaceType,
@@ -95,6 +100,18 @@ class FunctionSpaceImpl(ABC):
                 impl_class = P1FunctionSpaceImpl
             else:
                 raise HOGException("Lagrangian function space must be of order 1 or 2.")
+        elif isinstance(func_space, TensorialVectorFunctionSpace):
+            if isinstance(func_space.component_function_space, LagrangianFunctionSpace):
+                if func_space.component_function_space.degree == 1:
+                    impl_class = P1VectorFunctionSpaceImpl
+                else:
+                    raise HOGException(
+                        "TensorialVectorFunctionSpaces are only supported for P1 components."
+                    )
+            else:
+                raise HOGException(
+                    "TensorialVectorFunctionSpaces are only supported with Lagrangian component spaces."
+                )
         elif isinstance(func_space, N1E1Space):
             impl_class = N1E1FunctionSpaceImpl
         else:
@@ -136,7 +153,7 @@ class FunctionSpaceImpl(ABC):
         ...
 
     @abstractmethod
-    def invert_elementwise(self) -> str:
+    def invert_elementwise(self, dim: int) -> str:
         """C++ code for inverting each DoF of the linalg vector."""
         ...
 
@@ -268,7 +285,7 @@ class P1FunctionSpaceImpl(FunctionSpaceImpl):
 
         return f"{self.type_descriptor.pystencils_type}* _data_{self.name} = {macro}.getData( {self._deref()}.get{Macro}DataID() )->getPointer( level );"
 
-    def invert_elementwise(self) -> str:
+    def invert_elementwise(self, dim: int) -> str:
         return f"{self._deref()}.invertElementwise( level );"
 
     def local_dofs(
@@ -394,7 +411,7 @@ class P2FunctionSpaceImpl(FunctionSpaceImpl):
             f"{self.type_descriptor.pystencils_type}* _data_{self.name}Edge   = {macro}.getData( {self._deref()}.getEdgeDoFFunction().get{Macro}DataID() )->getPointer( level );"
         )
 
-    def invert_elementwise(self) -> str:
+    def invert_elementwise(self, dim: int) -> str:
         return f"{self._deref()}.invertElementwise( level );"
 
     def local_dofs(
@@ -429,6 +446,174 @@ class P2FunctionSpaceImpl(FunctionSpaceImpl):
 
     def includes(self) -> Set[str]:
         return {f"hyteg/p2functionspace/P2Function.hpp"}
+
+    def dof_transformation(
+        self,
+        geometry: ElementGeometry,
+        element_index: Tuple[int, int, int],
+        element_type: Union[FaceType, CellType],
+    ) -> Tuple[CustomCodeNode, sp.MatrixBase]:
+        return (
+            CustomCodeNode("", [], []),
+            sp.Identity(self.fe_space.num_dofs(geometry)),
+        )
+
+
+class P1VectorFunctionSpaceImpl(FunctionSpaceImpl):
+    def __init__(
+        self,
+        fe_space: FunctionSpace,
+        name: str,
+        type_descriptor: HOGType,
+        is_pointer: bool = False,
+    ):
+        super().__init__(fe_space, name, type_descriptor, is_pointer)
+        self.fields = {}
+
+    def _field_name(self, component: int) -> str:
+        return self.name + f"_{component}"
+
+    def _raw_pointer_name(self, component: int) -> str:
+        return f"_data_" + self._field_name(component)
+
+    def pre_communication(self, dim: int) -> str:
+        if dim == 2:
+            return f"communication::syncVectorFunctionBetweenPrimitives( {self.name}, level, communication::syncDirection_t::LOW2HIGH );"
+        else:
+            return (
+                f"{self._deref()}.communicate< Face, Cell >( level );\n"
+                f"{self._deref()}.communicate< Edge, Cell >( level );\n"
+                f"{self._deref()}.communicate< Vertex, Cell >( level );"
+            )
+
+    def zero_halos(self, dim: int) -> str:
+        if dim == 2:
+            return (
+                f"for ( const auto& idx : vertexdof::macroface::Iterator( level ) ) {{\n"
+                f"    if ( vertexdof::macroface::isVertexOnBoundary( level, idx ) ) {{\n"
+                f"        auto arrayIdx = vertexdof::macroface::index( level, idx.x(), idx.y() );\n"
+                f"        {self._raw_pointer_name(0)}[arrayIdx] = {self.type_descriptor.pystencils_type}( 0 );\n"
+                f"        {self._raw_pointer_name(1)}[arrayIdx] = {self.type_descriptor.pystencils_type}( 0 );\n"
+                f"    }}\n"
+                f"}}"
+            )
+        else:
+            return (
+                f"for ( const auto& idx : vertexdof::macrocell::Iterator( level ) ) {{\n"
+                f"    if ( !vertexdof::macrocell::isOnCellFace( idx, level ).empty() ) {{\n"
+                f"        auto arrayIdx = vertexdof::macrocell::index( level, idx.x(), idx.y(), idx.z() );\n"
+                f"        {self._raw_pointer_name(0)}[arrayIdx] = {self.type_descriptor.pystencils_type}( 0 );\n"
+                f"        {self._raw_pointer_name(1)}[arrayIdx] = {self.type_descriptor.pystencils_type}( 0 );\n"
+                f"        {self._raw_pointer_name(2)}[arrayIdx] = {self.type_descriptor.pystencils_type}( 0 );\n"
+                f"    }}\n"
+                f"}}"
+            )
+
+    def post_communication(
+        self, dim: int, params: str, transform_basis: bool = True
+    ) -> str:
+        if dim == 2:
+            ret_str = ""
+            for i in range(dim):
+                ret_str += (
+                f"{self._deref()}[{i}].communicateAdditively < Face, Edge > ( {params} );\n"
+                f"{self._deref()}[{i}].communicateAdditively < Face, Vertex > ( {params} );\n"
+            )
+            return ret_str
+        else:
+            return (
+                f"{self._deref()}.communicateAdditively< Cell, Face >( {params} );\n"
+                f"{self._deref()}.communicateAdditively< Cell, Edge >( {params} );\n"
+                f"{self._deref()}.communicateAdditively< Cell, Vertex >( {params} );"
+            )
+
+    def pointer_retrieval(self, dim: int) -> str:
+        """C++ code for retrieving pointers to the numerical data stored in the macro primitives `face` (2d) or `cell` (3d)."""
+        Macro = {2: "Face", 3: "Cell"}[dim]
+        macro = {2: "face", 3: "cell"}[dim]
+
+        ret_str = ""
+        for i in range(dim):
+            ret_str += f"{self.type_descriptor.pystencils_type}* {self._raw_pointer_name(i)} = {macro}.getData( {self._deref()}[{i}].get{Macro}DataID() )->getPointer( level );\n"
+        return ret_str
+
+    def invert_elementwise(self, dim: int) -> str:
+        ret_str = ""
+        for i in range(dim):
+            ret_str += f"{self._deref()}[{i}].invertElementwise( level );\n"
+        return ret_str
+
+    def local_dofs(
+        self,
+        geometry: ElementGeometry,
+        element_index: Tuple[int, int, int],
+        element_type: Union[FaceType, CellType],
+        indexing_info: IndexingInfo,
+    ) -> List[Field.Access]:
+        """
+        Returns the element-local DoFs (field accesses) in a list (i.e., linearized).
+
+        The order here has to match that of the function space implementation.
+        TODO: This is a little concerning since that order has to match in two very different parts of this
+              implementation. Here, and in the TensorialVectorFunctionSpace. Maybe we can define this order in a single
+              location.
+        We return them in "SoA" order: first all DoFs corresponding to the function with the first component != 0,
+        then all DoFs corresponding to the function with the second component != 0 etc.
+
+        For instance, in 2D we get the DoFs corresponding to the 6 shape functions in the following order:
+
+        First component != 0
+
+        list[0]: ⎡-x_ref_0 - x_ref_1 + 1⎤
+                 ⎢                      ⎥
+                 ⎣          0           ⎦
+
+        list[1]: ⎡x_ref_0⎤
+                 ⎢       ⎥
+                 ⎣   0   ⎦
+
+        list[2]: ⎡x_ref_1⎤
+                 ⎢       ⎥
+                 ⎣   0   ⎦
+
+        Second component != 0
+
+        list[3]: ⎡          0           ⎤
+                 ⎢                      ⎥
+                 ⎣-x_ref_0 - x_ref_1 + 1⎦
+
+        list[4]: ⎡   0   ⎤
+                 ⎢       ⎥
+                 ⎣x_ref_0⎦
+
+        list[5]: ⎡   0   ⎤
+                 ⎢       ⎥
+                 ⎣x_ref_1⎦
+        """
+
+        for c in range(geometry.dimensions):
+            if c not in self.fields:
+                self.fields[c] = self._create_field(self._field_name(c))
+
+        vertex_dof_indices = micro_element_to_vertex_indices(
+            geometry, element_type, element_index
+        )
+        vertex_array_indices = [
+            dof_idx.array_index(geometry, indexing_info)
+            for dof_idx in vertex_dof_indices
+        ]
+
+        return [
+            self.fields[c].absolute_access((idx,), (0,))
+            for c in range(geometry.dimensions)
+            for idx in vertex_array_indices
+        ]
+
+    def func_type_string(self) -> str:
+        return f"P1VectorFunction< {self.type_descriptor.pystencils_type} >"
+
+    def includes(self) -> Set[str]:
+        return {f"hyteg/p1functionspace/P1VectorFunction.hpp"}
 
     def dof_transformation(
         self,
@@ -489,7 +674,7 @@ class N1E1FunctionSpaceImpl(FunctionSpaceImpl):
 
         return f"{self.type_descriptor.pystencils_type}* _data_{self.name} = {macro}.getData( {self._deref()}.getDoFs()->get{Macro}DataID() )->getPointer( level );"
 
-    def invert_elementwise(self) -> str:
+    def invert_elementwise(self, dim: int) -> str:
         return f"{self._deref()}.getDoFs()->invertElementwise( level );"
 
     def local_dofs(

@@ -79,7 +79,7 @@ Weak formulation
     u: trial function (space: {trial})
     v: test function  (space: {test})
     
-    ∫ ∇u · ∇v
+    ∫ ∇u : ∇v
 """
 
     if trial != test:
@@ -124,7 +124,7 @@ Weak formulation
                     jac_affine_inv.T * grad_psi,
                 )
                 form = (
-                    dot(
+                    double_contraction(
                         jac_blending_inv.T
                         * sp.Matrix(jac_affine_inv_T_grad_phi_symbols),
                         jac_blending_inv.T
@@ -137,7 +137,7 @@ Weak formulation
                 jac_affine_inv_grad_phi_jac_affine_inv_grad_psi_det_symbol = (
                     tabulation.register_factor(
                         "jac_affine_inv_grad_phi_jac_affine_inv_grad_psi_det",
-                        dot(
+                        double_contraction(
                             jac_affine_inv.T * grad_phi,
                             jac_affine_inv.T * grad_psi,
                         )
