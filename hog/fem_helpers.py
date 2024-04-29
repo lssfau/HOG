@@ -41,6 +41,7 @@ from hog.external_functions import (
     BlendingFTetrahedron,
     BlendingDFTetrahedron,
     BlendingDFTriangle,
+    BlendingDFInvDFTriangle,
     ScalarVariableCoefficient2D,
     ScalarVariableCoefficient3D,
     VectorVariableCoefficient3D,
@@ -65,6 +66,8 @@ class ElementMatrixData:
     test_shape: sp.Expr
     trial_shape_grad: sp.MatrixBase
     test_shape_grad: sp.MatrixBase
+    trial_shape_hessian: sp.MatrixBase
+    test_shape_hessian: sp.MatrixBase
     row: int
     col: int
 
@@ -73,17 +76,19 @@ def element_matrix_iterator(
     trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
 ) -> Iterator[ElementMatrixData]:
     """Call this to create a generator to conveniently fill the element matrix."""
-    for row, (psi, grad_psi) in enumerate(
-        zip(test.shape(geometry), test.grad_shape(geometry))
+    for row, (psi, grad_psi, hessian_psi) in enumerate(
+            zip(test.shape(geometry), test.grad_shape(geometry), test.hessian_shape(geometry))
     ):
-        for col, (phi, grad_phi) in enumerate(
-            zip(trial.shape(geometry), trial.grad_shape(geometry))
+        for col, (phi, grad_phi, hessian_phi) in enumerate(
+                zip(trial.shape(geometry), trial.grad_shape(geometry), trial.hessian_shape(geometry))
         ):
             yield ElementMatrixData(
                 trial_shape=phi,
                 trial_shape_grad=grad_phi,
+                trial_shape_hessian=hessian_phi,
                 test_shape=psi,
                 test_shape_grad=grad_psi,
+                test_shape_hessian=hessian_psi,
                 row=row,
                 col=col,
             )
@@ -268,6 +273,34 @@ def jac_blending_inv_eval_symbols(
     jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
     return inv(jac_blending)
 
+def jacinvjac_physical_to_physical(
+        geometry: ElementGeometry, symbolizer: Symbolizer
+) -> sp.Matrix:
+    """Returns the Jacobian of the transformation from the affine (computational) to the physical element."""
+    blending_class: type[MultiAssignment]
+    if isinstance(geometry, TriangleElement):
+        blending_class = BlendingDFInvDFTriangle
+    elif isinstance(geometry, TetrahedronElement):
+        raise HOGException("Blending not implemented for the passed element geometry.")
+    else:
+        raise HOGException("Blending not implemented for the passed element geometry.")
+
+    t = trafo_ref_to_affine(geometry, symbolizer)
+    jacinvjac = sp.zeros(geometry.dimensions, geometry.dimensions * geometry.dimensions)
+    rows, cols = jacinvjac.shape
+    for row in range(rows):
+        for col in range(cols):
+            output_arg = row * cols + col
+            if len(t) != blending_class.num_input_args():
+                raise HOGException(
+                    f"Wrong number of input arguments to {blending_class.name()}."
+                )
+            if output_arg >= blending_class.num_output_args():
+                raise HOGException(
+                    f"{blending_class.name()} output argument index out of range."
+                )
+            jacinvjac[row, col] = blending_class(sp.Symbol("blend"), row * cols + col, *t)
+    return jacinvjac
 
 def scalar_space_dependent_coefficient(
     name: str,

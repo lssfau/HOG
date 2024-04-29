@@ -75,6 +75,31 @@ geometryMap_->evalDF( mappedPt, DPsi );
 *out_2 = DPsi( 1, 0 );
 *out_3 = DPsi( 1, 1 );"""
 
+class BlendingDFInvDFTriangle(MultiAssignment):
+    def function_name(self):
+        return "Blending_DFInvDF_Triangle"
+
+    @classmethod
+    def num_input_args(cls):
+        return 2
+
+    @classmethod
+    def num_output_args(cls):
+        return 2 * 2 * 2
+
+    def implementation(self):
+        return """Point3D  mappedPt( {in_0, in_1, 0} );
+Matrixr< 2, 4 > DInvDPsi;
+geometryMap_->evalDFinvDF( mappedPt, DInvDPsi );
+*out_0 = DInvDPsi( 0, 0 );
+*out_1 = DInvDPsi( 0, 1 );
+*out_2 = DInvDPsi( 0, 2 );
+*out_3 = DInvDPsi( 0, 3 );
+*out_4 = DInvDPsi( 1, 0 );
+*out_5 = DInvDPsi( 1, 1 );
+*out_6 = DInvDPsi( 1, 2 );
+*out_7 = DInvDPsi( 1, 3 );"""
+
 
 class BlendingDFTetrahedron(MultiAssignment):
     def function_name(self):
