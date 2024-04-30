@@ -57,7 +57,7 @@ def grad(f: Union[sp.Expr, sp.MatrixBase], symbols: List[sp.Symbol]) -> sp.Matri
 def hessian(f: sp.Expr, symbols: List[sp.Symbol]) -> sp.MatrixBase:
     """Returns the hessian of the passed sympy expression with respect to the passed symbols."""
     df = grad(f, symbols)
-    return sp.Matrix([[[sp.simplify(sp.diff(g, s))] for s in symbols] for g in df])
+    return sp.Matrix([[sp.simplify(sp.diff(g, s)) for s in symbols] for g in df])
 
 def curl(u: sp.Matrix, symbols: List[sp.Symbol]) -> sp.Expr:
     """Returns the curl of the passed sympy matrix with respect to the passed symbols."""

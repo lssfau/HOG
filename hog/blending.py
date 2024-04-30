@@ -49,6 +49,10 @@ class GeometryMap:
     def jacobian(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the Jacobian of the geometry map at the passed point."""
         raise HOGException("jacobian() not implemented for this map.")
+    
+    def hessian(self, x: sp.Matrix) -> sp.Array:
+        """Evaluates the hessian of the geometry map at the passed point."""
+        raise HOGException("hessian() not implemented for this map.")
 
     def coupling_includes(self) -> List[str]:
         """Returns a list of files that better be included into the C++ files when this map is used."""
@@ -181,6 +185,57 @@ class AnnulusMap(GeometryMap):
         )
 
         return jac
+    
+    def hessian(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (2, 1):
+            raise HOGException("Invalid input shape for AnnulusMap.")
+
+        radRefVertex = self.radRefVertex
+        radRayVertex = self.radRayVertex
+        refVertex = self.refVertex
+        rayVertex = self.rayVertex
+        thrVertex = self.thrVertex
+
+        xAnnulus, yAnnulus = sp.symbols('x y')
+
+        dist = radRefVertex - radRayVertex
+        areaT = (refVertex[0] - rayVertex[0]) * (thrVertex[1] - rayVertex[1]) - (
+            refVertex[1] - rayVertex[1]
+        ) * (thrVertex[0] - rayVertex[0])
+        areaX = (xAnnulus - rayVertex[0]) * (thrVertex[1] - rayVertex[1]) - (
+            yAnnulus - rayVertex[1]
+        ) * (thrVertex[0] - rayVertex[0])
+        bary = areaX / areaT
+        oldRad = sp.sqrt(xAnnulus * xAnnulus + yAnnulus * yAnnulus)
+        newRad = radRayVertex + bary * dist
+
+        invNorm = 1.0 / oldRad
+        invNorm3 = invNorm * invNorm * invNorm
+        tmp0 = invNorm * dist / areaT
+        tmp1 = xAnnulus * tmp0
+        tmp2 = yAnnulus * tmp0
+        tmp3 = thrVertex[1] - rayVertex[1]
+        tmp4 = thrVertex[0] - rayVertex[0]
+        tmp5 = xAnnulus * invNorm3 * newRad
+        tmp6 = yAnnulus * invNorm3 * newRad
+
+        jac = sp.Matrix(
+            [
+                [yAnnulus * tmp6 + tmp1 * tmp3, -xAnnulus * tmp6 - tmp1 * tmp4],
+                [-yAnnulus * tmp5 + tmp2 * tmp3, xAnnulus * tmp5 - tmp2 * tmp4],
+            ]
+        ).T
+        
+        hess = sp.Array(
+            [
+                sp.Array(sp.diff(jac, xAnnulus).subs([(xAnnulus, x[0]), (yAnnulus, x[1])])), 
+                sp.Array(sp.diff(jac, yAnnulus).subs([(xAnnulus, x[0]), (yAnnulus, x[1])]))
+            ]
+        )
+
+        return hess
 
     def coupling_includes(self) -> List[str]:
         return ["hyteg/geometry/AnnulusMap.hpp"]
@@ -287,12 +342,7 @@ class IcosahedralShellMap(GeometryMap):
 
         return xnew
 
-    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
-        """Evaluates the Jacobian of the geometry map at the passed point."""
-
-        if sp.shape(x) != (3, 1):
-            raise HOGException("Invalid input shape for IcosahedralShellMap.")
-
+    def jacobian_evaluate(self, x):
         radRefVertex = self.radRefVertex
         radRayVertex = self.radRayVertex
         refVertex = self.refVertex
@@ -372,6 +422,34 @@ class IcosahedralShellMap(GeometryMap):
         )
 
         return jac
+
+    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (3, 1):
+            raise HOGException("Invalid input shape for IcosahedralShellMap.")
+
+        return self.jacobian_evaluate(x)
+    
+    def hessian(self, x: sp.Matrix) -> sp.Array:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (3, 1):
+            raise HOGException("Invalid input shape for IcosahedralShellMap.")
+
+        xAnnulus, yAnnulus, zAnnulus = sp.symbols('x y z')
+
+        jac = sp.simplify(self.jacobian_evaluate([xAnnulus, yAnnulus, zAnnulus]).T)
+
+        hess = sp.Array(
+            [
+                sp.Array(sp.simplify(sp.diff(jac, xAnnulus)).subs([(xAnnulus, x[0]), (yAnnulus, x[1]), (zAnnulus, x[2])])), 
+                sp.Array(sp.simplify(sp.diff(jac, yAnnulus)).subs([(xAnnulus, x[0]), (yAnnulus, x[1]), (zAnnulus, x[2])])),
+                sp.Array(sp.simplify(sp.diff(jac, zAnnulus)).subs([(xAnnulus, x[0]), (yAnnulus, x[1]), (zAnnulus, x[2])]))
+            ]
+        )
+
+        return hess
 
     def coupling_includes(self) -> List[str]:
         return ["hyteg/geometry/IcosahedralShellMap.hpp"]
