@@ -42,6 +42,7 @@ from hog.forms import (
     full_stokes,
     nonlinear_diffusion,
     nonlinear_diffusion_newton_galerkin,
+    supg_diffusion,
 )
 from hog.forms_vectorial import curl_curl, curl_curl_plus_mass, mass_n1e1
 from hog.function_space import (
@@ -587,6 +588,10 @@ def all_operators(
     ops.append(OperatorInfo(mapping="P1Vector", name="Diffusion", trial_space=P1Vector, test_space=P1Vector,
                             form=diffusion, type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
+    ops.append(OperatorInfo(mapping="P2", name="SUPGDiffusion", trial_space=P2, test_space=P2, 
+                            form=partial(supg_diffusion, velocity_function_space=P2, diffusivityXdelta_function_space=P2), 
+                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+    
     # fmt: on
 
     p2vec_epsilon = partial(
