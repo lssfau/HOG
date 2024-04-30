@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 import itertools
 import numpy as np
 import sympy as sp
-from typing import List, Tuple, Set, Union
+from typing import List, Tuple, Set, Union, Dict
 
 import pystencils as ps
 from pystencils import Field, FieldType
@@ -468,7 +468,7 @@ class P1VectorFunctionSpaceImpl(FunctionSpaceImpl):
         is_pointer: bool = False,
     ):
         super().__init__(fe_space, name, type_descriptor, is_pointer)
-        self.fields = {}
+        self.fields: Dict = {}
 
     def _field_name(self, component: int) -> str:
         return self.name + f"_{component}"
@@ -480,11 +480,14 @@ class P1VectorFunctionSpaceImpl(FunctionSpaceImpl):
         if dim == 2:
             return f"communication::syncVectorFunctionBetweenPrimitives( {self.name}, level, communication::syncDirection_t::LOW2HIGH );"
         else:
-            return (
-                f"{self._deref()}.communicate< Face, Cell >( level );\n"
-                f"{self._deref()}.communicate< Edge, Cell >( level );\n"
-                f"{self._deref()}.communicate< Vertex, Cell >( level );"
-            )
+            ret_str = ""
+            for i in range(dim):
+                ret_str += (
+                    f"{self._deref()}[{i}].communicate< Face, Cell >( level );\n"
+                    f"{self._deref()}[{i}].communicate< Edge, Cell >( level );\n"
+                    f"{self._deref()}[{i}].communicate< Vertex, Cell >( level );"
+                )
+            return ret_str
 
     def zero_halos(self, dim: int) -> str:
         if dim == 2:
@@ -516,16 +519,19 @@ class P1VectorFunctionSpaceImpl(FunctionSpaceImpl):
             ret_str = ""
             for i in range(dim):
                 ret_str += (
-                f"{self._deref()}[{i}].communicateAdditively < Face, Edge > ( {params} );\n"
-                f"{self._deref()}[{i}].communicateAdditively < Face, Vertex > ( {params} );\n"
-            )
+                    f"{self._deref()}[{i}].communicateAdditively < Face, Edge > ( {params} );\n"
+                    f"{self._deref()}[{i}].communicateAdditively < Face, Vertex > ( {params} );\n"
+                )
             return ret_str
         else:
-            return (
-                f"{self._deref()}.communicateAdditively< Cell, Face >( {params} );\n"
-                f"{self._deref()}.communicateAdditively< Cell, Edge >( {params} );\n"
-                f"{self._deref()}.communicateAdditively< Cell, Vertex >( {params} );"
-            )
+            ret_str = ""
+            for i in range(dim):
+                ret_str += (
+                    f"{self._deref()}[{i}].communicateAdditively< Cell, Face >( {params} );\n"
+                    f"{self._deref()}[{i}].communicateAdditively< Cell, Edge >( {params} );\n"
+                    f"{self._deref()}[{i}].communicateAdditively< Cell, Vertex >( {params} );"
+                )
+            return ret_str
 
     def pointer_retrieval(self, dim: int) -> str:
         """C++ code for retrieving pointers to the numerical data stored in the macro primitives `face` (2d) or `cell` (3d)."""

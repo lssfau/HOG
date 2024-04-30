@@ -563,8 +563,7 @@ def all_operators(
                             type_descriptor=type_descriptor, opts=opts, blending=blending))
 
     ops.append(OperatorInfo(mapping="P1Vector", name="Diffusion", trial_space=P1Vector, test_space=P1Vector,
-                            form=diffusion, type_descriptor=type_descriptor, opts=opts, blending=blending,
-                            geometries=[TriangleElement()]))
+                            form=diffusion, type_descriptor=type_descriptor, opts=opts, blending=blending))
 
     # fmt: on
 
