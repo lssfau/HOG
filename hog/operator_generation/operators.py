@@ -767,7 +767,7 @@ class HyTeGElementwiseOperator:
             first_vertex=0,
             symbol_suffix="_const",
         )
-
+        
         jacobi_assignments = hog.code_generation.jacobi_matrix_assignments(
             mat,
             integration_info.tables + quad_loop,
@@ -897,9 +897,24 @@ class HyTeGElementwiseOperator:
                     for component in range(geometry.dimensions)
                 ]
 
+            if integration_info.blending.is_affine():
+                blending_assignments = []
+            else:
+                blending_assignments = hog.code_generation.blending_jacobi_matrix_assignments(
+                    mat,
+                    integration_info.tables + quad_loop,
+                    geometry,
+                    self.symbolizer,
+                    affine_points=element_vertex_coordinates_symbols,
+                    blending=integration_info.blending,
+                    quad_info=integration_info.quad,
+                )
+            
+
             body = (
                 loop_counter_custom_code_nodes
                 + coords_assignments
+                + blending_assignments
                 + load_vecs
                 + quad_loop
                 + kernel_op_assignments

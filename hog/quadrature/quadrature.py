@@ -234,10 +234,12 @@ class Quadrature:
                 inline_weights = self._weights
 
             # unroll the quadrature loop, stick body for all iterations over quad points together
-            for point, weight in zip(inline_points, inline_weights):
+            for i, (point, weight) in enumerate(zip(inline_points, inline_weights)):
                 spat_coord_subs = {}
                 for idx, symbol in enumerate(ref_symbols):
                     spat_coord_subs[symbol] = point[idx]
+                for symbol in symbolizer.quadpoint_dependent_free_symbols(self._geometry.dimensions):
+                    spat_coord_subs[symbol] = sp.Symbol(symbol.name + "_q_{}".format(*[i]))
                 f_sub = fast_subs(f, spat_coord_subs)
                 mat_entry += f_sub * weight
 
