@@ -80,6 +80,10 @@ Weak formulation
     v: test function  (space: {test})
     
     ∫ ∇u : ∇v
+    
+    Note that the double contraction (:) reduces to the dot product for scalar function spaces, i.e. the form becomes
+    
+    ∫ ∇u · ∇v 
 """
 
     if trial != test:
@@ -90,7 +94,6 @@ Weak formulation
     with TimedLogger("assembling diffusion matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
         jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
