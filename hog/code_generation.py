@@ -284,43 +284,50 @@ def blending_jacobi_matrix_assignments(
 
     assignments = []
 
-    for i_q_pt, (point, weight) in enumerate(zip(quad_info._points, quad_info._weights)):
+    free_symbols = element_matrix.free_symbols | {
+        free_symbol
+        for stmt in quad_stmts
+        for free_symbol in stmt.undefined_symbols
+        if isinstance(stmt, Node)
+    }
+
+    for i_q_pt, point in enumerate(quad_info._point_symbols):
         jac_blend_symbol = symbolizer.jac_ref_to_blending(geometry.dimensions, q_pt = "_q_{}".format(*[i_q_pt]))
         jac_blend_inv_symbol = symbolizer.jac_ref_to_blending_inv(geometry.dimensions, q_pt = "_q_{}".format(*[i_q_pt]))
         jac_blend_det_symbol = symbolizer.abs_det_jac_ref_to_blending(q_pt = "_q_{}".format(*[i_q_pt]))
 
-        # jac_blending_inv_in_expr = set(jac_blend_inv_symbol).intersection(free_symbols)
-        # abs_det_jac_blending_in_expr = jac_blend_det_symbol in free_symbols
+        jac_blending_inv_in_expr = set(jac_blend_inv_symbol).intersection(free_symbols)
+        abs_det_jac_blending_in_expr = jac_blend_det_symbol in free_symbols
 
-        # if jac_blending_inv_in_expr:
-        jac_blend_inv_expr = jac_blend_symbol.inv()
-        for s_ij, e_ij in zip(jac_blend_inv_symbol, jac_blend_inv_expr):
-            # if s_ij in jac_blending_inv_in_expr:
-            assignments.append(SympyAssignment(s_ij, e_ij))
+        if jac_blending_inv_in_expr:
+            jac_blend_inv_expr = jac_blend_symbol.inv()
+            for s_ij, e_ij in zip(jac_blend_inv_symbol, jac_blend_inv_expr):
+                if s_ij in jac_blending_inv_in_expr:
+                    assignments.append(SympyAssignment(s_ij, e_ij))
 
-        # if abs_det_jac_blending_in_expr:
-        assignments.append(
-            SympyAssignment(jac_blend_det_symbol, sp.Abs(jac_blend_symbol.det()))
-        )
+        if abs_det_jac_blending_in_expr:
+            assignments.append(
+                SympyAssignment(jac_blend_det_symbol, sp.Abs(jac_blend_symbol.det()))
+            )
 
-        # jac_blending_in_expr = set(jac_blend_symbol).intersection(free_symbols)
+        free_symbols |= {free_symbol for a in assignments for free_symbol in a.rhs.atoms()}
+
+        jac_blending_in_expr = set(jac_blend_symbol).intersection(free_symbols)
 
         # Just an early exit. Not strictly required, but might accelerate this process in some cases.
-        # if jac_blending_in_expr:
-        if isinstance(blending, ExternalMap):
-            HOGException("Not implemented or cannot be?")
+        if jac_blending_in_expr:
+            if isinstance(blending, ExternalMap):
+                HOGException("Not implemented or cannot be?")
 
-        # Collecting all expressions to parse for step 3.
-        # free_symbols |= {free_symbol for a in assignments for free_symbol in a.rhs.atoms()}
-        
-        jac_blend_expr = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
-        spat_coord_subs = {}
-        for idx, symbol in enumerate(symbolizer.ref_coords_as_list(geometry.dimensions)):
-            spat_coord_subs[symbol] = point[idx]
-        jac_blend_expr_sub = jac_blend_expr.subs(spat_coord_subs)
-        for s_ij, e_ij in zip(jac_blend_symbol, jac_blend_expr_sub):
-            # if s_ij in jac_blending_in_expr:
-            assignments.append(SympyAssignment(s_ij, e_ij))
+            # Collecting all expressions to parse for step 3.
+            jac_blend_expr = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
+            spat_coord_subs = {}
+            for idx, symbol in enumerate(symbolizer.ref_coords_as_list(geometry.dimensions)):
+                spat_coord_subs[symbol] = point[idx]
+            jac_blend_expr_sub = jac_blend_expr.subs(spat_coord_subs)
+            for s_ij, e_ij in zip(jac_blend_symbol, jac_blend_expr_sub):
+                if s_ij in jac_blending_in_expr:
+                    assignments.append(SympyAssignment(s_ij, e_ij))
 
     assignments.reverse()
     
