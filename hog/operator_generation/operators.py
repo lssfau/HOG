@@ -206,7 +206,7 @@ class HyTeGElementwiseOperator:
         :param quad: the employed quadrature scheme - should match what has been used to integrate the weak form
         :param blending: the same geometry map that has been passed to the form
         """
-
+        geometry.blending = blending
         if dim not in [2, 3]:
             raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
 
@@ -767,7 +767,7 @@ class HyTeGElementwiseOperator:
             first_vertex=0,
             symbol_suffix="_const",
         )
-        
+
         jacobi_assignments = hog.code_generation.jacobi_matrix_assignments(
             mat,
             integration_info.tables + quad_loop,
@@ -897,19 +897,23 @@ class HyTeGElementwiseOperator:
                     for component in range(geometry.dimensions)
                 ]
 
-            if integration_info.blending.is_affine():
+            if (
+                integration_info.blending.is_affine()
+                and not self._optimizer[Opts.QUADLOOPS]
+            ):
                 blending_assignments = []
             else:
-                blending_assignments = hog.code_generation.blending_jacobi_matrix_assignments(
-                    mat,
-                    integration_info.tables + quad_loop,
-                    geometry,
-                    self.symbolizer,
-                    affine_points=element_vertex_coordinates_symbols,
-                    blending=integration_info.blending,
-                    quad_info=integration_info.quad,
+                blending_assignments = (
+                    hog.code_generation.blending_jacobi_matrix_assignments(
+                        mat,
+                        integration_info.tables + quad_loop,
+                        geometry,
+                        self.symbolizer,
+                        affine_points=element_vertex_coordinates_symbols,
+                        blending=integration_info.blending,
+                        quad_info=integration_info.quad,
+                    )
                 )
-            
 
             body = (
                 loop_counter_custom_code_nodes

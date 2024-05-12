@@ -30,6 +30,11 @@ from hog.operator_generation.pystencils_extensions import create_field_access
 from hog.operator_generation.types import HOGType
 from hog.symbolizer import Symbolizer
 from hog.sympy_extensions import fast_subs
+from hog.fem_helpers import (
+    jac_blending_evaluate,
+    blending_quad_loop_assignments,
+)
+from hog.blending import GeometryMap, IdentityMap
 
 
 class QuadLoop:
@@ -50,6 +55,7 @@ class QuadLoop:
         self.mat_integrand = integrand
         self.type_descriptor = type_descriptor
         self.symmetric = symmetric
+        self.blending = self.quadrature.geometry.blending
 
         self.w_array_name = "q_w"
         self.p_array_names = [
@@ -85,6 +91,25 @@ class QuadLoop:
         quadrature_assignments = []
         accumulator_updates = []
 
+        coord_subs_dict = {
+            symbol: create_field_access(
+                self.p_array_names[dim],
+                self.type_descriptor.pystencils_type,
+                self.q_ctr,
+            )
+            for dim, symbol in enumerate(ref_symbols)
+        }
+
+        if not self.blending.is_affine():
+            jac = jac_blending_evaluate(
+                self.symbolizer, self.quadrature.geometry, self.blending
+            )
+            jac_evaluated = fast_subs(jac, coord_subs_dict)
+
+            quadrature_assignments += blending_quad_loop_assignments(
+                self.quadrature.geometry, self.symbolizer, jac_evaluated
+            )
+
         for row in range(self.mat_integrand.rows):
             for col in range(self.mat_integrand.cols):
                 tmp_symbol = sp.Symbol(f"q_tmp_{row}_{col}")
@@ -92,15 +117,6 @@ class QuadLoop:
 
                 if (self.symmetric and row > col) or not q_acc in accessed_mat_entries:
                     continue
-
-                coord_subs_dict = {
-                    symbol: create_field_access(
-                        self.p_array_names[dim],
-                        self.type_descriptor.pystencils_type,
-                        self.q_ctr,
-                    )
-                    for dim, symbol in enumerate(ref_symbols)
-                }
 
                 weight = create_field_access(
                     self.w_array_name, self.type_descriptor.pystencils_type, self.q_ctr

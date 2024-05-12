@@ -33,6 +33,7 @@ from hog.logger import TimedLogger, get_logger
 from hog.exception import HOGException
 from hog.symbolizer import Symbolizer
 from hog.sympy_extensions import fast_subs
+from hog.blending import GeometryMap, IdentityMap
 
 
 class HOGIntegrationException(HOGException):
@@ -238,8 +239,13 @@ class Quadrature:
                 spat_coord_subs = {}
                 for idx, symbol in enumerate(ref_symbols):
                     spat_coord_subs[symbol] = point[idx]
-                for symbol in symbolizer.quadpoint_dependent_free_symbols(self._geometry.dimensions):
-                    spat_coord_subs[symbol] = sp.Symbol(symbol.name + "_q_{}".format(*[i]))
+                if not self.geometry.blending.is_affine():
+                    for symbol in symbolizer.quadpoint_dependent_free_symbols(
+                        self._geometry.dimensions
+                    ):
+                        spat_coord_subs[symbol] = sp.Symbol(
+                            symbol.name + f"_q_{i}"
+                        )
                 f_sub = fast_subs(f, spat_coord_subs)
                 mat_entry += f_sub * weight
 

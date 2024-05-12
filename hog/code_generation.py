@@ -153,9 +153,9 @@ def replace_multi_assignments(
         # Actually filling the dict.
         for ma in multi_assignments:
             replacement_symbol = replacement_symbols[ma.output_arg()]
-            multi_assignments_replacement_symbols[
-                ma.unique_identifier
-            ] = replacement_symbol
+            multi_assignments_replacement_symbols[ma.unique_identifier] = (
+                replacement_symbol
+            )
 
     if multi_assignments_replacement_symbols:
         with TimedLogger(
@@ -272,6 +272,7 @@ def jacobi_matrix_assignments(
 
     return assignments
 
+
 def blending_jacobi_matrix_assignments(
     element_matrix: sp.Matrix,
     quad_stmts: List[sp.codegen.ast.CodegenAST],
@@ -292,9 +293,15 @@ def blending_jacobi_matrix_assignments(
     }
 
     for i_q_pt, point in enumerate(quad_info._point_symbols):
-        jac_blend_symbol = symbolizer.jac_ref_to_blending(geometry.dimensions, q_pt = "_q_{}".format(*[i_q_pt]))
-        jac_blend_inv_symbol = symbolizer.jac_ref_to_blending_inv(geometry.dimensions, q_pt = "_q_{}".format(*[i_q_pt]))
-        jac_blend_det_symbol = symbolizer.abs_det_jac_ref_to_blending(q_pt = "_q_{}".format(*[i_q_pt]))
+        jac_blend_symbol = symbolizer.jac_affine_to_blending(
+            geometry.dimensions, q_pt=f"_q_{i_q_pt}"
+        )
+        jac_blend_inv_symbol = symbolizer.jac_affine_to_blending_inv(
+            geometry.dimensions, q_pt=f"_q_{i_q_pt}"
+        )
+        jac_blend_det_symbol = symbolizer.abs_det_jac_affine_to_blending(
+            q_pt=f"_q_{i_q_pt}"
+        )
 
         jac_blending_inv_in_expr = set(jac_blend_inv_symbol).intersection(free_symbols)
         abs_det_jac_blending_in_expr = jac_blend_det_symbol in free_symbols
@@ -310,7 +317,9 @@ def blending_jacobi_matrix_assignments(
                 SympyAssignment(jac_blend_det_symbol, sp.Abs(jac_blend_symbol.det()))
             )
 
-        free_symbols |= {free_symbol for a in assignments for free_symbol in a.rhs.atoms()}
+        free_symbols |= {
+            free_symbol for a in assignments for free_symbol in a.rhs.atoms()
+        }
 
         jac_blending_in_expr = set(jac_blend_symbol).intersection(free_symbols)
 
@@ -320,9 +329,13 @@ def blending_jacobi_matrix_assignments(
                 HOGException("Not implemented or cannot be?")
 
             # Collecting all expressions to parse for step 3.
-            jac_blend_expr = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
+            jac_blend_expr = blending.jacobian(
+                trafo_ref_to_affine(geometry, symbolizer, affine_points)
+            )
             spat_coord_subs = {}
-            for idx, symbol in enumerate(symbolizer.ref_coords_as_list(geometry.dimensions)):
+            for idx, symbol in enumerate(
+                symbolizer.ref_coords_as_list(geometry.dimensions)
+            ):
                 spat_coord_subs[symbol] = point[idx]
             jac_blend_expr_sub = jac_blend_expr.subs(spat_coord_subs)
             for s_ij, e_ij in zip(jac_blend_symbol, jac_blend_expr_sub):
@@ -330,8 +343,9 @@ def blending_jacobi_matrix_assignments(
                     assignments.append(SympyAssignment(s_ij, e_ij))
 
     assignments.reverse()
-    
+
     return assignments
+
 
 def code_block_from_element_matrix(
     element_matrix: sp.Matrix,

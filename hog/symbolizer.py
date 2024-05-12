@@ -190,7 +190,7 @@ class Symbolizer:
     def abs_det_jac_ref_to_affine(self) -> sp.Symbol:
         return sp.Symbol(self._symbol_abs_det_jac_affine)
 
-    def jac_ref_to_blending(self, dimensions: int, q_pt: str = "") -> sp.Matrix:
+    def jac_affine_to_blending(self, dimensions: int, q_pt: str = "") -> sp.Matrix:
         return sp.Matrix(
             [
                 [
@@ -201,7 +201,7 @@ class Symbolizer:
             ]
         )
 
-    def jac_ref_to_blending_inv(self, dimensions: int, q_pt: str = "") -> sp.Matrix:
+    def jac_affine_to_blending_inv(self, dimensions: int, q_pt: str = "") -> sp.Matrix:
         return sp.Matrix(
             [
                 [
@@ -212,8 +212,8 @@ class Symbolizer:
             ]
         )
 
-    def abs_det_jac_ref_to_blending(self, q_pt: str = "") -> sp.Symbol:
-        return sp.Symbol(self._symbol_abs_det_jac_blending + q_pt)
+    def abs_det_jac_affine_to_blending(self, q_pt: str = "") -> sp.Symbol:
+        return sp.Symbol(f"{self._symbol_abs_det_jac_blending}{q_pt}")
 
     def blending_parameter_symbols(self, num_symbols: int) -> List[sp.Symbol]:
         return sp.symbols(
@@ -221,7 +221,11 @@ class Symbolizer:
         )
 
     def quadpoint_dependent_free_symbols(self, dimensions: int) -> List[sp.Symbol]:
-        return list(self.jac_ref_to_blending(dimensions).free_symbols) + list(self.jac_ref_to_blending_inv(dimensions).free_symbols) + list(self.abs_det_jac_ref_to_blending().free_symbols)
+        return (
+            list(self.jac_affine_to_blending(dimensions).free_symbols)
+            + list(self.jac_affine_to_blending_inv(dimensions).free_symbols)
+            + list(self.abs_det_jac_affine_to_blending().free_symbols)
+        )
 
     def float_loop_ctr_array(self, dimensions: int) -> List[sp.Symbol]:
         return sp.symbols(

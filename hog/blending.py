@@ -17,12 +17,6 @@
 import sympy as sp
 from typing import Any, List
 from hog.exception import HOGException
-from hog.element_geometry import (
-    ElementGeometry,
-    LineElement,
-    TriangleElement,
-    TetrahedronElement,
-)
 
 
 class GeometryMap:
@@ -31,10 +25,6 @@ class GeometryMap:
 
     Instances of subclasses can be used to compile a blending function directly "into" the operator.
     """
-
-    def supported_geometries(self) -> List[ElementGeometry]:
-        """Returns the element types that the map can be executed on."""
-        return []
 
     def is_affine(self) -> bool:
         """Shall return true if the map is an affine mapping. Certain critical optimizations depend on this.
@@ -66,9 +56,6 @@ class IdentityMap(GeometryMap):
     """
     Just the identity. Nothing happens.
     """
-
-    def supported_geometries(self) -> List[ElementGeometry]:
-        return [LineElement(), TriangleElement(), TetrahedronElement()]
 
     def is_affine(self) -> bool:
         return True
@@ -107,9 +94,6 @@ class AnnulusMap(GeometryMap):
         self.refVertex = sp.Matrix([["refVertex_0"], ["refVertex_1"]])
         self.rayVertex = sp.Matrix([["rayVertex_0"], ["rayVertex_1"]])
         self.thrVertex = sp.Matrix([["thrVertex_0"], ["thrVertex_1"]])
-
-    def supported_geometries(self) -> List[ElementGeometry]:
-        return [TriangleElement()]
 
     def evaluate(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the geometry map at the passed point."""
@@ -195,9 +179,6 @@ class IcosahedralShellMap(GeometryMap):
         self.rayVertex = sp.Matrix([["rayVertex_0"], ["rayVertex_1"], ["rayVertex_2"]])
         self.thrVertex = sp.Matrix([["thrVertex_0"], ["thrVertex_1"], ["thrVertex_2"]])
         self.forVertex = sp.Matrix([["forVertex_0"], ["forVertex_1"], ["forVertex_2"]])
-
-    def supported_geometries(self) -> List[ElementGeometry]:
-        return [TetrahedronElement()]
 
     def evaluate(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the geometry map at the passed point."""

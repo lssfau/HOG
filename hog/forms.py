@@ -102,9 +102,11 @@ Weak formulation
         else:
             # affine_coords = trafo_ref_to_affine(geometry, symbolizer)
             # jac_blending = blending.jacobian(affine_coords)
-            jac_blending = symbolizer.jac_ref_to_blending(geometry.dimensions)
-            jac_blending_inv = symbolizer.jac_ref_to_blending_inv(geometry.dimensions)
-            jac_blending_det = symbolizer.abs_det_jac_ref_to_blending()   
+            jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(
+                geometry.dimensions
+            )
+            jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
 
         mat = create_empty_element_matrix(trial, test, geometry)
         it = element_matrix_iterator(trial, test, geometry)
