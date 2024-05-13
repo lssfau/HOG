@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+import sys
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from functools import partial
@@ -279,6 +280,8 @@ def main():
 
     logger = get_logger(log_level)
     TimedLogger.set_log_level(log_level)
+
+    logger.info(f"Running {__file__} with arguments: {' '.join(sys.argv[1:])}")
 
     symbolizer = Symbolizer()
 
