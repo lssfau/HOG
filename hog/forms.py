@@ -525,11 +525,22 @@ def epsilon(
     variable_viscosity: bool = True,
     coefficient_function_space: Optional[FunctionSpace] = None,
 ) -> Form:
+
+    if trial.is_vectorial ^ test.is_vectorial:
+        raise HOGException(
+            "Either both (trial and test) spaces or none should be vectorial."
+        )
+
+    vectorial_spaces = trial.is_vectorial
+    docstring_components = (
+        ""
+        if vectorial_spaces
+        else f"\nComponent trial: {component_trial}\nComponent test:  {component_test}"
+    )
+
     docstring = f"""
 "Epsilon" operator.
-
-Component trial: {component_trial}
-Component test:  {component_test}
+{docstring_components}
 Geometry map:    {blending}
 
 Weak formulation
@@ -544,12 +555,17 @@ where
     
     ε(w) := (1/2) (∇w + (∇w)ᵀ)
 """
-    if variable_viscosity == False:
+    if not variable_viscosity:
         raise HOGException("Constant viscosity currently not supported.")
         # TODO fix issue with undeclared p_affines
 
-    if geometry.dimensions < 3 and (component_trial > 1 or component_test > 1):
+    if (
+        not vectorial_spaces
+        and geometry.dimensions < 3
+        and (component_trial > 1 or component_test > 1)
+    ):
         return create_empty_element_matrix(trial, test, geometry)
+
     with TimedLogger("assembling epsilon matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
@@ -602,7 +618,7 @@ where
             if isinstance(trial, EnrichedGalerkinFunctionSpace):
                 # for EDG, the shape function is already vectorial and does not have to be multiplied by e_vec
                 grad_phi_vec = jac_affine * grad_phi_vec
-            else:
+            elif not vectorial_spaces:
                 grad_phi_vec = (
                     (e_vec(geometry.dimensions, component_trial) * phi)
                     .jacobian(ref_symbols_list)
@@ -612,7 +628,7 @@ where
             if isinstance(test, EnrichedGalerkinFunctionSpace):
                 # for EDG, the shape function is already vectorial and does not have to be multiplied by e_vec
                 grad_psi_vec = jac_affine * grad_psi_vec
-            else:
+            elif not vectorial_spaces:
                 grad_psi_vec = (
                     (e_vec(geometry.dimensions, component_test) * psi)
                     .jacobian(ref_symbols_list)
@@ -697,7 +713,7 @@ where
     return Form(
         mat,
         tabulation,
-        symmetric=component_trial == component_test,
+        symmetric=vectorial_spaces or (component_trial == component_test),
         docstring=docstring,
     )
 
@@ -727,7 +743,7 @@ Weak formulation
     if trial != test:
         TimedLogger(
             "Trial and test space can be different, but please make sure this is intensional!",
-            level=logging.INFO
+            level=logging.INFO,
         ).log()
 
     with TimedLogger("assembling k-mass matrix", level=logging.DEBUG):
