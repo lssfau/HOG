@@ -48,7 +48,7 @@ add_operator_test(FILE DiffusionP1.cpp       DEF TEST_ASSEMBLE FORM Diffusion AB
 add_operator_test(FILE DiffusionP1.cpp                         FORM Diffusion ABBR 1VIP    GEN_ARGS -s P1       --quad-degree 0 0 -o MOVECONSTANTS VECTORIZE POLYCSE)
 add_operator_test(FILE DiffusionP1.cpp                         FORM Diffusion ABBR 1CVI    GEN_ARGS -s P1       --quad-degree 0 0 --loop-strategy CUBES -o MOVECONSTANTS VECTORIZE)
 add_operator_test(FILE DiffusionP2.cpp       DEF TEST_ASSEMBLE FORM Diffusion ABBR 2       GEN_ARGS -s P2       --quad-degree 2 2)
-add_operator_test(FILE DiffusionP1Vector.cpp DEF TEST_ASSEMBLE FORM Diffusion ABBR 1Vec    GEN_ARGS -s P1Vector --quad-degree 0 0                                                  ARG_LIBS mixed_operator)
+add_operator_test(FILE DiffusionP1Vector.cpp DEF TEST_ASSEMBLE FORM Diffusion ABBR 1Vec    GEN_ARGS -s P1Vector --quad-degree 0 0                                                  LIBS mixed_operator)
 
 add_operator_test(FILE DivKGrad.cpp DEF TEST_ASSEMBLE FORM DivKGrad ABBR noopts GEN_ARGS -s P2 --quad-degree 4 4)
 add_operator_test(FILE DivKGrad.cpp                   FORM DivKGrad ABBR VIQ    GEN_ARGS -s P2 --quad-degree 4 4 -o MOVECONSTANTS VECTORIZE QUADLOOPS )
