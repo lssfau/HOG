@@ -52,7 +52,7 @@ int main( int argc, char* argv[] )
           level, storageSetup, 225, 9.0e6 );
 
 #ifdef TEST_ASSEMBLE
-      compareAssembledMatrix< P1ElementwiseLaplaceOperator, operatorgeneration::TestOpDiffusion >(
+      compareAssembledMatrix< P1ElementwiseVectorLaplaceOperator, operatorgeneration::TestOpDiffusion >(
           level, storageSetup, storageSetup.description() + " Assembly", 360 );
 #endif
    }
