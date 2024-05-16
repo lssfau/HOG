@@ -248,7 +248,7 @@ def blending_supported_geometries(blending: GeometryMap) -> List[ElementGeometry
 
 
 def jac_blending_evaluate(
-    symbolizer: Symbolizer, geometry: ElementGeometry, blending_map: GeometryMap
+    symbolizer: Symbolizer, geometry: ElementGeometry
 ) -> sp.Matrix:
     affine_points = symbolizer.affine_vertices_as_vectors(
         geometry.dimensions, geometry.num_vertices
@@ -260,16 +260,16 @@ def jac_blending_evaluate(
 
 
 def abs_det_jac_blending_eval_symbols(
-    geometry: ElementGeometry, symbolizer: Symbolizer
+    geometry: ElementGeometry, symbolizer: Symbolizer, q_pt: str = ""
 ) -> sp.Expr:
-    jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions)
+    jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
     return det(jac_blending)
 
 
 def jac_blending_inv_eval_symbols(
-    geometry: ElementGeometry, symbolizer: Symbolizer
+    geometry: ElementGeometry, symbolizer: Symbolizer, q_pt: str = ""
 ) -> sp.Matrix:
-    jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions)
+    jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
     return inv(jac_blending)
 
 

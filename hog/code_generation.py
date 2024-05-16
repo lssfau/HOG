@@ -25,7 +25,13 @@ from hog.ast import Assignment, CodeBlock, FunctionCall, FunctionDefinition
 import hog.cse
 from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
-from hog.fem_helpers import jac_ref_to_affine, trafo_ref_to_affine
+from hog.fem_helpers import (
+    jac_ref_to_affine,
+    trafo_ref_to_affine,
+    jac_blending_evaluate,
+    abs_det_jac_blending_eval_symbols,
+    jac_blending_inv_eval_symbols,
+)
 from hog.logger import TimedLogger
 from hog.multi_assignment import Member, MultiAssignment
 from hog.quadrature import Quadrature
@@ -303,18 +309,24 @@ def blending_jacobi_matrix_assignments(
             q_pt=f"_q_{i_q_pt}"
         )
 
+        jac_blend_inv_eval_symbol = jac_blending_inv_eval_symbols(
+            geometry, symbolizer, f"_q_{i_q_pt}"
+        )
+        abs_det_jac_blend_eval_symbol = abs_det_jac_blending_eval_symbols(
+            geometry, symbolizer, f"_q_{i_q_pt}"
+        )
+
         jac_blending_inv_in_expr = set(jac_blend_inv_symbol).intersection(free_symbols)
         abs_det_jac_blending_in_expr = jac_blend_det_symbol in free_symbols
 
         if jac_blending_inv_in_expr:
-            jac_blend_inv_expr = jac_blend_symbol.inv()
-            for s_ij, e_ij in zip(jac_blend_inv_symbol, jac_blend_inv_expr):
+            for s_ij, e_ij in zip(jac_blend_inv_symbol, jac_blend_inv_eval_symbol):
                 if s_ij in jac_blending_inv_in_expr:
                     assignments.append(SympyAssignment(s_ij, e_ij))
 
         if abs_det_jac_blending_in_expr:
             assignments.append(
-                SympyAssignment(jac_blend_det_symbol, sp.Abs(jac_blend_symbol.det()))
+                SympyAssignment(jac_blend_det_symbol, abs_det_jac_blend_eval_symbol)
             )
 
         free_symbols |= {
@@ -328,10 +340,8 @@ def blending_jacobi_matrix_assignments(
             if isinstance(blending, ExternalMap):
                 HOGException("Not implemented or cannot be?")
 
+            jac_blend_expr = jac_blending_evaluate(symbolizer, geometry)
             # Collecting all expressions to parse for step 3.
-            jac_blend_expr = blending.jacobian(
-                trafo_ref_to_affine(geometry, symbolizer, affine_points)
-            )
             spat_coord_subs = {}
             for idx, symbol in enumerate(
                 symbolizer.ref_coords_as_list(geometry.dimensions)

@@ -102,7 +102,7 @@ class QuadLoop:
 
         if not self.blending.is_affine():
             jac = jac_blending_evaluate(
-                self.symbolizer, self.quadrature.geometry, self.blending
+                self.symbolizer, self.quadrature.geometry
             )
             jac_evaluated = fast_subs(jac, coord_subs_dict)
 

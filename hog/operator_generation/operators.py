@@ -899,7 +899,7 @@ class HyTeGElementwiseOperator:
 
             if (
                 integration_info.blending.is_affine()
-                and not self._optimizer[Opts.QUADLOOPS]
+                or self._optimizer[Opts.QUADLOOPS]
             ):
                 blending_assignments = []
             else:
@@ -914,6 +914,15 @@ class HyTeGElementwiseOperator:
                         quad_info=integration_info.quad,
                     )
                 )
+
+                with TimedLogger("cse on blending operation", logging.DEBUG):
+                    cse_impl = self._optimizer.cse_impl()
+                    blending_assignments = hog.cse.cse(
+                        blending_assignments,
+                        cse_impl,
+                        "tmp_blending_op",
+                        return_type=SympyAssignment,
+                    )
 
             body = (
                 loop_counter_custom_code_nodes
