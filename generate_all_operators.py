@@ -527,6 +527,7 @@ def all_operators(
     P1 = LagrangianFunctionSpace(1, symbolizer)
     P1Vector = TensorialVectorFunctionSpace(P1)
     P2 = LagrangianFunctionSpace(2, symbolizer)
+    P2Vector = TensorialVectorFunctionSpace(P2)
     N1E1 = N1E1Space(symbolizer)
 
     two_d = [TriangleElement()]
@@ -570,6 +571,24 @@ def all_operators(
                             form=diffusion, type_descriptor=type_descriptor, opts=opts, blending=blending))
 
     # fmt: on
+
+    p2vec_epsilon = partial(
+        epsilon,
+        variable_viscosity=True,
+        coefficient_function_space=P2,
+    )
+    ops.append(
+        OperatorInfo(
+            mapping=f"P2Vector",
+            name=f"Epsilon",
+            trial_space=P2Vector,
+            test_space=P2Vector,
+            form=p2vec_epsilon,
+            type_descriptor=type_descriptor,
+            opts=opts,
+            blending=blending,
+        )
+    )
 
     for c in [0, 1, 2]:
         # fmt: off
