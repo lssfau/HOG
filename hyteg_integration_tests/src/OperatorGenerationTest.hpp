@@ -308,7 +308,7 @@ void compareGEMV( const uint_t        level,
    {
       maxAbs = err.getDoFs()->getMaxMagnitude( level );
    }
-   else if constexpr ( std::is_same_v< RefDstFncType, P1VectorFunction< real_t > > || std::is_same_v< RefDstFncType, P2VectorFunction< real_t > > )
+   else if constexpr ( std::is_same_v< DstFncType, P1VectorFunction< real_t > > || std::is_same_v< DstFncType, P2VectorFunction< real_t > > )
    {
       maxAbs = err.getMaxComponentMagnitude( level, All );
    }
