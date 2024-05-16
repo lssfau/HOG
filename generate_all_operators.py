@@ -357,8 +357,8 @@ def main():
 
     filtered_operators = list(
         filter(
-            lambda o: re.fullmatch(args.space_mapping, o.mapping)
-            and re.fullmatch(args.form, o.name),
+            lambda o: re.fullmatch(args.space_mapping, o.mapping, re.IGNORECASE)
+            and re.fullmatch(args.form, o.name, re.IGNORECASE),
             operators,
         )
     )
