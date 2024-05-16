@@ -120,7 +120,7 @@ def parse_arguments():
     parser.add_argument(
         "-s",
         "--space-mapping",
-        default="",
+        default=".*?",
         help="Filter by function space, e.g. 'P1' or 'P1toP2' (regex).",
         # TODO add choices list and type=string.lower
     )
