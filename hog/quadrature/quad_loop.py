@@ -30,6 +30,13 @@ from hog.operator_generation.pystencils_extensions import create_field_access
 from hog.operator_generation.types import HOGType
 from hog.symbolizer import Symbolizer
 from hog.sympy_extensions import fast_subs
+from hog.fem_helpers import (
+    jac_blending_evaluate,
+    abs_det_jac_blending_eval_symbols,
+    jac_blending_inv_eval_symbols,
+)
+from hog.element_geometry import ElementGeometry
+from hog.blending import GeometryMap, IdentityMap
 
 
 class QuadLoop:
@@ -44,12 +51,14 @@ class QuadLoop:
         integrand: sp.MatrixBase,
         type_descriptor: HOGType,
         symmetric: bool,
+        blending: GeometryMap = IdentityMap(),
     ):
         self.symbolizer = symbolizer
         self.quadrature = quadrature
         self.mat_integrand = integrand
         self.type_descriptor = type_descriptor
         self.symmetric = symmetric
+        self.blending = blending
 
         self.w_array_name = "q_w"
         self.p_array_names = [
@@ -85,6 +94,25 @@ class QuadLoop:
         quadrature_assignments = []
         accumulator_updates = []
 
+        coord_subs_dict = {
+            symbol: create_field_access(
+                self.p_array_names[dim],
+                self.type_descriptor.pystencils_type,
+                self.q_ctr,
+            )
+            for dim, symbol in enumerate(ref_symbols)
+        }
+
+        if not self.blending.is_affine():
+            jac = jac_blending_evaluate(
+                self.symbolizer, self.quadrature.geometry, self.blending
+            )
+            jac_evaluated = fast_subs(jac, coord_subs_dict)
+
+            quadrature_assignments += self.blending_quad_loop_assignments(
+                self.quadrature.geometry, self.symbolizer, jac_evaluated
+            )
+
         for row in range(self.mat_integrand.rows):
             for col in range(self.mat_integrand.cols):
                 tmp_symbol = sp.Symbol(f"q_tmp_{row}_{col}")
@@ -92,15 +120,6 @@ class QuadLoop:
 
                 if (self.symmetric and row > col) or not q_acc in accessed_mat_entries:
                     continue
-
-                coord_subs_dict = {
-                    symbol: create_field_access(
-                        self.p_array_names[dim],
-                        self.type_descriptor.pystencils_type,
-                        self.q_ctr,
-                    )
-                    for dim, symbol in enumerate(ref_symbols)
-                }
 
                 weight = create_field_access(
                     self.w_array_name, self.type_descriptor.pystencils_type, self.q_ctr
@@ -163,3 +182,41 @@ class QuadLoop:
                 )
             )
         return quad_decls
+
+    def blending_quad_loop_assignments(
+        self,
+        geometry: ElementGeometry,
+        symbolizer: Symbolizer,
+        jac_evaluated: sp.Matrix,
+    ) -> List[ast.SympyAssignment]:
+        quadrature_assignments = []
+
+        jac_symbols = symbolizer.jac_affine_to_blending(geometry.dimensions)
+
+        abs_det_jac_blending = abs_det_jac_blending_eval_symbols(geometry, symbolizer)
+
+        jac_blending_inv = symbolizer.jac_affine_to_blending_inv(geometry.dimensions)
+        jac_blending_inv_eval = jac_blending_inv_eval_symbols(geometry, symbolizer)
+
+        dim = geometry.dimensions
+        quadrature_assignments += [
+            ast.SympyAssignment(jac_symbols[i, j], jac_evaluated[i, j], is_const=False)
+            for i in range(dim)
+            for j in range(dim)
+        ]
+        quadrature_assignments.append(
+            ast.SympyAssignment(
+                symbolizer.abs_det_jac_affine_to_blending(),
+                abs_det_jac_blending,
+                is_const=False,
+            )
+        )
+        quadrature_assignments += [
+            ast.SympyAssignment(
+                jac_blending_inv[i, j], jac_blending_inv_eval[i, j], is_const=False
+            )
+            for i in range(dim)
+            for j in range(dim)
+        ]
+
+        return quadrature_assignments

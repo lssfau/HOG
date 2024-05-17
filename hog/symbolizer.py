@@ -44,6 +44,9 @@ class Symbolizer:
         symbol_abs_det_jac_affine="abs_det_jac_affine",
         symbol_blending_parameter_prefix="blending_param_",
         float_loop_ctr_array_prefix="float_loop_ctr_array_dim_",
+        symbol_jac_blending="jac_blending",
+        symbol_jac_blending_inv="jac_blending_inv",
+        symbol_abs_det_jac_blending="abs_det_jac_blending",
     ):
         """Creates a Symbolizer instance.
 
@@ -73,6 +76,9 @@ class Symbolizer:
         self._symbol_abs_det_jac_affine = symbol_abs_det_jac_affine
         self._symbol_blending_parameter_prefix = symbol_blending_parameter_prefix
         self._float_loop_ctr_array_prefix = float_loop_ctr_array_prefix
+        self._symbol_jac_blending = symbol_jac_blending
+        self._symbol_jac_blending_inv = symbol_jac_blending_inv
+        self._symbol_abs_det_jac_blending = symbol_abs_det_jac_blending
 
     def ref_coords_as_list(self, dimensions: int) -> List[sp.Symbol]:
         """Returns a list of symbols that correspond to the coordinates on the reference element."""
@@ -184,9 +190,41 @@ class Symbolizer:
     def abs_det_jac_ref_to_affine(self) -> sp.Symbol:
         return sp.Symbol(self._symbol_abs_det_jac_affine)
 
+    def jac_affine_to_blending(self, dimensions: int, q_pt: str = "") -> sp.Matrix:
+        return sp.Matrix(
+            [
+                [
+                    sp.Symbol(f"{self._symbol_jac_blending}_{i}_{j}{q_pt}")
+                    for j in range(dimensions)
+                ]
+                for i in range(dimensions)
+            ]
+        )
+
+    def jac_affine_to_blending_inv(self, dimensions: int, q_pt: str = "") -> sp.Matrix:
+        return sp.Matrix(
+            [
+                [
+                    sp.Symbol(f"{self._symbol_jac_blending_inv}_{i}_{j}{q_pt}")
+                    for j in range(dimensions)
+                ]
+                for i in range(dimensions)
+            ]
+        )
+
+    def abs_det_jac_affine_to_blending(self, q_pt: str = "") -> sp.Symbol:
+        return sp.Symbol(f"{self._symbol_abs_det_jac_blending}{q_pt}")
+
     def blending_parameter_symbols(self, num_symbols: int) -> List[sp.Symbol]:
         return sp.symbols(
             [f"{self._symbol_blending_parameter_prefix}{i}" for i in range(num_symbols)]
+        )
+
+    def quadpoint_dependent_free_symbols(self, dimensions: int) -> List[sp.Symbol]:
+        return (
+            list(self.jac_affine_to_blending(dimensions).free_symbols)
+            + list(self.jac_affine_to_blending_inv(dimensions).free_symbols)
+            + list(self.abs_det_jac_affine_to_blending().free_symbols)
         )
 
     def float_loop_ctr_array(self, dimensions: int) -> List[sp.Symbol]:

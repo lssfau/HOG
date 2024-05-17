@@ -15,10 +15,16 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import sympy as sp
-from typing import Iterator, List, Optional, Tuple, Union
+from typing import Iterator, List, Optional, Tuple, Union, Dict
 from dataclasses import dataclass
 
-from hog.blending import GeometryMap, ExternalMap, IdentityMap
+from hog.blending import (
+    GeometryMap,
+    ExternalMap,
+    IdentityMap,
+    AnnulusMap,
+    IcosahedralShellMap,
+)
 from hog.element_geometry import (
     ElementGeometry,
     TriangleElement,
@@ -27,7 +33,7 @@ from hog.element_geometry import (
 )
 from hog.exception import HOGException
 from hog.function_space import FunctionSpace
-from hog.math_helpers import inv
+from hog.math_helpers import inv, det
 from hog.multi_assignment import MultiAssignment
 from hog.symbolizer import Symbolizer
 from hog.external_functions import (
@@ -225,6 +231,31 @@ def jac_affine_to_physical(
                 )
             jac[row, col] = blending_class(sp.Symbol("blend"), row * cols + col, *t)
     return jac
+
+def jac_blending_evaluate(
+    symbolizer: Symbolizer, geometry: ElementGeometry, blending: GeometryMap
+) -> sp.Matrix:
+    affine_points = symbolizer.affine_vertices_as_vectors(
+        geometry.dimensions, geometry.num_vertices
+    )
+    jac = blending.jacobian(
+        trafo_ref_to_affine(geometry, symbolizer, affine_points)
+    )
+    return jac
+
+
+def abs_det_jac_blending_eval_symbols(
+    geometry: ElementGeometry, symbolizer: Symbolizer, q_pt: str = ""
+) -> sp.Expr:
+    jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
+    return det(jac_blending)
+
+
+def jac_blending_inv_eval_symbols(
+    geometry: ElementGeometry, symbolizer: Symbolizer, q_pt: str = ""
+) -> sp.Matrix:
+    jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
+    return inv(jac_blending)
 
 
 def scalar_space_dependent_coefficient(

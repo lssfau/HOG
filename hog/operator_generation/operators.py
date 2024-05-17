@@ -234,7 +234,12 @@ class HyTeGElementwiseOperator:
 
         if self._optimizer[Opts.QUADLOOPS]:
             quad_loop = QuadLoop(
-                self.symbolizer, quad, mat, self._type_descriptor, form.symmetric
+                self.symbolizer,
+                quad,
+                mat,
+                self._type_descriptor,
+                form.symmetric,
+                blending,
             )
             mat = quad_loop.mat
         else:
@@ -248,7 +253,7 @@ class HyTeGElementwiseOperator:
                             mat[row, col] = mat[col, row]
                         else:
                             mat[row, col] = quad.integrate(
-                                mat[row, col], self.symbolizer
+                                mat[row, col], self.symbolizer, blending
                             )
 
         self.element_matrices[dim] = IntegrationInfo(
@@ -897,9 +902,34 @@ class HyTeGElementwiseOperator:
                     for component in range(geometry.dimensions)
                 ]
 
+            if integration_info.blending.is_affine() or self._optimizer[Opts.QUADLOOPS]:
+                blending_assignments = []
+            else:
+                blending_assignments = (
+                    hog.code_generation.blending_jacobi_matrix_assignments(
+                        mat,
+                        integration_info.tables + quad_loop,
+                        geometry,
+                        self.symbolizer,
+                        affine_points=element_vertex_coordinates_symbols,
+                        blending=integration_info.blending,
+                        quad_info=integration_info.quad,
+                    )
+                )
+
+                with TimedLogger("cse on blending operation", logging.DEBUG):
+                    cse_impl = self._optimizer.cse_impl()
+                    blending_assignments = hog.cse.cse(
+                        blending_assignments,
+                        cse_impl,
+                        "tmp_blending_op",
+                        return_type=SympyAssignment,
+                    )
+
             body = (
                 loop_counter_custom_code_nodes
                 + coords_assignments
+                + blending_assignments
                 + load_vecs
                 + quad_loop
                 + kernel_op_assignments

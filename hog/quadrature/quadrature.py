@@ -33,6 +33,7 @@ from hog.logger import TimedLogger, get_logger
 from hog.exception import HOGException
 from hog.symbolizer import Symbolizer
 from hog.sympy_extensions import fast_subs
+from hog.blending import GeometryMap, IdentityMap
 
 
 class HOGIntegrationException(HOGException):
@@ -210,7 +211,9 @@ class Quadrature:
                 )
                 self._weight_symbols.append(sp.symbols(f"w_p_{i}"))
 
-    def integrate(self, f: sp.Expr, symbolizer: Symbolizer) -> sp.Expr:
+    def integrate(
+        self, f: sp.Expr, symbolizer: Symbolizer, blending: GeometryMap = IdentityMap()
+    ) -> sp.Expr:
         """Integrates the passed sympy expression over the reference element."""
         if hasattr(f, "shape"):
             if f.shape == (1, 1):
@@ -234,10 +237,15 @@ class Quadrature:
                 inline_weights = self._weights
 
             # unroll the quadrature loop, stick body for all iterations over quad points together
-            for point, weight in zip(inline_points, inline_weights):
+            for i, (point, weight) in enumerate(zip(inline_points, inline_weights)):
                 spat_coord_subs = {}
                 for idx, symbol in enumerate(ref_symbols):
                     spat_coord_subs[symbol] = point[idx]
+                if not blending.is_affine():
+                    for symbol in symbolizer.quadpoint_dependent_free_symbols(
+                        self._geometry.dimensions
+                    ):
+                        spat_coord_subs[symbol] = sp.Symbol(symbol.name + f"_q_{i}")
                 f_sub = fast_subs(f, spat_coord_subs)
                 mat_entry += f_sub * weight
 

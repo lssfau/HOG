@@ -96,13 +96,17 @@ Weak formulation
 
         if isinstance(blending, ExternalMap):
             jac_blending = jac_affine_to_physical(geometry, symbolizer)
+            jac_blending_det = abs(det(jac_blending))
+            with TimedLogger("inverting blending Jacobian", level=logging.DEBUG):
+                jac_blending_inv = inv(jac_blending)
         else:
-            affine_coords = trafo_ref_to_affine(geometry, symbolizer)
-            jac_blending = blending.jacobian(affine_coords)
-
-        jac_blending_det = abs(det(jac_blending))
-        with TimedLogger("inverting blending Jacobian", level=logging.DEBUG):
-            jac_blending_inv = inv(jac_blending)
+            # affine_coords = trafo_ref_to_affine(geometry, symbolizer)
+            # jac_blending = blending.jacobian(affine_coords)
+            jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(
+                geometry.dimensions
+            )
+            jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
 
         mat = create_empty_element_matrix(trial, test, geometry)
         it = element_matrix_iterator(trial, test, geometry)
