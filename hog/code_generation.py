@@ -340,7 +340,7 @@ def blending_jacobi_matrix_assignments(
             if isinstance(blending, ExternalMap):
                 HOGException("Not implemented or cannot be?")
 
-            jac_blend_expr = jac_blending_evaluate(symbolizer, geometry)
+            jac_blend_expr = jac_blending_evaluate(symbolizer, geometry, blending)
             # Collecting all expressions to parse for step 3.
             spat_coord_subs = {}
             for idx, symbol in enumerate(

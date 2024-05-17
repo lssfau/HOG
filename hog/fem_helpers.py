@@ -46,7 +46,6 @@ from hog.external_functions import (
     VectorVariableCoefficient3D,
 )
 from hog.dof_symbol import DoFSymbol
-import pystencils.astnodes as ast
 
 
 def create_empty_element_matrix(
@@ -233,27 +232,13 @@ def jac_affine_to_physical(
             jac[row, col] = blending_class(sp.Symbol("blend"), row * cols + col, *t)
     return jac
 
-
-def blending_supported_geometries(blending: GeometryMap) -> List[ElementGeometry]:
-    if isinstance(blending, IdentityMap):
-        return [LineElement(), TriangleElement(), TetrahedronElement()]
-    elif isinstance(blending, AnnulusMap):
-        return [TriangleElement()]
-    elif isinstance(blending, IcosahedralShellMap):
-        return [TetrahedronElement()]
-    elif isinstance(blending, GeometryMap):
-        return []
-    else:
-        HOGException("blending must be an instance of GeometryMap")
-
-
 def jac_blending_evaluate(
-    symbolizer: Symbolizer, geometry: ElementGeometry
+    symbolizer: Symbolizer, geometry: ElementGeometry, blending: GeometryMap
 ) -> sp.Matrix:
     affine_points = symbolizer.affine_vertices_as_vectors(
         geometry.dimensions, geometry.num_vertices
     )
-    jac = geometry.blending.jacobian(
+    jac = blending.jacobian(
         trafo_ref_to_affine(geometry, symbolizer, affine_points)
     )
     return jac
@@ -271,42 +256,6 @@ def jac_blending_inv_eval_symbols(
 ) -> sp.Matrix:
     jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
     return inv(jac_blending)
-
-
-def blending_quad_loop_assignments(
-    geometry: ElementGeometry, symbolizer: Symbolizer, jac_evaluated: sp.Matrix
-) -> List[ast.SympyAssignment]:
-    quadrature_assignments = []
-
-    jac_symbols = symbolizer.jac_affine_to_blending(geometry.dimensions)
-
-    abs_det_jac_blending = abs_det_jac_blending_eval_symbols(geometry, symbolizer)
-
-    jac_blending_inv = symbolizer.jac_affine_to_blending_inv(geometry.dimensions)
-    jac_blending_inv_eval = jac_blending_inv_eval_symbols(geometry, symbolizer)
-
-    dim = geometry.dimensions
-    quadrature_assignments += [
-        ast.SympyAssignment(jac_symbols[i, j], jac_evaluated[i, j], is_const=False)
-        for i in range(dim)
-        for j in range(dim)
-    ]
-    quadrature_assignments.append(
-        ast.SympyAssignment(
-            symbolizer.abs_det_jac_affine_to_blending(),
-            abs_det_jac_blending,
-            is_const=False,
-        )
-    )
-    quadrature_assignments += [
-        ast.SympyAssignment(
-            jac_blending_inv[i, j], jac_blending_inv_eval[i, j], is_const=False
-        )
-        for i in range(dim)
-        for j in range(dim)
-    ]
-
-    return quadrature_assignments
 
 
 def scalar_space_dependent_coefficient(

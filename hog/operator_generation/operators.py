@@ -206,7 +206,7 @@ class HyTeGElementwiseOperator:
         :param quad: the employed quadrature scheme - should match what has been used to integrate the weak form
         :param blending: the same geometry map that has been passed to the form
         """
-        geometry.blending = blending
+
         if dim not in [2, 3]:
             raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
 
@@ -234,7 +234,12 @@ class HyTeGElementwiseOperator:
 
         if self._optimizer[Opts.QUADLOOPS]:
             quad_loop = QuadLoop(
-                self.symbolizer, quad, mat, self._type_descriptor, form.symmetric
+                self.symbolizer,
+                quad,
+                mat,
+                self._type_descriptor,
+                form.symmetric,
+                blending,
             )
             mat = quad_loop.mat
         else:
@@ -248,7 +253,7 @@ class HyTeGElementwiseOperator:
                             mat[row, col] = mat[col, row]
                         else:
                             mat[row, col] = quad.integrate(
-                                mat[row, col], self.symbolizer
+                                mat[row, col], self.symbolizer, blending
                             )
 
         self.element_matrices[dim] = IntegrationInfo(
@@ -897,10 +902,7 @@ class HyTeGElementwiseOperator:
                     for component in range(geometry.dimensions)
                 ]
 
-            if (
-                integration_info.blending.is_affine()
-                or self._optimizer[Opts.QUADLOOPS]
-            ):
+            if integration_info.blending.is_affine() or self._optimizer[Opts.QUADLOOPS]:
                 blending_assignments = []
             else:
                 blending_assignments = (

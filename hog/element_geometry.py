@@ -13,14 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from hog.blending import GeometryMap, IdentityMap
-
 
 class ElementGeometry:
     def __init__(self, dimensions: int, num_vertices: int):
         self.dimensions = dimensions
         self.num_vertices = num_vertices
-        self.blending: GeometryMap = IdentityMap()
 
     def __str__(self):
         return f"ElementGeometry(dim: {self.dimensions}, vertices: {self.num_vertices})"

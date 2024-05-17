@@ -74,8 +74,6 @@ from hog.operator_generation.types import parse_argument_type, HOGType, HOGPreci
 import quadpy
 from hog.quadrature.quadrature import select_quadrule
 
-from hog.fem_helpers import blending_supported_geometries
-
 ALL_GEOMETRY_MAPS = [
     IdentityMap(),
     AnnulusMap(),
@@ -477,7 +475,7 @@ class OperatorInfo:
         # Removing geometries that are not supported by blending.
         # I don't like this, but it looks like the collection of operators has to be refactored anyway.
         self.geometries = list(
-            set(self.geometries) & set(blending_supported_geometries(self.blending))
+            set(self.geometries) & set(self.blending.supported_geometries())
         )
 
         if self.kernel_types is None:
@@ -651,7 +649,7 @@ def generate_elementwise_op(
 
     for geometry in op_info.geometries:
         # Is this necessary? Currently, the decision of the geometry is all over the place.
-        if geometry not in blending_supported_geometries(blending):
+        if geometry not in blending.supported_geometries():
             continue
 
         quad = Quadrature(
