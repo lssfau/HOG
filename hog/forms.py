@@ -1274,6 +1274,235 @@ where
         docstring=docstring,
     )
 
+def shear_heating(
+    trial: FunctionSpace,
+    test: FunctionSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
+    component_trial: int = 0,
+    component_test: int = 0,
+    variable_viscosity: bool = True,
+    viscosity_function_space: Optional[FunctionSpace] = None,
+    velocity_function_space: Optional[FunctionSpace] = None,
+) -> Form:
+    docstring = f"""
+Implements the fully coupled viscous operator for the shear heating term.
+The latter is the extension of the Epsilon operator to the case where
+the velocity field need not be divergence-free. This is e.g. the case
+in the (truncated) anelastic liquid approximation of mantle convection.
+
+https://doi.org/10.1111/j.1365-246X.2009.04413.x
+(3) and (5)
+
+https://doi.org/10.5194/gmd-15-5127-2022
+Listing 2
+
+The strong representation of the operator is given by:
+
+    𝜏(u) : grad(u)
+   {{[ μ (grad(u)+grad(u)ᵀ) ] - 2/3 [ μ div(u) ]I}} : grad(u)
+
+Note that the factor 2/3 means that for 2D this is the pseudo-3D form
+of the operator.
+
+Component trial: {component_trial}
+Component test:  {component_test}
+Geometry map:    {blending}
+
+Weak formulation
+
+    T: trial function (scalar space:    {trial})
+    s: test function  (scalar space:    {test})
+    μ: coefficient    (scalar space:    {viscosity_function_space})
+    u: velocity       (vectorial space: {velocity_function_space})
+
+    ∫ {{ {{[ μ (grad(u)+grad(u)ᵀ) ] - 2/3 [ μ div(u) ]I}} : grad(u) }} T_h s_h
+    
+The resulting matrix must be multiplied with a vector of ones to be used as the shear heating term in the RHS
+"""
+
+    if variable_viscosity == False:
+        raise HOGException("Constant viscosity currently not supported.")
+        # TODO fix issue with undeclared p_affines
+
+    if geometry.dimensions < 3 and (component_trial > 1 or component_test > 1):
+        return create_empty_element_matrix(trial, test, geometry)
+    with TimedLogger("assembling shear heating matrix", level=logging.DEBUG):
+        tabulation = Tabulation(symbolizer)
+
+        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
+
+        if isinstance(blending, ExternalMap):
+            jac_blending = jac_affine_to_physical(geometry, symbolizer)
+        else:
+            jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(
+                geometry.dimensions
+            )
+            jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
+            # affine_coords = trafo_ref_to_affine(geometry, symbolizer)
+            # jac_blending = blending.jacobian(affine_coords)
+
+        # jac_blending_inv = inv(jac_blending)
+        # jac_blending_det = abs(det(jac_blending))
+
+        ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
+
+        mu: sp.Expr = 1
+        if viscosity_function_space:
+            phi_eval_symbols = tabulation.register_phi_evals(
+                viscosity_function_space.shape(geometry)
+            )
+
+            mu, _ = fem_function_on_element(
+                viscosity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="mu",
+                basis_eval=phi_eval_symbols,
+            )
+        else:
+            raise HOGException("scalar_space_dependent_coefficient currently not supported in opgen.")
+            # mu = scalar_space_dependent_coefficient(
+            #     "mu", geometry, symbolizer, blending=blending
+            # )
+
+        if velocity_function_space:
+            phi_eval_symbols_u = tabulation.register_phi_evals(
+                velocity_function_space.shape(geometry)
+            )
+            ux, dof_symbols_ux = fem_function_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="ux",
+                basis_eval=phi_eval_symbols_u,
+            )
+
+            grad_ux, _ = fem_function_gradient_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="grad_ux",
+                dof_symbols=dof_symbols_ux,
+            )
+
+            uy, dof_symbols_uy = fem_function_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="uy",
+                basis_eval=phi_eval_symbols_u,
+            )
+
+            grad_uy, _ = fem_function_gradient_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="grad_uy",
+                dof_symbols=dof_symbols_uy,
+            )
+
+
+            # if geometry.dimensions > 2:
+            uz, dof_symbols_uz = fem_function_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="uz",
+                basis_eval=phi_eval_symbols_u,
+            )
+
+            grad_uz, _ = fem_function_gradient_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="grad_uz",
+                dof_symbols=dof_symbols_uz,
+            )
+
+        else:
+            raise HOGException("velocity function needed as an external function")
+
+        if blending != IdentityMap():
+            grad_ux = jac_blending_inv.T * jac_affine_inv.T * grad_ux
+            grad_uy = jac_blending_inv.T * jac_affine_inv.T * grad_uy
+            grad_uz = jac_blending_inv.T * jac_affine_inv.T * grad_uz
+        else:
+            grad_ux = jac_affine_inv.T * grad_ux
+            grad_uy = jac_affine_inv.T * grad_uy
+            grad_uz = jac_affine_inv.T * grad_uz
+
+        grad_u = grad_ux.row_join(grad_uy)
+
+        if geometry.dimensions == 2:
+            u = sp.Matrix([[ux], [uy]])
+        elif geometry.dimensions == 3:
+            u = sp.Matrix([[ux], [uy], [uz]])
+            grad_u = grad_u.row_join(grad_uz)
+
+        _2sym_grad_u = grad_u + grad_u.T
+
+        # Compute div(u)
+        divdiv = grad_u.trace()
+
+        mat = create_empty_element_matrix(trial, test, geometry)
+        it = element_matrix_iterator(trial, test, geometry)
+
+        for data in it:
+            phi = data.trial_shape
+            psi = data.test_shape
+            
+            if blending != IdentityMap():
+                form = (
+                    mu
+                    * (
+                        double_contraction(_2sym_grad_u, grad_u)[0]
+                        - sp.Rational(2, 3) * divdiv
+                    )
+                    * phi
+                    * psi
+                    * jac_affine_det
+                    * jac_blending_det
+                )
+            else:
+                shear_heating_det_symbol = (
+                    tabulation.register_factor(
+                        "shear_heating_det_symbol",
+                        (
+                            double_contraction(_2sym_grad_u, grad_u)
+                            - sp.Rational(2, 3) * sp.Matrix([divdiv])
+                        )
+                        * phi
+                        * psi 
+                        * jac_affine_det,
+                    )
+                )[
+                    0
+                ]
+                form = (
+                    mu
+                    * shear_heating_det_symbol
+                )
+
+            mat[data.row, data.col] = form
+
+    return Form(
+        mat,
+        tabulation,
+        symmetric=component_trial == component_test,
+        docstring=docstring,
+    )
 
 def divdiv(
     trial: FunctionSpace,
