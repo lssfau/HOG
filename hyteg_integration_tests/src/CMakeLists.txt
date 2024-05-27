@@ -59,7 +59,7 @@ add_operator_test(FILE DivT.cpp DEF REF_OP=P1ToP2ElementwiseDivTzOperator FORM D
 
 add_operator_test(FILE Epsilon.cpp       DEF TEST_DIAG FORM=forms::p2_epsilonvar_0_0_affine_q4 FORM Epsilon_0_0 ABBR 00VIQT  GEN_ARGS -s P2       -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 4 4               )
 add_operator_test(FILE Epsilon.cpp       DEF           FORM=forms::p2_epsilonvar_2_1_affine_q4 FORM Epsilon_2_1 ABBR 21VIQT  GEN_ARGS -s P2       -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 4 4               )
-add_operator_test(FILE EpsilonVector.cpp DEF           FORM Epsilon                                             ABBR VecVIQT GEN_ARGS -s P2Vector -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 4 4 --dimensions 2)
+add_operator_test(FILE EpsilonVector.cpp DEF           FORM Epsilon                                             ABBR VecVIQT GEN_ARGS -s P2Vector -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 4 4 --dimensions 2 LIBS constant_stencil_operator)
 
 # tests with blending
 

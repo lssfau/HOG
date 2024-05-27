@@ -21,6 +21,7 @@
 #include "core/DataTypes.h"
 
 #include "hyteg/elementwiseoperators/P2ElementwiseOperator.hpp"
+#include "hyteg/src/constant_stencil_operator/P2ConstantEpsilonOperator.hpp"
 #include "hyteg/forms/form_hyteg_generated/p2/p2_epsilonvar_affine_q4.hpp"
 #include "hyteg/p2functionspace/P2Function.hpp"
 
@@ -67,7 +68,6 @@ int main( int argc, char* argv[] )
    StorageSetup storageSetup;
    storageSetup = StorageSetup(
       "quad_4el", MeshInfo::fromGmshFile( "../hyteg/data/meshes/quad_4el.msh" ), GeometryMap::Type::IDENTITY );
-   }
 
    compareApply< P2ElementwiseAffineEpsilonOperator, operatorgeneration::TestOpEpsilon >(
        makeRefOp,
