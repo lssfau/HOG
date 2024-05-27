@@ -371,7 +371,7 @@ def main():
         )
     )
 
-    enabled_geometries = set()
+    enabled_geometries: Set[TriangleElement | TetrahedronElement] = set()
     if 2 in args.dimensions:
         enabled_geometries.add(TriangleElement())
     if 3 in args.dimensions:
