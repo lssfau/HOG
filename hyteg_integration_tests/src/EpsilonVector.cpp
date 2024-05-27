@@ -21,7 +21,7 @@
 #include "core/DataTypes.h"
 
 #include "hyteg/elementwiseoperators/P2ElementwiseOperator.hpp"
-#include "hyteg/src/constant_stencil_operator/P2ConstantEpsilonOperator.hpp"
+#include "constant_stencil_operator/P2ConstantEpsilonOperator.hpp"
 #include "hyteg/forms/form_hyteg_generated/p2/p2_epsilonvar_affine_q4.hpp"
 #include "hyteg/p2functionspace/P2Function.hpp"
 
