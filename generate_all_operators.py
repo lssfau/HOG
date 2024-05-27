@@ -198,6 +198,14 @@ def parse_arguments():
         help=f"Specify the name of the generated C++ class.",
     )
 
+    parser.add_argument(
+        "--dimensions",
+        type=int,
+        nargs="+",
+        default=[2, 3],
+        help=f"Domain dimensions for which operators shall be generated.",
+    )
+
     logging_group = parser.add_mutually_exclusive_group(required=False)
     logging_group.add_argument(
         "-v",
@@ -362,6 +370,17 @@ def main():
             operators,
         )
     )
+
+    enabled_geometries = set()
+    if 2 in args.dimensions:
+        enabled_geometries.add(TriangleElement())
+    if 3 in args.dimensions:
+        enabled_geometries.add(TetrahedronElement())
+
+    for f in filtered_operators:
+        f.geometries = list(set(f.geometries) & enabled_geometries)
+
+    filtered_operators = [f for f in filtered_operators if f.geometries]
 
     if len(filtered_operators) == 0:
         raise HOGException(

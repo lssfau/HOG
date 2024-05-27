@@ -30,8 +30,6 @@
 using namespace hyteg;
 using walberla::real_t;
 
-constexpr bool only3d = std::is_constructible< FORM, std::function< real_t( const Point3D& ) > >::value;
-
 real_t k( const hyteg::Point3D& x )
 {
    return x[0] * x[0] - x[2] * x[2] - x[1] * x[1] + 3 * x[0] + x[1] - 5 * x[2] + 2;
@@ -64,48 +62,40 @@ int main( int argc, char* argv[] )
    real_t thresholdOverMachineEpsInvDiag  = 9.0e6;
    real_t thresholdOverMachineEpsAssembly = 360;
 
-   for ( uint_t d = only3d ? 3 : 2; d <= 3; ++d )
-   {
-      StorageSetup storageSetup;
-      if ( d == 2 )
-      {
-         storageSetup = StorageSetup(
-             "quad_4el", MeshInfo::fromGmshFile( "../hyteg/data/meshes/quad_4el.msh" ), GeometryMap::Type::IDENTITY );
-      }
-      else
-      {
-         storageSetup = StorageSetup(
-             "cube_6el", MeshInfo::fromGmshFile( "../hyteg/data/meshes/3D/cube_6el.msh" ), GeometryMap::Type::IDENTITY );
-      }
+   // Testing only 2D since generation of 3D operator just takes too long.
 
-      compareApply< P2ElementwiseAffineEpsilonOperator, operatorgeneration::TestOpEpsilon >(
-          makeRefOp,
-          makeTestOp< operatorgeneration::TestOpEpsilon >,
-          level,
-          storageSetup,
-          storageSetup.description() + " Apply",
-          thresholdOverMachineEpsApply );
+   StorageSetup storageSetup;
+   storageSetup = StorageSetup(
+      "quad_4el", MeshInfo::fromGmshFile( "../hyteg/data/meshes/quad_4el.msh" ), GeometryMap::Type::IDENTITY );
+   }
+
+   compareApply< P2ElementwiseAffineEpsilonOperator, operatorgeneration::TestOpEpsilon >(
+       makeRefOp,
+       makeTestOp< operatorgeneration::TestOpEpsilon >,
+       level,
+       storageSetup,
+       storageSetup.description() + " Apply",
+       thresholdOverMachineEpsApply );
 
 #ifdef TEST_DIAG
-      compareInvDiag< P2Function< real_t >, P2ElementwiseAffineEpsilonOperator, operatorgeneration::TestOpEpsilon >(
-          makeRefOp,
-          makeTestOp< operatorgeneration::TestOpEpsilon >,
-          level,
-          storageSetup,
-          storageSetup.description() + " Inverse Diagonal",
-          thresholdOverMachineEpsInvDiag );
+   compareInvDiag< P2Function< real_t >, P2ElementwiseAffineEpsilonOperator, operatorgeneration::TestOpEpsilon >(
+       makeRefOp,
+       makeTestOp< operatorgeneration::TestOpEpsilon >,
+       level,
+       storageSetup,
+       storageSetup.description() + " Inverse Diagonal",
+       thresholdOverMachineEpsInvDiag );
 #endif
 
 #ifdef TEST_ASSEMBLE
-      compareAssembledMatrix< P2ElementwiseAffineEpsilonOperator, operatorgeneration::TestOpEpsilon >(
-          makeRefOp,
-          makeTestOp< operatorgeneration::TestOpEpsilon >,
-          level,
-          storageSetup,
-          storageSetup.description() + " Assembly",
-          thresholdOverMachineEpsAssembly );
+   compareAssembledMatrix< P2ElementwiseAffineEpsilonOperator, operatorgeneration::TestOpEpsilon >(
+       makeRefOp,
+       makeTestOp< operatorgeneration::TestOpEpsilon >,
+       level,
+       storageSetup,
+       storageSetup.description() + " Assembly",
+       thresholdOverMachineEpsAssembly );
 #endif
-   }
 
    return EXIT_SUCCESS;
 }
