@@ -1464,16 +1464,22 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
             psi = data.test_shape
             
             if blending != IdentityMap():
+                affine_factor = (
+                    tabulation.register_factor(
+                        "affine_factor_symbol",
+                        sp.Matrix([phi * psi * jac_affine_det]),
+                    )
+                )[
+                    0
+                ]
                 form = (
                     mu
                     * (
                         double_contraction(_2sym_grad_u, grad_u)[0]
                         - sp.Rational(2, 3) * divdiv
                     )
-                    * phi
-                    * psi
-                    * jac_affine_det
                     * jac_blending_det
+                    * affine_factor
                 )
             else:
                 shear_heating_det_symbol = (
