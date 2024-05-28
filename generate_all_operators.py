@@ -353,15 +353,20 @@ def main():
             args.quad_degree if args.quad_rule is None else args.quad_rule,
         )
     }
+
+    enabled_geometries: Set[TriangleElement | TetrahedronElement] = set()
+    if 2 in args.dimensions:
+        enabled_geometries.add(TriangleElement())
+    if 3 in args.dimensions:
+        enabled_geometries.add(TetrahedronElement())
+
     operators = all_operators(
         symbolizer,
         [(opts, loop_strategy, ordered_opts_suffix(loop_strategy, opts))],
         type_descriptor,
         blending,
+        geometries=enabled_geometries,
     )
-
-    re_mapping = re.compile(args.space_mapping)
-    re_form = re.compile(args.form)
 
     filtered_operators = list(
         filter(
@@ -370,15 +375,6 @@ def main():
             operators,
         )
     )
-
-    enabled_geometries: Set[TriangleElement | TetrahedronElement] = set()
-    if 2 in args.dimensions:
-        enabled_geometries.add(TriangleElement())
-    if 3 in args.dimensions:
-        enabled_geometries.add(TetrahedronElement())
-
-    for f in filtered_operators:
-        f.geometries = list(set(f.geometries) & enabled_geometries)
 
     filtered_operators = [f for f in filtered_operators if f.geometries]
 
@@ -542,6 +538,7 @@ def all_operators(
     opts: List[Tuple[Set[Opts], LoopStrategy, str]],
     type_descriptor: HOGType,
     blending: GeometryMap,
+    geometries: Set[ElementGeometry],
 ) -> List[OperatorInfo]:
     P1 = LagrangianFunctionSpace(1, symbolizer)
     P1Vector = TensorialVectorFunctionSpace(P1)
@@ -549,8 +546,8 @@ def all_operators(
     P2Vector = TensorialVectorFunctionSpace(P2)
     N1E1 = N1E1Space(symbolizer)
 
-    two_d = [TriangleElement()]
-    three_d = [TetrahedronElement()]
+    two_d = list({TriangleElement()} | geometries)
+    three_d = list({TetrahedronElement()} | geometries)
 
     ops: List[OperatorInfo] = []
 
@@ -564,30 +561,31 @@ def all_operators(
                             form=partial(curl_curl_plus_mass, alpha_fem_space=P1, beta_fem_space=P1),
                             type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
     ops.append(OperatorInfo(mapping="P1", name="Diffusion", trial_space=P1, test_space=P1, form=diffusion,
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
     ops.append(OperatorInfo(mapping="P1", name="DivKGrad", trial_space=P1, test_space=P1,
                             form=partial(div_k_grad, coefficient_function_space=P1),
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
     ops.append(OperatorInfo(mapping="P2", name="Diffusion", trial_space=P2, test_space=P2, form=diffusion,
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
     ops.append(OperatorInfo(mapping="P2", name="DivKGrad", trial_space=P2, test_space=P2,
                             form=partial(div_k_grad, coefficient_function_space=P2),
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
+
     ops.append(OperatorInfo(mapping="P2", name="ShearHeating", trial_space=P2, test_space=P2,
                             form=partial(shear_heating, viscosity_function_space=P2, velocity_function_space=P2),
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
     ops.append(OperatorInfo(mapping="P1", name="NonlinearDiffusion", trial_space=P1, test_space=P1,
                             form=partial(nonlinear_diffusion, coefficient_function_space=P1),
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
     ops.append(OperatorInfo(mapping="P1", name="NonlinearDiffusionNewtonGalerkin", trial_space=P1,
                             test_space=P1, form=partial(nonlinear_diffusion_newton_galerkin,
                             coefficient_function_space=P1, onlyNewtonGalerkinPartOfForm=False),
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
     ops.append(OperatorInfo(mapping="P1Vector", name="Diffusion", trial_space=P1Vector, test_space=P1Vector,
-                            form=diffusion, type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            form=diffusion, type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
     # fmt: on
 
@@ -604,6 +602,7 @@ def all_operators(
             test_space=P2Vector,
             form=p2vec_epsilon,
             type_descriptor=type_descriptor,
+            geometries=list(geometries),
             opts=opts,
             blending=blending,
         )
@@ -611,9 +610,9 @@ def all_operators(
 
     for c in [0, 1, 2]:
         # fmt: off
-        div_geometries = [TriangleElement(), TetrahedronElement()]
+        div_geometries = geometries
         if c == 2:
-            div_geometries = [TetrahedronElement()]
+            div_geometries = three_d
         ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}", trial_space=P1, test_space=P2,
                                 form=partial(divergence, transpose=False, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
@@ -644,9 +643,9 @@ def all_operators(
             # fmt: off
             ops.append(
                 OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=P2, test_space=P2, form=p2_epsilon,
-                              type_descriptor=type_descriptor, opts=opts, blending=blending))
+                              type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
             ops.append(OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=P2, test_space=P2,
-                                    form=p2_full_stokes, type_descriptor=type_descriptor, opts=opts,
+                                    form=p2_full_stokes, type_descriptor=type_descriptor, geometries=list(geometries), opts=opts,
                                     blending=blending))
             # fmt: on
     for c, r in [(0, 2), (1, 2), (2, 2), (2, 1), (2, 0)]:
