@@ -610,7 +610,7 @@ def all_operators(
 
     for c in [0, 1, 2]:
         # fmt: off
-        div_geometries = geometries
+        div_geometries = list(geometries)
         if c == 2:
             div_geometries = three_d
         ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}", trial_space=P1, test_space=P2,
