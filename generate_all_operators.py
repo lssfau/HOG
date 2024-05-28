@@ -22,7 +22,7 @@ from functools import partial
 import logging
 import os
 import re
-from typing import Callable, List, Optional, Sequence, Set, Tuple
+from typing import Callable, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 import sympy as sp
@@ -538,7 +538,7 @@ def all_operators(
     opts: List[Tuple[Set[Opts], LoopStrategy, str]],
     type_descriptor: HOGType,
     blending: GeometryMap,
-    geometries: Set[ElementGeometry],
+    geometries: Set[Union[TriangleElement, TetrahedronElement]],
 ) -> List[OperatorInfo]:
     P1 = LagrangianFunctionSpace(1, symbolizer)
     P1Vector = TensorialVectorFunctionSpace(P1)
