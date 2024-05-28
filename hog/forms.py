@@ -291,9 +291,9 @@ Weak formulation
                     jac_affine_inv.T * data.test_shape_grad,
                 )
                 form = (
-                    dot(
-                        k
-                        * jac_blending_inv.T
+                    k
+                    * dot(
+                        jac_blending_inv.T
                         * sp.Matrix(jac_affine_inv_T_grad_phi_symbols),
                         jac_blending_inv.T
                         * sp.Matrix(jac_affine_inv_T_grad_psi_symbols),
