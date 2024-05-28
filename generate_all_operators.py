@@ -546,8 +546,8 @@ def all_operators(
     P2Vector = TensorialVectorFunctionSpace(P2)
     N1E1 = N1E1Space(symbolizer)
 
-    two_d = list({TriangleElement()} | geometries)
-    three_d = list({TetrahedronElement()} | geometries)
+    two_d = list({TriangleElement()} & geometries)
+    three_d = list({TetrahedronElement()} & geometries)
 
     ops: List[OperatorInfo] = []
 
