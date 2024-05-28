@@ -610,9 +610,10 @@ def all_operators(
 
     for c in [0, 1, 2]:
         # fmt: off
-        div_geometries = list(geometries)
         if c == 2:
             div_geometries = three_d
+        else:
+            div_geometries = list(geometries)
         ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}", trial_space=P1, test_space=P2,
                                 form=partial(divergence, transpose=False, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
