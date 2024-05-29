@@ -538,7 +538,7 @@ def all_operators(
     opts: List[Tuple[Set[Opts], LoopStrategy, str]],
     type_descriptor: HOGType,
     blending: GeometryMap,
-    geometries: Set,
+    geometries: Set[Union[TriangleElement, TetrahedronElement]],
 ) -> List[OperatorInfo]:
     P1 = LagrangianFunctionSpace(1, symbolizer)
     P1Vector = TensorialVectorFunctionSpace(P1)
@@ -546,8 +546,8 @@ def all_operators(
     P2Vector = TensorialVectorFunctionSpace(P2)
     N1E1 = N1E1Space(symbolizer)
 
-    two_d = list({TriangleElement()} & geometries)
-    three_d = list({TetrahedronElement()} & geometries)
+    two_d = list(geometries & {TriangleElement()})
+    three_d = list(geometries & {TetrahedronElement()})
 
     ops: List[OperatorInfo] = []
 
