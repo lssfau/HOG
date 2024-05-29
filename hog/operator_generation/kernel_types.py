@@ -396,6 +396,7 @@ class AssembleDiagonal(KernelType):
             f'        this->timingTree_->stop( "pre-communication" );\n'
             f"\n"
             f"{indent(macro_loop(3), 2 * INDENT)}\n"
+            f"{indent(self.dst.invert_elementwise(3), 2 * INDENT)}\n"
             f"    }}\n"
             f"    else\n"
             f"    {{\n"
@@ -404,9 +405,9 @@ class AssembleDiagonal(KernelType):
             f'        this->timingTree_->stop( "pre-communication" );\n'
             f"\n"
             f"{indent(macro_loop(2), 2 * INDENT)}\n"
+            f"{indent(self.dst.invert_elementwise(2), 2 * INDENT)}\n"
             f"    }}\n"
             f"\n"
-            f"{indent(self.dst.invert_elementwise(dim=0), INDENT)}\n"
             f"}}\n"
             f"\n"
             f'this->stopTiming( "{self.name}" );'
