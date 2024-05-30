@@ -1301,9 +1301,9 @@ Listing 2
 The strong representation of the operator is given by:
 
     𝜏(u) : grad(u)
-   {{[ μ (grad(u)+grad(u)ᵀ) ] - 2/3 [ μ div(u) ]I}} : grad(u)
+    2 {{[ μ (grad(u)+grad(u)ᵀ) / 2 ] - 1/dim [ μ div(u) ]I}} : grad(u)
 
-Note that the factor 2/3 means that for 2D this is the pseudo-3D form
+Note that the factor 1/dim means that for 2D this is the pseudo-3D form
 of the operator.
 
 Component trial: {component_trial}
@@ -1317,7 +1317,7 @@ Weak formulation
     μ: coefficient    (scalar space:    {viscosity_function_space})
     u: velocity       (vectorial space: {velocity_function_space})
 
-    ∫ {{ {{[ μ (grad(u)+grad(u)ᵀ) ] - 2/3 [ μ div(u) ]I}} : grad(u) }} T_h s_h
+    ∫ {{ 2 {{[ μ (grad(u)+grad(u)ᵀ) / 2 ] - 1/3 [ μ div(u) ]I}} : grad(u) }} T_h s_h
     
 The resulting matrix must be multiplied with a vector of ones to be used as the shear heating term in the RHS
 """
@@ -1445,16 +1445,20 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
 
         grad_u = grad_ux.row_join(grad_uy)
 
-        if geometry.dimensions == 2:
+        dim = geometry.dimensions
+        if dim == 2:
             u = sp.Matrix([[ux], [uy]])
-        elif geometry.dimensions == 3:
+        elif dim == 3:
             u = sp.Matrix([[ux], [uy], [uz]])
             grad_u = grad_u.row_join(grad_uz)
 
-        _2sym_grad_u = grad_u + grad_u.T
+        _sym_grad_u = (grad_u + grad_u.T) / 2
 
         # Compute div(u)
-        divdiv = grad_u.trace()
+
+        divdiv = grad_u.trace() * sp.eye(dim)
+
+        tau = 2 * (_sym_grad_u - sp.Rational(1, dim) * divdiv)
 
         mat = create_empty_element_matrix(trial, test, geometry)
         it = element_matrix_iterator(trial, test, geometry)
@@ -1473,10 +1477,9 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                     0
                 ]
                 form = (
-                    mu
+                    mu[0]
                     * (
-                        double_contraction(_2sym_grad_u, grad_u)[0]
-                        - sp.Rational(2, 3) * divdiv
+                        double_contraction(tau, grad_u)[0]
                     )
                     * jac_blending_det
                     * affine_factor
@@ -1486,8 +1489,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                     tabulation.register_factor(
                         "shear_heating_det_symbol",
                         (
-                            double_contraction(_2sym_grad_u, grad_u)
-                            - sp.Rational(2, 3) * sp.Matrix([divdiv])
+                            double_contraction(tau, grad_u)
                         )
                         * phi
                         * psi 
@@ -1497,8 +1499,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                     0
                 ]
                 form = (
-                    mu
-                    * shear_heating_det_symbol
+                    mu[0] * shear_heating_det_symbol
                 )
 
             mat[data.row, data.col] = form
