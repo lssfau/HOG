@@ -36,6 +36,7 @@ from hog.forms import (
     diffusion,
     divergence,
     div_k_grad,
+    shear_heating,
     epsilon,
     full_stokes,
     nonlinear_diffusion,
@@ -542,6 +543,9 @@ def all_operators(
                             type_descriptor=type_descriptor, opts=opts, blending=blending))
     ops.append(OperatorInfo(mapping="P2", name="DivKGrad", trial_space=P2, test_space=P2,
                             form=partial(div_k_grad, coefficient_function_space=P2),
+                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+    ops.append(OperatorInfo(mapping="P2", name="ShearHeating", trial_space=P2, test_space=P2,
+                            form=partial(shear_heating, viscosity_function_space=P2, velocity_function_space=P2),
                             type_descriptor=type_descriptor, opts=opts, blending=blending))
 
     ops.append(OperatorInfo(mapping="P1", name="NonlinearDiffusion", trial_space=P1, test_space=P1,
