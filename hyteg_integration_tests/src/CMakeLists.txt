@@ -53,10 +53,13 @@ add_operator_test(FILE DivKGrad.cpp DEF TEST_ASSEMBLE FORM DivKGrad ABBR noopts 
 add_operator_test(FILE DivKGrad.cpp                   FORM DivKGrad ABBR VIQ    GEN_ARGS -s P2 --quad-degree 4 4 -o MOVECONSTANTS VECTORIZE QUADLOOPS )
 add_operator_test(FILE DivKGrad.cpp DEF TEST_ASSEMBLE FORM DivKGrad ABBR IQT    GEN_ARGS -s P2 --quad-degree 4 4 -o MOVECONSTANTS QUADLOOPS TABULATE )
 
-add_operator_test(FILE Div.cpp  DEF REF_OP=P2ToP1ElementwiseDivxOperator  FORM Div_0  ABBR VIQT GEN_ARGS -s P2 -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 2 2)
-add_operator_test(FILE DivT.cpp DEF REF_OP=P1ToP2ElementwiseDivTzOperator FORM DivT_2 ABBR VIQT GEN_ARGS -s P2 -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 2 2)
+add_operator_test(FILE Div.cpp  DEF REF_OP=P2ToP1ElementwiseDivxOperator  FORM Div_0  ABBR VIQT GEN_ARGS -s P2ToP1 -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 2 2)
+add_operator_test(FILE DivT.cpp DEF REF_OP=P1ToP2ElementwiseDivTzOperator FORM DivT_2 ABBR VIQT GEN_ARGS -s P1ToP2 -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 2 2)
 add_operator_test(FILE Epsilon.cpp DEF TEST_DIAG FORM=forms::p2_epsilonvar_0_0_affine_q4 FORM Epsilon_0_0 ABBR 00VIQT GEN_ARGS -s P2 -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 4 4)
 add_operator_test(FILE Epsilon.cpp DEF           FORM=forms::p2_epsilonvar_2_1_affine_q4 FORM Epsilon_2_1 ABBR 21VIQT GEN_ARGS -s P2 -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-degree 4 4)
+
+add_operator_test(FILE EpsilonVector.cpp        DEF           FORM Epsilon                                             ABBR VecVIQT  GEN_ARGS -s P2Vector               -o MOVECONSTANTS QUADLOOPS TABULATE  --quad-degree 2 2 --dimensions 2 LIBS constant_stencil_operator)
+add_operator_test(FILE EpsilonVectorAnnulus.cpp DEF           FORM Epsilon                                             ABBR VecbVIQT GEN_ARGS -s P2Vector -b AnnulusMap -o MOVECONSTANTS QUADLOOPS TABULATE  --quad-degree 2 2 --dimensions 2 LIBS constant_stencil_operator)
 
 # tests with blending
 
@@ -66,3 +69,4 @@ add_operator_test(FILE DiffusionP1IcosahedralShell.cpp          FORM Diffusion A
 
 add_operator_test(FILE FullStokes.cpp DEF TEST_DIAG FORM=forms::p2_full_stokesvar_0_0_blending_q3 FORM FullStokes_0_0 ABBR 00b3VIQT GEN_ARGS -s P2 -b IcosahedralShellMap -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-rule yu_3 yu_3)
 add_operator_test(FILE FullStokes.cpp DEF           FORM=forms::p2_full_stokesvar_2_1_blending_q3 FORM FullStokes_2_1 ABBR 21b3VIQT GEN_ARGS -s P2 -b IcosahedralShellMap -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-rule yu_3 yu_3)
+

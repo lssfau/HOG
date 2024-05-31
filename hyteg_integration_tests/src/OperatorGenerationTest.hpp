@@ -218,13 +218,17 @@ void compareApply( OperatorFactory< RefOpType > refOpFactory,
    }
 
    real_t maxAbs = 1.0;
-   if constexpr ( !std::is_same< RefDstFncType, n1e1::N1E1VectorFunction< RefType > >::value )
+   if constexpr ( std::is_same< RefDstFncType, n1e1::N1E1VectorFunction< RefType > >::value )
    {
-      maxAbs = err.getMaxMagnitude( level );
+      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+   }
+   else if constexpr ( std::is_same_v< RefDstFncType, P1VectorFunction< RefType > > || std::is_same_v< RefDstFncType, P2VectorFunction< RefType > > )
+   {
+      maxAbs = err.getMaxComponentMagnitude( level, All );
    }
    else
    {
-      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+      maxAbs = err.getMaxMagnitude( level );
    }
 
    const real_t threshold = thresholdOverMachineEps * precisionDict::epsilon< TestType >();
@@ -300,13 +304,17 @@ void compareGEMV( const uint_t        level,
    // compare
    err.assign( { 1.0, -1.0 }, { dst, refDst }, level, All );
    real_t maxAbs = 1.0;
-   if constexpr ( !std::is_same< DstFncType, n1e1::N1E1VectorFunction< real_t > >::value )
+   if constexpr ( std::is_same< DstFncType, n1e1::N1E1VectorFunction< real_t > >::value )
    {
-      maxAbs = err.getMaxMagnitude( level );
+      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+   }
+   else if constexpr ( std::is_same_v< DstFncType, P1VectorFunction< real_t > > || std::is_same_v< DstFncType, P2VectorFunction< real_t > > )
+   {
+      maxAbs = err.getMaxComponentMagnitude( level, All );
    }
    else
    {
-      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+      maxAbs = err.getMaxMagnitude( level );
    }
 
    const real_t threshold = thresholdOverMachineEps * precisionDict::epsilon< TestType >();
@@ -381,13 +389,17 @@ void compareInvDiag( OperatorFactory< RefOpType >  refOpFactory,
    }
 
    real_t maxAbs = 1.0;
-   if constexpr ( !std::is_same< RefDiagType, n1e1::N1E1VectorFunction< RefType > >::value )
+   if constexpr ( std::is_same< RefDiagType, n1e1::N1E1VectorFunction< RefType > >::value )
    {
-      maxAbs = err.getMaxMagnitude( level );
+      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+   }
+   else if constexpr ( std::is_same_v< RefDiagType, P1VectorFunction< RefType > > || std::is_same_v< RefDiagType, P2VectorFunction< RefType > > )
+   {
+      maxAbs = err.getMaxComponentMagnitude( level, All );
    }
    else
    {
-      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+      maxAbs = err.getMaxMagnitude( level );
    }
 
    const real_t threshold = thresholdOverMachineEps * precisionDict::epsilon< TestType >();
