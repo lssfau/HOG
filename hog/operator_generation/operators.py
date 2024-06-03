@@ -553,20 +553,10 @@ class HyTeGElementwiseOperator:
                   that needs to be included at the beginning of the innermost loop's body
         """
 
-        # This list is only filled if we have loop counter dependencies and want to vectorize.
+        # This list is only filled if we want to vectorize.
         loop_counter_custom_code_nodes = []
 
-        if integration_info.blending.is_affine():
-            # For some operators we know a priori that the Jacobians are translation invariant, i.e., they
-            # are constant for all elements of the same type. We can safely assemble them using any element (we'll
-            # just use (0, 0, 0)). When we do that, many loop variable dependent expressions (i.e. those that
-            # depend on loop counters as opposed to those that contain array accesses that depend on loop counters)
-            # become loop-invariant and pystencils should be able to move them outside the loop nests.
-            el_matrix_element_index = [0 for _ in element_index]
-
-        elif not (
-            self._optimizer[Opts.VECTORIZE] or self._optimizer[Opts.VECTORIZE512]
-        ):
+        if not (self._optimizer[Opts.VECTORIZE] or self._optimizer[Opts.VECTORIZE512]):
             # The Jacobians are loop-counter dependent, and we do not care about vectorization.
             # So we just use the indices. pystencils will handle casting them to float.
             el_matrix_element_index = element_index.copy()
@@ -871,8 +861,13 @@ class HyTeGElementwiseOperator:
                     )
                 )
 
-            # Compute coordinates of the micro-element that can safely be used for all optimizations. See docstring of
-            # the called method for details.
+            # Compute coordinates of the micro-element that can safely be used for all optimizations.
+            #
+            # Those should not be used for the computation of the Jacobians from the reference to the affine space since
+            # we can also exploit translation invariance there. Here, we cannot exploit that since the following symbols
+            # are meant for other computations that have to be executed at quadrature points.
+            #
+            # See docstring of the called method for details.
             (
                 el_matrix_element_index,
                 loop_counter_custom_code_nodes,
@@ -880,27 +875,23 @@ class HyTeGElementwiseOperator:
                 integration_info, element_index, geometry
             )
 
-            if integration_info.blending.is_affine():
-                # The loop body is independent of the coordinates.
-                coords_assignments = []
-            else:
-                el_vertex_coordinates = element_vertex_coordinates(
-                    geometry,
-                    el_matrix_element_index,  # type: ignore[arg-type] # list of sympy expressions also works
-                    element_type,
-                    indexing_info.micro_edges_per_macro_edge_float,
-                    macro_vertex_coordinates,
-                    self.symbolizer,
-                )
+            el_vertex_coordinates = element_vertex_coordinates(
+                geometry,
+                el_matrix_element_index,  # type: ignore[arg-type] # list of sympy expressions also works
+                element_type,
+                indexing_info.micro_edges_per_macro_edge_float,
+                macro_vertex_coordinates,
+                self.symbolizer,
+            )
 
-                coords_assignments = [
-                    SympyAssignment(
-                        element_vertex_coordinates_symbols[vertex][component],
-                        el_vertex_coordinates[vertex][component],
-                    )
-                    for vertex in range(geometry.num_vertices)
-                    for component in range(geometry.dimensions)
-                ]
+            coords_assignments = [
+                SympyAssignment(
+                    element_vertex_coordinates_symbols[vertex][component],
+                    el_vertex_coordinates[vertex][component],
+                )
+                for vertex in range(geometry.num_vertices)
+                for component in range(geometry.dimensions)
+            ]
 
             if integration_info.blending.is_affine() or self._optimizer[Opts.QUADLOOPS]:
                 blending_assignments = []
