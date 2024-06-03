@@ -171,7 +171,11 @@ class Optimizer:
 
                 innermost_loop = get_innermost_loop(loop, return_all_inner=True)[0]
                 if dim == 2:
-                    new_loops = cut_loop(innermost_loop, [innermost_loop.stop - 1])
+                    new_loops = cut_loop(
+                        innermost_loop,
+                        [innermost_loop.stop - 1],
+                        replace_loops_with_length_one=False,
+                    )
                     loop.body = new_loops
                     new_loops.parent = loop
 
@@ -180,6 +184,7 @@ class Optimizer:
                         innermost_loop,
                         [innermost_loop.stop - 2, innermost_loop.stop - 1],
                         with_conditional=True,
+                        replace_loops_with_length_one=False,
                     )
                     innermost_loop.parent.body = new_loops
                     new_loops.parent = innermost_loop.parent
@@ -220,7 +225,11 @@ class Optimizer:
             instruction_set = "avx512" if self[Opts.VECTORIZE512] else "avx"
 
             with TimedLogger("vectorizing loops", logging.DEBUG):
-                vectorize(kernel_function, instruction_set=instruction_set)
+                vectorize(
+                    kernel_function,
+                    instruction_set=instruction_set,
+                    replace_loops_with_length_one=False,
+                )
             platform_dependent_kernels[instruction_set] = kernel_function
 
         return platform_dependent_kernels
