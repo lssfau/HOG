@@ -6,7 +6,7 @@ dependencies = [
   "numpy==1.24.3",
   "quadpy-gpl==0.16.10",
   "poly-cse-py",
-  "pystencils @ git+https://i10git.cs.fau.de/hyteg/pystencils.git@5d9f76d64185b75f0beb1e81c06ae75ef3ca8f03",
+  "pystencils @ git+https://i10git.cs.fau.de/hyteg/pystencils.git@4a790e1c48f32c07fc4058de9b20734bcea9cca0",
   "pytest==7.3.1",
   "sympy==1.11.1",
   "tabulate==0.9.0",
