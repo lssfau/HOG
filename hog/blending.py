@@ -113,7 +113,31 @@ class AnnulusMap(GeometryMap):
 
     def evaluate(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the geometry map at the passed point."""
-        raise HOGException("evaluate() not implemented for this map.")
+
+        radRefVertex = self.radRefVertex
+        radRayVertex = self.radRayVertex
+        refVertex = self.refVertex
+        rayVertex = self.rayVertex
+        thrVertex = self.thrVertex
+
+        areaT = (refVertex[0] - rayVertex[0]) * (thrVertex[1] - rayVertex[1]) - (
+            refVertex[1] - rayVertex[1]
+        ) * (thrVertex[0] - rayVertex[0])
+
+        areaX = (x[0] - rayVertex[0]) * (thrVertex[1] - rayVertex[1]) - (
+            x[1] - rayVertex[1]
+        ) * (thrVertex[0] - rayVertex[0])
+
+        factor = areaX / areaT
+
+        oldRad = sp.sqrt(x[0] * x[0] + x[1] * x[1])
+
+        newRad = radRayVertex + factor * (radRefVertex - radRayVertex)
+
+        xnew = sp.zeros(2, 1)
+        xnew[0] = x[0] * newRad / oldRad
+        xnew[1] = x[1] * newRad / oldRad
+        return xnew
 
     def jacobian(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the Jacobian of the geometry map at the passed point."""
@@ -201,7 +225,66 @@ class IcosahedralShellMap(GeometryMap):
 
     def evaluate(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the geometry map at the passed point."""
-        raise HOGException("evaluate() not implemented for this map.")
+
+        radRefVertex = self.radRefVertex
+        radRayVertex = self.radRayVertex
+        refVertex = self.refVertex
+        rayVertex = self.rayVertex
+        thrVertex = self.thrVertex
+        forVertex = self.forVertex
+
+        tmp0 = -rayVertex[2]
+        tmp1 = refVertex[2] + tmp0
+        tmp2 = -rayVertex[0]
+        tmp3 = thrVertex[0] + tmp2
+        tmp4 = -rayVertex[1]
+        tmp5 = forVertex[1] + tmp4
+        tmp6 = tmp3 * tmp5
+        tmp7 = refVertex[1] + tmp4
+        tmp8 = thrVertex[2] + tmp0
+        tmp9 = forVertex[0] + tmp2
+        tmp10 = tmp8 * tmp9
+        tmp11 = refVertex[0] + tmp2
+        tmp12 = thrVertex[1] + tmp4
+        tmp13 = forVertex[2] + tmp0
+        tmp14 = tmp12 * tmp13
+        tmp15 = tmp13 * tmp3
+        tmp16 = tmp12 * tmp9
+        tmp17 = tmp5 * tmp8
+        tmp18 = tmp0 + x[2]
+        tmp19 = tmp4 + x[1]
+        tmp20 = tmp2 + x[0]
+
+        volT = (
+            -tmp1 * tmp16
+            + tmp1 * tmp6
+            + tmp10 * tmp7
+            + tmp11 * tmp14
+            - tmp11 * tmp17
+            - tmp15 * tmp7
+        )
+
+        volX = (
+            tmp10 * tmp19
+            + tmp14 * tmp20
+            - tmp15 * tmp19
+            - tmp16 * tmp18
+            - tmp17 * tmp20
+            + tmp18 * tmp6
+        )
+
+        bary = sp.abs(volX / volT)
+
+        oldRad = sp.sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2])
+
+        newRad = radRayVertex + bary * (radRefVertex - radRayVertex)
+
+        xnew = sp.zeros(3, 1)
+        xnew[0] = x[0] * newRad / oldRad
+        xnew[1] = x[1] * newRad / oldRad
+        xnew[2] = x[2] * newRad / oldRad
+
+        return xnew
 
     def jacobian(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the Jacobian of the geometry map at the passed point."""
