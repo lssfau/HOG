@@ -49,7 +49,7 @@ from hog.dof_symbol import DoFSymbol
 
 
 def create_empty_element_matrix(
-        trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
+    trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
 ) -> sp.Matrix:
     """
     Returns a sympy matrix of the required size corresponding to the trial and test spaces, initialized with zeros.
@@ -70,14 +70,14 @@ class ElementMatrixData:
 
 
 def element_matrix_iterator(
-        trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
+    trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
 ) -> Iterator[ElementMatrixData]:
     """Call this to create a generator to conveniently fill the element matrix."""
     for row, (psi, grad_psi) in enumerate(
-            zip(test.shape(geometry), test.grad_shape(geometry))
+        zip(test.shape(geometry), test.grad_shape(geometry))
     ):
         for col, (phi, grad_phi) in enumerate(
-                zip(trial.shape(geometry), trial.grad_shape(geometry))
+            zip(trial.shape(geometry), trial.grad_shape(geometry))
         ):
             yield ElementMatrixData(
                 trial_shape=phi,
@@ -90,9 +90,9 @@ def element_matrix_iterator(
 
 
 def trafo_ref_to_affine(
-        geometry: ElementGeometry,
-        symbolizer: Symbolizer,
-        affine_points: Optional[List[sp.Matrix]] = None,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    affine_points: Optional[List[sp.Matrix]] = None,
 ) -> sp.Matrix:
     """Returns the transformation of a point from the reference element to the affine (computational) element.
 
@@ -127,10 +127,10 @@ def trafo_ref_to_affine(
 
 
 def trafo_affine_point_to_ref(
-        geometry: ElementGeometry,
-        symbolizer: Symbolizer,
-        affine_eval_point: Optional[sp.Matrix] = None,
-        affine_element_points: Optional[List[sp.Matrix]] = None,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    affine_eval_point: Optional[sp.Matrix] = None,
+    affine_element_points: Optional[List[sp.Matrix]] = None,
 ) -> sp.Matrix:
     """Returns the transformation of an affine evaluation point on the affine element to the reference element.
 
@@ -168,9 +168,9 @@ def trafo_affine_point_to_ref(
 
 
 def jac_ref_to_affine(
-        geometry: ElementGeometry,
-        symbolizer: Symbolizer,
-        affine_points: Optional[List[sp.Matrix]] = None,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    affine_points: Optional[List[sp.Matrix]] = None,
 ) -> sp.Matrix:
     """Returns the Jacobian of the transformation from the reference to the affine (computational) element.
 
@@ -185,26 +185,38 @@ def jac_ref_to_affine(
 
 
 def trafo_ref_to_physical(
-        geometry: ElementGeometry, symbolizer: Symbolizer
+    geometry: ElementGeometry, symbolizer: Symbolizer, blending: GeometryMap
 ) -> sp.Matrix:
     """Returns the transformation of a point in the reference space to the physical element."""
-    blending_class: type[MultiAssignment]
-    if isinstance(geometry, TriangleElement):
-        blending_class = BlendingFTriangle
-    elif isinstance(geometry, TetrahedronElement):
-        blending_class = BlendingFTetrahedron
-    else:
-        raise HOGException("Blending not implemented for the passed element geometry.")
+
+    if geometry not in blending.supported_geometries():
+        raise HOGException("Geometry not supported by blending map.")
 
     t = trafo_ref_to_affine(geometry, symbolizer)
-    phy = sp.zeros(geometry.dimensions, 1)
-    for coord in range(geometry.dimensions):
-        phy[coord] = blending_class(sp.Symbol("blend"), coord, *t)
+
+    if isinstance(blending, ExternalMap):
+        blending_class: type[MultiAssignment]
+        if isinstance(geometry, TriangleElement):
+            blending_class = BlendingFTriangle
+        elif isinstance(geometry, TetrahedronElement):
+            blending_class = BlendingFTetrahedron
+        else:
+            raise HOGException(
+                "Blending not implemented for the passed element geometry."
+            )
+
+        phy = sp.zeros(geometry.dimensions, 1)
+        for coord in range(geometry.dimensions):
+            phy[coord] = blending_class(sp.Symbol("blend"), coord, *t)
+
+    else:
+        phy = blending.evaluate(t)
+
     return phy
 
 
 def jac_affine_to_physical(
-        geometry: ElementGeometry, symbolizer: Symbolizer
+    geometry: ElementGeometry, symbolizer: Symbolizer
 ) -> sp.Matrix:
     """Returns the Jacobian of the transformation from the affine (computational) to the physical element."""
     blending_class: type[MultiAssignment]
@@ -232,15 +244,14 @@ def jac_affine_to_physical(
             jac[row, col] = blending_class(sp.Symbol("blend"), row * cols + col, *t)
     return jac
 
+
 def jac_blending_evaluate(
     symbolizer: Symbolizer, geometry: ElementGeometry, blending: GeometryMap
 ) -> sp.Matrix:
     affine_points = symbolizer.affine_vertices_as_vectors(
         geometry.dimensions, geometry.num_vertices
     )
-    jac = blending.jacobian(
-        trafo_ref_to_affine(geometry, symbolizer, affine_points)
-    )
+    jac = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
     return jac
 
 
@@ -259,20 +270,15 @@ def jac_blending_inv_eval_symbols(
 
 
 def scalar_space_dependent_coefficient(
-        name: str,
-        geometry: ElementGeometry,
-        symbolizer: Symbolizer,
-        blending: GeometryMap = IdentityMap(),
+    name: str,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
 ) -> Union[ScalarVariableCoefficient2D, ScalarVariableCoefficient3D]:
     """Returns a symbol for an externally defined, space dependent scalar coefficient."""
-    if isinstance(blending, IdentityMap):
-        t = trafo_ref_to_affine(geometry, symbolizer)
-    elif isinstance(blending, ExternalMap):
-        t = trafo_ref_to_physical(geometry, symbolizer)
-    else:
-        raise HOGException(
-            "Reminder: revisit this function for compiled blending functions != id."
-        )
+
+    # Note that this also covers the IdentityMap automatically by doing nothing :)
+    t = trafo_ref_to_physical(geometry, symbolizer, blending)
 
     coeff_class: Union[
         type[ScalarVariableCoefficient2D], type[ScalarVariableCoefficient3D]
@@ -288,20 +294,15 @@ def scalar_space_dependent_coefficient(
 
 
 def vector_space_dependent_coefficient(
-        name: str,
-        geometry: ElementGeometry,
-        symbolizer: Symbolizer,
-        blending: GeometryMap = IdentityMap(),
+    name: str,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
 ) -> sp.Matrix:
     """Returns a symbol for an externally defined, space dependent vector coefficient."""
-    if isinstance(blending, IdentityMap):
-        t = trafo_ref_to_affine(geometry, symbolizer)
-    elif isinstance(blending, ExternalMap):
-        t = trafo_ref_to_physical(geometry, symbolizer)
-    else:
-        raise HOGException(
-            "Reminder: revisit this function for compiled blending functions != id."
-        )
+
+    # Note that this also covers the IdentityMap automatically by doing nothing :)
+    t = trafo_ref_to_physical(geometry, symbolizer, blending)
 
     if isinstance(geometry, TriangleElement):
         raise HOGException("2D is not supported")
@@ -312,10 +313,13 @@ def vector_space_dependent_coefficient(
     return eval
 
 
-def create_dof_symbols(function_space: FunctionSpace,
-                       geometry: ElementGeometry,
-                       symbolizer: Symbolizer, function_id: str) -> List[DoFSymbol]:
-    """ Creates a list of DoF symbols for a given function space."""
+def create_dof_symbols(
+    function_space: FunctionSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    function_id: str,
+) -> List[DoFSymbol]:
+    """Creates a list of DoF symbols for a given function space."""
     return [
         DoFSymbol(
             d,
@@ -332,14 +336,14 @@ def create_dof_symbols(function_space: FunctionSpace,
 
 
 def fem_function_on_element(
-        function_space: FunctionSpace,
-        geometry: ElementGeometry,
-        symbolizer: Symbolizer,
-        domain: str = "affine",
-        function_id: str = "f",
-        dof_map: Optional[List[int]] = None,
-        basis_eval: Union[str, List[sp.Expr]] = "default",
-        dof_symbols : Optional[List[DoFSymbol]] = None
+    function_space: FunctionSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    domain: str = "affine",
+    function_id: str = "f",
+    dof_map: Optional[List[int]] = None,
+    basis_eval: Union[str, List[sp.Expr]] = "default",
+    dof_symbols: Optional[List[DoFSymbol]] = None,
 ) -> Tuple[sp.Expr, List[DoFSymbol]]:
     """Returns an expression that is the element-local polynomial, either in affine or reference coordinates.
 
@@ -355,22 +359,30 @@ def fem_function_on_element(
     :param dof_symbols: list of dof symbols that can be passed if they are generated outside of this function
     """
 
-    dofs = create_dof_symbols(function_space, geometry, symbolizer,  function_id) if dof_symbols is None else dof_symbols
+    dofs = (
+        create_dof_symbols(function_space, geometry, symbolizer, function_id)
+        if dof_symbols is None
+        else dof_symbols
+    )
 
     if basis_eval != "default":
         assert (
-                domain == "reference"
+            domain == "reference"
         ), "Tabulating the basis evaluation not implemented for affine domain."
 
     if domain == "reference":
         # On the reference domain, the reference coordinates symbols can be used directly, so no substitution
         # has to be performed for the shape functions.
-        s = sp.zeros(1,1)
+        s = sp.zeros(1, 1)
         for dof, phi in zip(
-                dofs,
-                function_space.shape(geometry=geometry, domain="reference", dof_map=dof_map)
+            dofs,
+            (
+                function_space.shape(
+                    geometry=geometry, domain="reference", dof_map=dof_map
+                )
                 if basis_eval == "default"
-                else basis_eval,
+                else basis_eval
+            ),
         ):
             s += dof * sp.Matrix([phi])
     elif domain == "affine":
@@ -379,19 +391,23 @@ def fem_function_on_element(
         eval_point_on_ref = trafo_affine_point_to_ref(geometry, symbolizer=symbolizer)
         s = sp.zeros(1, 1)
         for dof, phi in zip(
-                dofs,
-                function_space.shape(
-                    geometry=geometry, domain="reference", dof_map=dof_map
-                ),
+            dofs,
+            function_space.shape(
+                geometry=geometry, domain="reference", dof_map=dof_map
+            ),
         ):
-            s += dof * sp.Matrix(phi.subs(
-                {
-                    ref_c: trafo_c
-                    for ref_c, trafo_c in zip(
-                        symbolizer.ref_coords_as_list(dimensions=geometry.dimensions),
-                        eval_point_on_ref,
-                    )
-                })
+            s += dof * sp.Matrix(
+                phi.subs(
+                    {
+                        ref_c: trafo_c
+                        for ref_c, trafo_c in zip(
+                            symbolizer.ref_coords_as_list(
+                                dimensions=geometry.dimensions
+                            ),
+                            eval_point_on_ref,
+                        )
+                    }
+                )
             )
     else:
         raise HOGException(
@@ -400,16 +416,15 @@ def fem_function_on_element(
     return s, dofs
 
 
-
 def fem_function_gradient_on_element(
-        function_space: FunctionSpace,
-        geometry: ElementGeometry,
-        symbolizer: Symbolizer,
-        domain: str = "affine",
-        function_id: str = "f",
-        dof_map: Optional[List[int]] = None,
-        basis_eval: Union[str, List[sp.Expr]] = "default",
-        dof_symbols: Optional[List[DoFSymbol]] = None
+    function_space: FunctionSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    domain: str = "affine",
+    function_id: str = "f",
+    dof_map: Optional[List[int]] = None,
+    basis_eval: Union[str, List[sp.Expr]] = "default",
+    dof_symbols: Optional[List[DoFSymbol]] = None,
 ) -> sp.Matrix:
     """Returns an expression that is the gradient of the element-local polynomial, either in affine or reference coordinates.
 
@@ -426,12 +441,15 @@ def fem_function_gradient_on_element(
 
     """
 
-    dofs = create_dof_symbols(function_space, geometry, symbolizer,  function_id) if dof_symbols is None else dof_symbols
-
+    dofs = (
+        create_dof_symbols(function_space, geometry, symbolizer, function_id)
+        if dof_symbols is None
+        else dof_symbols
+    )
 
     if basis_eval != "default":
         assert (
-                domain == "reference"
+            domain == "reference"
         ), "Tabulating the basis evaluation not implemented for affine domain."
 
     if domain == "reference":
@@ -439,16 +457,18 @@ def fem_function_gradient_on_element(
         # has to be performed for the shape functions.
         s = sp.zeros(geometry.dimensions, 1)
         for dof, grad_phi in zip(
-                dofs,
-                function_space.grad_shape(geometry=geometry, domain="reference", dof_map=dof_map)
+            dofs,
+            (
+                function_space.grad_shape(
+                    geometry=geometry, domain="reference", dof_map=dof_map
+                )
                 if basis_eval == "default"
-                else basis_eval,
+                else basis_eval
+            ),
         ):
             s += dof * grad_phi
     elif domain == "affine":
-        raise HOGException(
-            "Not implemented."
-        )
+        raise HOGException("Not implemented.")
     else:
         raise HOGException(
             f"Invalid domain '{domain}': cannot evaluate local polynomial here."
