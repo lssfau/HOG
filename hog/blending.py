@@ -273,7 +273,7 @@ class IcosahedralShellMap(GeometryMap):
             + tmp18 * tmp6
         )
 
-        bary = sp.abs(volX / volT)
+        bary = sp.Abs(volX / volT)
 
         oldRad = sp.sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2])
 
