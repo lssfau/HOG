@@ -92,7 +92,8 @@ class IdentityMap(GeometryMap):
 class ExternalMap(GeometryMap):
     """This is a special map that indicates that the actual map is defined externally (through a C++ class in HyTeG)."""
 
-    pass
+    def supported_geometries(self) -> List[ElementGeometry]:
+        return [LineElement(), TriangleElement(), TetrahedronElement()]
 
 
 class AnnulusMap(GeometryMap):
