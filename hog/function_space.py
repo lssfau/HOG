@@ -18,7 +18,7 @@ from pyclbr import Function
 from typing import Any, List, Optional, Protocol
 import sympy as sp
 
-from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
+from hog.element_geometry import ElementGeometry, TriangleElement, EmbeddedTriangle, TetrahedronElement
 from hog.exception import HOGException
 from hog.math_helpers import grad, hessian
 from hog.symbolizer import Symbolizer
@@ -84,6 +84,8 @@ class FunctionSpace(Protocol):
         """
         if domain in ["ref", "reference"]:
             symbols = self.symbolizer.ref_coords_as_list(geometry.dimensions)
+            if isinstance(geometry, EmbeddedTriangle):
+                symbols = self.symbolizer.ref_coords_as_list(geometry.dimensions - 1)
             basis_functions_gradients = [
                 grad(f, symbols)
                 for f in self.shape(geometry, domain=domain, dof_map=dof_map)
@@ -206,6 +208,40 @@ class LagrangianFunctionSpace(FunctionSpace):
                     4 * x * y,
                     -4 * x * y - 4 * y**2 + 4 * y,
                     -4 * x**2 - 4 * x * y + 4 * x,
+                ]
+
+            elif (
+                isinstance(geometry, EmbeddedTriangle)
+                and self.family in ["Lagrange"]
+                and self._degree == 0
+            ):
+                basis_functions = [sp.sympify(1)]
+
+            elif(
+                isinstance(geometry, EmbeddedTriangle)
+                and self.family in ["Lagrange"]
+                and self._degree == 1
+            ):
+                basis_functions = [
+                    1 - symbols[0] - symbols[1],
+                    symbols[0],
+                    symbols[1],
+                ]
+
+            elif(
+                isinstance(geometry, EmbeddedTriangle)
+                and self.family in ["Lagrange"]
+                and self._degree == 2
+            ):
+                x = symbols[0]
+                y = symbols[1]
+                basis_functions = [
+                    2 * x ** 2 + 4 * x * y - 3 * x + 2 * y ** 2 - 3 * y + 1,
+                    2 * x ** 2 - x,
+                    2 * y ** 2 - y,
+                    4 * x * y,
+                    -4 * x * y - 4 * y ** 2 + 4 * y,
+                    -4 * x ** 2 - 4 * x * y + 4 * x,
                 ]
 
             elif (

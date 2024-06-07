@@ -28,6 +28,7 @@ from hog.blending import (
 from hog.element_geometry import (
     ElementGeometry,
     TriangleElement,
+    EmbeddedTriangle,
     TetrahedronElement,
     LineElement,
 )
@@ -38,10 +39,12 @@ from hog.multi_assignment import MultiAssignment
 from hog.symbolizer import Symbolizer
 from hog.external_functions import (
     BlendingFTriangle,
+    BlendingFEmbeddedTriangle,
     BlendingFTetrahedron,
     BlendingDFTetrahedron,
     BlendingDFTriangle,
     BlendingDFInvDFTriangle,
+    BlendingDFEmbeddedTriangle,
     ScalarVariableCoefficient2D,
     ScalarVariableCoefficient3D,
     VectorVariableCoefficient3D,
@@ -115,6 +118,9 @@ def trafo_ref_to_affine(
                           vector symbols, useful for example if the trafo of two or more different elements is required
     """
     ref_symbols_vector = symbolizer.ref_coords_as_vector(geometry.dimensions)
+    if isinstance(geometry, EmbeddedTriangle):
+        ref_symbols_vector = symbolizer.ref_coords_as_vector(geometry.dimensions - 1)
+
     if affine_points is None:
         affine_points = symbolizer.affine_vertices_as_vectors(
             geometry.dimensions, geometry.num_vertices
@@ -193,6 +199,9 @@ def jac_ref_to_affine(
                           vector symbols, useful for example if the trafo of two or more different elements is required
     """
     ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
+    if isinstance(geometry, EmbeddedTriangle):
+        ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions-1)
+
     trafo = trafo_ref_to_affine(geometry, symbolizer, affine_points=affine_points)
     return trafo.jacobian(ref_symbols_list)
 
@@ -211,6 +220,8 @@ def trafo_ref_to_physical(
         blending_class: type[MultiAssignment]
         if isinstance(geometry, TriangleElement):
             blending_class = BlendingFTriangle
+        elif isinstance(geometry, EmbeddedTriangle):
+            blending_class = BlendingDFEmbeddedTriangle
         elif isinstance(geometry, TetrahedronElement):
             blending_class = BlendingFTetrahedron
         else:
@@ -235,6 +246,8 @@ def jac_affine_to_physical(
     blending_class: type[MultiAssignment]
     if isinstance(geometry, TriangleElement):
         blending_class = BlendingDFTriangle
+    elif isinstance(geometry, EmbeddedTriangle):
+        blending_class = BlendingDFEmbeddedTriangle
     elif isinstance(geometry, TetrahedronElement):
         blending_class = BlendingDFTetrahedron
     else:
