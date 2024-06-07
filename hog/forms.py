@@ -1388,9 +1388,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                 basis_eval=phi_eval_symbols,
             )
         else:
-            raise HOGException(
-                "scalar_space_dependent_coefficient currently not supported in opgen."
-            )
+            raise HOGException("scalar_space_dependent_coefficient currently not supported in opgen.")
             # mu = scalar_space_dependent_coefficient(
             #     "mu", geometry, symbolizer, blending=blending
             # )
@@ -1434,6 +1432,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                 function_id="grad_uy",
                 dof_symbols=dof_symbols_uy,
             )
+
 
             # if geometry.dimensions > 2:
             uz, dof_symbols_uz = fem_function_on_element(
@@ -1489,17 +1488,21 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         for data in it:
             phi = data.trial_shape
             psi = data.test_shape
-
+            
             if blending != IdentityMap():
                 affine_factor = (
                     tabulation.register_factor(
                         "affine_factor_symbol",
                         sp.Matrix([phi * psi * jac_affine_det]),
                     )
-                )[0]
+                )[
+                    0
+                ]
                 form = (
                     mu[0]
-                    * (double_contraction(tau, grad_u)[0])
+                    * (
+                        double_contraction(tau, grad_u)[0]
+                    )
                     * jac_blending_det
                     * affine_factor
                 )
@@ -1507,10 +1510,19 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                 shear_heating_det_symbol = (
                     tabulation.register_factor(
                         "shear_heating_det_symbol",
-                        (double_contraction(tau, grad_u)) * phi * psi * jac_affine_det,
+                        (
+                            double_contraction(tau, grad_u)
+                        )
+                        * phi
+                        * psi 
+                        * jac_affine_det,
                     )
-                )[0]
-                form = mu[0] * shear_heating_det_symbol
+                )[
+                    0
+                ]
+                form = (
+                    mu[0] * shear_heating_det_symbol
+                )
 
             mat[data.row, data.col] = form
 
@@ -1520,6 +1532,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         symmetric=component_trial == component_test,
         docstring=docstring,
     )
+
 
 
 def divdiv(
@@ -1632,9 +1645,9 @@ def supg_diffusion(
     test: FunctionSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    diffusivityXdelta_function_space: FunctionSpace,
     blending: GeometryMap = IdentityMap(),
-    velocity_function_space: FunctionSpace = None,
-    diffusivityXdelta_function_space: FunctionSpace = None,
 ) -> Form:
     docstring = f"""
 Second derivative operator for testing.
@@ -1661,7 +1674,7 @@ Weak formulation
 
     if trial != test:
         raise HOGException(
-            "Trial space must be equal to test space to assemble second derivative matrix."
+            "Trial space must be equal to test space to assemble SUPG diffusion matrix."
         )
 
     with TimedLogger("assembling second derivative matrix", level=logging.DEBUG):

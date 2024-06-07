@@ -21,7 +21,7 @@ from hog.ast import Assignment, CodeBlock
 from hog.exception import HOGException
 from hog.quadrature import Quadrature
 from hog.symbolizer import Symbolizer
-from hog.function_space import FunctionSpace, N1E1Space
+from hog.function_space import (FunctionSpace, N1E1Space)
 from hog.element_geometry import ElementGeometry
 from hog.code_generation import code_block_from_element_matrix
 from hog.multi_assignment import Member
@@ -91,9 +91,7 @@ class HyTeGIntegrator:
         )
         return info
 
-    def _setup_methods(
-        self,
-    ) -> Tuple[str, str, List[str], List[str], List[str], List[str], List[Member]]:
+    def _setup_methods(self) -> Tuple[str, str, List[str], List[str], List[str], List[str], List[Member]]:
 
         rows, cols = self.element_matrix.shape
 
@@ -123,7 +121,8 @@ class HyTeGIntegrator:
                 output_assignments = []
                 for row in range(rows):
                     for col in range(cols):
-                        lhs = self.symbolizer.output_element_matrix_access(row, col)
+                        lhs = self.symbolizer.output_element_matrix_access(
+                            row, col)
                         rhs = self.symbolizer.element_matrix_entry(row, col)
                         output_assignments.append(
                             Assignment(lhs, rhs, is_declaration=False)
@@ -145,7 +144,8 @@ class HyTeGIntegrator:
                 output_assignments = []
                 for col in range(cols):
                     lhs = self.symbolizer.output_element_matrix_access(0, col)
-                    rhs = self.symbolizer.element_matrix_entry(integrate_row, col)
+                    rhs = self.symbolizer.element_matrix_entry(
+                        integrate_row, col)
                     output_assignments.append(
                         Assignment(lhs, rhs, is_declaration=False)
                     )
@@ -164,7 +164,8 @@ class HyTeGIntegrator:
             if self.not_implemented:
                 code_block_code = ""
             else:
-                code_block_code = "\n      ".join(code_block.to_code().splitlines())
+                code_block_code = "\n      ".join(
+                    code_block.to_code().splitlines())
 
             hyteg_matrix_type = f"Matrix< real_t, {output_rows}, {output_cols} >"
 
@@ -182,7 +183,8 @@ class HyTeGIntegrator:
                 return f"   void {prefix}{method_name}( const std::array< Point3D, {self.geometry.num_vertices} >& {'' if without_argnames else 'coords'}, {hyteg_matrix_type}& {'' if without_argnames else 'elMat'} ) const{override_str}"
 
             integrate_decl[integrate_matrix_element] = (
-                "   " + "\n   ".join(self._docstring(code_block).splitlines()) + "\n"
+                "   " +
+                "\n   ".join(self._docstring(code_block).splitlines()) + "\n"
             )
             integrate_decl[
                 integrate_matrix_element
@@ -211,7 +213,8 @@ class HyTeGIntegrator:
                 fd_code = "   " + "\n   ".join(fd.declaration().splitlines())
                 helper_methods_decl.append(fd_code)
                 fd_code = "   " + "\n   ".join(
-                    fd.implementation(name_prefix=self.class_name + "::").splitlines()
+                    fd.implementation(
+                        name_prefix=self.class_name + "::").splitlines()
                 )
                 helper_methods_impl.append(fd_code)
 
@@ -263,20 +266,22 @@ class HyTeGFormClass:
         for f in self.integrators:
             members += f.members
 
-        members = sorted(set(members), key=lambda m: m.name_constructor)
+        members = sorted(set(members), key = lambda m: m.name_constructor)
 
         if not members:
             return ""
 
         default_constructor = f'{self.name}() {{ WALBERLA_ABORT("Not implemented."); }}'
 
-        ctr_prms = ", ".join([f"{m.dtype} {m.name_constructor}" for m in members])
+        ctr_prms = ", ".join(
+            [f"{m.dtype} {m.name_constructor}" for m in members])
 
         init_list = "\n   , ".join(
             [f"{m.name_member}({m.name_constructor})" for m in members]
         )
 
-        member_decl = "\n   ".join([f"{m.dtype} {m.name_member};" for m in members])
+        member_decl = "\n   ".join(
+            [f"{m.dtype} {m.name_member};" for m in members])
 
         constructor_string = f""" public:
 
@@ -369,9 +374,7 @@ class HyTeGForm:
         elif self.trial.degree == self.test.degree:
             super_class = f"form_hyteg_base/P{self.trial.degree}FormHyTeG"
         else:
-            super_class = (
-                f"form_hyteg_base/P{self.trial.degree}ToP{self.test.degree}FormHyTeG"
-            )
+            super_class = f"form_hyteg_base/P{self.trial.degree}ToP{self.test.degree}FormHyTeG"
 
         if header:
             includes = "\n".join(

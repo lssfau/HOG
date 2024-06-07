@@ -674,13 +674,7 @@ def form_func(
             blending=blending,
         ).integrate(quad, symbolizer)
     elif name.startswith("supg_d"):
-        return supg_diffusion(
-            trial,
-            test,
-            geometry,
-            symbolizer,
-            blending=blending,
-        ).integrate(quad, symbolizer)
+        raise HOGException(f"SUPG Diffusion is not supported for form generation")
     else:
         raise HOGException(f"Cannot call form function with name {name}.")
 

@@ -292,7 +292,7 @@ def jac_blending_inv_eval_symbols(
 
 def hessian_ref_to_affine(
     geometry: ElementGeometry, hessian_ref: sp.Matrix, Jinv: sp.Matrix
-):
+) -> sp.Matrix:
     hessian_affine = Jinv.T * hessian_ref * Jinv
     return hessian_affine
 
@@ -303,8 +303,7 @@ def hessian_affine_to_blending(
     hessian_blending_map: List[sp.Matrix],
     Jinv: sp.Matrix,
     shape_grad_affine: sp.Matrix,
-    jacinvjac_blending: List[sp.Matrix] = None,
-):
+) -> sp.Matrix:
     """
     This stack answer was for nonlinear FE mapping (Q2 elements) but just using the same derivation for our blending nonlinear mapping
     https://scicomp.stackexchange.com/q/36780
