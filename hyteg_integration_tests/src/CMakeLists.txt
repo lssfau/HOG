@@ -63,6 +63,7 @@ add_operator_test(FILE EpsilonVectorAnnulus.cpp DEF           FORM Epsilon      
 
 add_operator_test(FILE SUPGDiffusionTest.cpp DEF           FORM SUPGDiffusion ABBR supgdiffIMT GEN_ARGS -s P2 -b IdentityMap -o MOVECONSTANTS --quad-rule hillion_07 yu_3 --dimensions 2)
 add_operator_test(FILE SUPGDiffusionTest.cpp DEF           FORM SUPGDiffusion ABBR supgdiffIQMT GEN_ARGS -s P2 -b IdentityMap -o MOVECONSTANTS QUADLOOPS TABULATE --quad-rule hillion_07 yu_3 --dimensions 2)
+add_operator_test(FILE SUPGDiffusionAnnulusTest.cpp DEF           FORM SUPGDiffusion ABBR supgdiffAQMT GEN_ARGS -s P2 -b AnnulusMap -o MOVECONSTANTS QUADLOOPS TABULATE --quad-rule hillion_07 yu_3)
 
 # tests with blending
 

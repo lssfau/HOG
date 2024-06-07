@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "core/math/Constants.h"
 #include "core/DataTypes.h"
 
 #include "hyteg/p2functionspace/P2Function.hpp"
@@ -31,14 +32,16 @@ int main( int argc, char* argv[] )
    walberla::MPIManager::instance()->initializeMPI( &argc, &argv );
    walberla::MPIManager::instance()->useWorldComm();
 
-   Point2D lowerLeft(0.0, 0.0);
-   Point2D upperRight(1.0, 1.0);
+   const real_t rMin = 0.5;
+   const real_t rMax = 1.0;
 
-   uint_t nx = 10U, ny = 10U, nz = 10U;
-   auto meshInfo = MeshInfo::meshRectangle(lowerLeft, upperRight, MeshInfo::CRISS, nx, ny);
+   const uint_t nTan = 5U;
+   const uint_t nRad = 2U;
+
+   auto meshInfo = MeshInfo::meshAnnulus( rMin, rMax, MeshInfo::CRISS, nTan, nRad );
 
     StorageSetup storageSetupRectangle(
-       "Rectangle", MeshInfo::meshRectangle(lowerLeft, upperRight, MeshInfo::CRISS, nx, ny), GeometryMap::Type::IDENTITY );
+       "Annulus", meshInfo, GeometryMap::Type::ANNULUS );
 
     auto storage = storageSetupRectangle.createStorage();
 
@@ -94,11 +97,11 @@ int main( int argc, char* argv[] )
    testOperator.apply(T, f, level, All);
 
    real_t integral = sh.dotGlobal(f, level, All);
-   real_t expected = 224.0/45.0;
+   real_t expected = 2*walberla::math::pi*((4.0/3.0)*std::pow(rMax, 6) - 4.0/3.0*std::pow(rMin, 6));
 
    real_t error = std::abs(integral - expected);
 
-   real_t threshold = 1e-7;
+   real_t threshold = 1e-3;
 
    WALBERLA_CHECK_LESS(error, threshold);
 

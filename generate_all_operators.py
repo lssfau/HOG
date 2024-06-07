@@ -354,7 +354,7 @@ def main():
             args.quad_degree if args.quad_rule is None else args.quad_rule,
         )
     }
-
+    
     enabled_geometries: Set[TriangleElement | TetrahedronElement] = set()
     if 2 in args.dimensions:
         enabled_geometries.add(TriangleElement())
@@ -590,7 +590,7 @@ def all_operators(
 
     ops.append(OperatorInfo(mapping="P2", name="SUPGDiffusion", trial_space=P2, test_space=P2, 
                             form=partial(supg_diffusion, velocity_function_space=P2, diffusivityXdelta_function_space=P2), 
-                            type_descriptor=type_descriptor, opts=opts, blending=blending))
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
     
     # fmt: on
 
