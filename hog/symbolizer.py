@@ -47,6 +47,7 @@ class Symbolizer:
         symbol_jac_blending="jac_blending",
         symbol_jac_blending_inv="jac_blending_inv",
         symbol_abs_det_jac_blending="abs_det_jac_blending",
+        symbol_hessian_blending="hessian_blending",
     ):
         """Creates a Symbolizer instance.
 
@@ -79,6 +80,7 @@ class Symbolizer:
         self._symbol_jac_blending = symbol_jac_blending
         self._symbol_jac_blending_inv = symbol_jac_blending_inv
         self._symbol_abs_det_jac_blending = symbol_abs_det_jac_blending
+        self._symbol_hessian_blending = symbol_hessian_blending
 
     def ref_coords_as_list(self, dimensions: int) -> List[sp.Symbol]:
         """Returns a list of symbols that correspond to the coordinates on the reference element."""
@@ -214,6 +216,19 @@ class Symbolizer:
 
     def abs_det_jac_affine_to_blending(self, q_pt: str = "") -> sp.Symbol:
         return sp.Symbol(f"{self._symbol_abs_det_jac_blending}{q_pt}")
+    
+    def hessian_blending_map(self, dimensions: int, q_pt: str = "") -> List[sp.Matrix]:
+        return [
+            sp.Matrix(
+                [
+                    [
+                        sp.Symbol(f"{self._symbol_hessian_blending}_{k}_{i}_{j}{q_pt}")
+                        for j in range(dimensions)
+                    ]
+                    for i in range(dimensions)
+                ]
+            ) for k in range(dimensions)
+        ]
 
     def blending_parameter_symbols(self, num_symbols: int) -> List[sp.Symbol]:
         return sp.symbols(
@@ -225,6 +240,7 @@ class Symbolizer:
             list(self.jac_affine_to_blending(dimensions).free_symbols)
             + list(self.jac_affine_to_blending_inv(dimensions).free_symbols)
             + list(self.abs_det_jac_affine_to_blending().free_symbols)
+            + list(sp.Array(self.hessian_blending_map(dimensions)).free_symbols)
         )
 
     def float_loop_ctr_array(self, dimensions: int) -> List[sp.Symbol]:

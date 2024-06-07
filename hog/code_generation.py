@@ -29,6 +29,7 @@ from hog.fem_helpers import (
     jac_ref_to_affine,
     trafo_ref_to_affine,
     jac_blending_evaluate,
+    hess_blending_evaluate,
     abs_det_jac_blending_eval_symbols,
     jac_blending_inv_eval_symbols,
 )
@@ -159,9 +160,9 @@ def replace_multi_assignments(
         # Actually filling the dict.
         for ma in multi_assignments:
             replacement_symbol = replacement_symbols[ma.output_arg()]
-            multi_assignments_replacement_symbols[ma.unique_identifier] = (
-                replacement_symbol
-            )
+            multi_assignments_replacement_symbols[
+                ma.unique_identifier
+            ] = replacement_symbol
 
     if multi_assignments_replacement_symbols:
         with TimedLogger(
@@ -288,7 +289,6 @@ def blending_jacobi_matrix_assignments(
     blending: GeometryMap,
     quad_info: Quadrature,
 ) -> List[Assignment]:
-
     assignments = []
 
     free_symbols = element_matrix.free_symbols | {
@@ -353,6 +353,58 @@ def blending_jacobi_matrix_assignments(
                     assignments.append(SympyAssignment(s_ij, e_ij))
 
     assignments.reverse()
+
+    return assignments
+
+
+def hessian_matrix_assignments(
+    element_matrix: sp.Matrix,
+    quad_stmts: List[sp.codegen.ast.CodegenAST],
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    affine_points: Optional[List[sp.Matrix]],
+    blending: GeometryMap,
+    quad_info: Quadrature,
+) -> List[Assignment]:
+    assignments = []
+
+    free_symbols = element_matrix.free_symbols | {
+        free_symbol
+        for stmt in quad_stmts
+        for free_symbol in stmt.undefined_symbols
+        if isinstance(stmt, Node)
+    }
+
+    for i_q_pt, point in enumerate(quad_info._point_symbols):
+        hess_blend_symbol = symbolizer.hessian_blending_map(
+            geometry.dimensions, q_pt=f"_q_{i_q_pt}"
+        )
+
+        hess_blending_in_expr = set.union(
+            *[
+                set(hess_blend_symbol[i]).intersection(free_symbols)
+                for i in range(geometry.dimensions)
+            ]
+        )
+
+        # Just an early exit. Not strictly required, but might accelerate this process in some cases.
+        if hess_blending_in_expr:
+            if isinstance(blending, ExternalMap):
+                HOGException("Not implemented or cannot be?")
+
+            hess_blend_expr = hess_blending_evaluate(symbolizer, geometry, blending)
+            # Collecting all expressions to parse for step 3.
+            spat_coord_subs = {}
+            for idx, symbol in enumerate(
+                symbolizer.ref_coords_as_list(geometry.dimensions)
+            ):
+                spat_coord_subs[symbol] = point[idx]
+
+            for d in range(geometry.dimensions):
+                hess_blend_expr_sub = hess_blend_expr[d].subs(spat_coord_subs)
+                for s_ij, e_ij in zip(hess_blend_symbol[d], hess_blend_expr_sub):
+                    if s_ij in hess_blending_in_expr:
+                        assignments.append(SympyAssignment(s_ij, e_ij))
 
     return assignments
 

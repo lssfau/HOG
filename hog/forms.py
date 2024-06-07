@@ -20,12 +20,14 @@ import sympy as sp
 from typing import List, Optional, Tuple
 
 from hog.ast import Operations, count_operations
-from hog.element_geometry import ElementGeometry
+from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
 from hog.exception import HOGException
 from hog.fem_helpers import (
     trafo_ref_to_affine,
     jac_ref_to_affine,
     jac_affine_to_physical,
+    hessian_ref_to_affine,
+    hessian_affine_to_blending,
     create_empty_element_matrix,
     element_matrix_iterator,
     scalar_space_dependent_coefficient,
@@ -1293,6 +1295,7 @@ where
         docstring=docstring,
     )
 
+
 def shear_heating(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -1530,6 +1533,8 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         docstring=docstring,
     )
 
+
+
 def divdiv(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -1633,6 +1638,185 @@ Weak formulation
         symmetric=component_trial == component_test,
         docstring=docstring,
     )
+
+
+def supg_diffusion(
+    trial: FunctionSpace,
+    test: FunctionSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    diffusivityXdelta_function_space: FunctionSpace,
+    blending: GeometryMap = IdentityMap(),
+) -> Form:
+    docstring = f"""
+Form for SUPGDiffusion operator used for SUPG stabilisation
+
+Geometry map: {blending}
+
+Weak formulation
+
+    T: trial function (space: {trial})
+    s: test function  (space: {test})
+    u: velocity function (space: {velocity_function_space})
+   k𝛿: FE function representing k·𝛿 (space: {diffusivityXdelta_function_space})
+    
+    For OpGen,
+
+    ∫ k(ΔT) · 𝛿(u · ∇s)
+
+    -------------------
+
+    For ExternalMap (only for testing, currently not supported),
+
+    ∫ (ΔT) s
+"""
+
+    if trial != test:
+        raise HOGException(
+            "Trial space must be equal to test space to assemble SUPG diffusion matrix."
+        )
+
+    with TimedLogger("assembling second derivative matrix", level=logging.DEBUG):
+        tabulation = Tabulation(symbolizer)
+
+        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
+
+        if isinstance(blending, ExternalMap):
+            HOGException("ExternalMap is not supported")
+        else:
+            affine_coords = trafo_ref_to_affine(geometry, symbolizer)
+            jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(
+                geometry.dimensions
+            )
+            jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
+            if not isinstance(blending, IdentityMap):
+                # hessian_blending_map = blending.hessian(affine_coords)
+                hessian_blending_map = symbolizer.hessian_blending_map(geometry.dimensions)
+
+        # jac_blending_det = abs(det(jac_blending))
+        # with TimedLogger("inverting blending Jacobian", level=logging.DEBUG):
+        #     jac_blending_inv = inv(jac_blending)
+
+        mat = create_empty_element_matrix(trial, test, geometry)
+        it = element_matrix_iterator(trial, test, geometry)
+
+        if velocity_function_space != None and diffusivityXdelta_function_space != None:
+            u_eval_symbols = tabulation.register_phi_evals(
+                velocity_function_space.shape(geometry)
+            )
+
+            ux, _ = fem_function_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="ux",
+                basis_eval=u_eval_symbols,
+            )
+
+            uy, _ = fem_function_on_element(
+                velocity_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="uy",
+                basis_eval=u_eval_symbols,
+            )
+
+            if isinstance(geometry, TetrahedronElement):
+                uz, _ = fem_function_on_element(
+                    velocity_function_space,
+                    geometry,
+                    symbolizer,
+                    domain="reference",
+                    function_id="uz",
+                    basis_eval=u_eval_symbols,
+                )
+                u = sp.Matrix([[ux], [uy], [uz]])
+            else:
+                u = sp.Matrix([[ux], [uy]])
+
+            kdelta_eval_symbols = tabulation.register_phi_evals(
+                diffusivityXdelta_function_space.shape(geometry)
+            )
+
+            kdelta, _ = fem_function_on_element(
+                diffusivityXdelta_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="kdelta",
+                basis_eval=kdelta_eval_symbols,
+            )
+
+        for data in it:
+            psi = data.test_shape
+            grad_phi = data.trial_shape_grad
+            grad_psi = data.test_shape_grad
+            hessian_phi = data.trial_shape_hessian
+            hessian_affine = hessian_ref_to_affine(
+                geometry, hessian_phi, jac_affine_inv
+            )
+
+            hessian_affine_symbols = tabulation.register_factor(
+                "hessian_affine",
+                hessian_affine,
+            )
+
+            jac_affine_inv_T_grad_phi_symbols = tabulation.register_factor(
+                "jac_affine_inv_T_grad_phi",
+                jac_affine_inv.T * grad_phi,
+            )
+
+            jac_affine_inv_T_grad_psi_symbols = tabulation.register_factor(
+                "jac_affine_inv_T_grad_psi",
+                jac_affine_inv.T * grad_psi,
+            )
+
+            # jac_blending_inv_T_jac_affine_inv_T_grad_psi_symbols = tabulation.register_factor(
+            #     "jac_affine_inv_T_grad_psi",
+            #     jac_blending_inv.T * jac_affine_inv_T_grad_psi_symbols,
+            # )
+
+            if isinstance(blending, IdentityMap):
+                laplacian = sum(
+                    [hessian_affine_symbols[i, i] for i in range(geometry.dimensions)]
+                )
+                form = (
+                    laplacian
+                    * dot(u, jac_affine_inv_T_grad_psi_symbols)
+                    * kdelta
+                    * jac_affine_det
+                )
+            else:
+                hessian_blending = hessian_affine_to_blending(
+                    geometry,
+                    hessian_affine,
+                    hessian_blending_map,
+                    jac_blending_inv.T,
+                    jac_affine_inv_T_grad_phi_symbols,
+                )
+
+                laplacian = sum(
+                    [hessian_blending[i, i] for i in range(geometry.dimensions)]
+                )
+
+                form = (
+                    laplacian
+                    * dot(u, jac_blending_inv.T * jac_affine_inv.T * grad_psi)
+                    * kdelta
+                    * jac_affine_det
+                    * jac_blending_det
+                )
+                # HOGException("Only for testing with Blending map")
+
+            mat[data.row, data.col] = form
+
+    return Form(mat, tabulation, symmetric=False, docstring=docstring)
 
 
 def zero_form(

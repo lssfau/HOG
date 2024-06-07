@@ -24,7 +24,7 @@ import sympy as sp
 from sympy.core.cache import clear_cache
 import re
 
-from hog.blending import GeometryMap, IdentityMap, ExternalMap
+from hog.blending import GeometryMap, IdentityMap, ExternalMap, AnnulusMap
 from hog.element_geometry import TriangleElement, TetrahedronElement, ElementGeometry
 from hog.function_space import FunctionSpace, LagrangianFunctionSpace, N1E1Space
 from hog.forms import (
@@ -38,9 +38,10 @@ from hog.forms import (
     divergence,
     full_stokes,
     divdiv,
+    supg_diffusion,
 )
 from hog.forms_vectorial import mass_n1e1, curl_curl
-from hog.quadrature import Quadrature
+from hog.quadrature import Quadrature, select_quadrule
 from hog.exception import HOGException
 from hog.logger import TimedLogger
 from hog.symbolizer import Symbolizer
@@ -419,6 +420,20 @@ form_infos = [
         description="Implements a linear form of type: (k(x), psi) where psi a test function and k = k(x) a vectorial, external function.",
         integrate_rows=[],
     ),
+    FormInfo(
+        "supg_diffusion",
+        trial_degree=2,
+        test_degree=2,
+        quad_schemes={2: 4, 3: 4},
+        blending=ExternalMap(),
+    ),
+    FormInfo(
+        "supg_diffusion",
+        trial_degree=2,
+        test_degree=2,
+        quad_schemes={2: 4, 3: 4},
+        blending=AnnulusMap(),
+    )
 ]
 
 for d in [1, 2]:
@@ -658,6 +673,8 @@ def form_func(
             transpose=False,
             blending=blending,
         ).integrate(quad, symbolizer)
+    elif name.startswith("supg_d"):
+        raise HOGException(f"SUPG Diffusion is not supported for form generation")
     else:
         raise HOGException(f"Cannot call form function with name {name}.")
 
@@ -821,7 +838,8 @@ def main():
                             f"- Generating code for class {form_info.class_name(row,col)}, {geometry.dimensions}D"
                         ):
                             quad = Quadrature(
-                                form_info.quad_schemes[geometry.dimensions],
+                                select_quadrule(form_info.quad_schemes[geometry.dimensions], geometry),
+                                # form_info.quad_schemes[geometry.dimensions],
                                 geometry,
                                 inline_values=form_info.inline_quad,
                             )

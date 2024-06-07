@@ -41,6 +41,7 @@ from hog.external_functions import (
     BlendingFTetrahedron,
     BlendingDFTetrahedron,
     BlendingDFTriangle,
+    BlendingDFInvDFTriangle,
     ScalarVariableCoefficient2D,
     ScalarVariableCoefficient3D,
     VectorVariableCoefficient3D,
@@ -65,6 +66,8 @@ class ElementMatrixData:
     test_shape: sp.Expr
     trial_shape_grad: sp.MatrixBase
     test_shape_grad: sp.MatrixBase
+    trial_shape_hessian: sp.MatrixBase
+    test_shape_hessian: sp.MatrixBase
     row: int
     col: int
 
@@ -73,17 +76,27 @@ def element_matrix_iterator(
     trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
 ) -> Iterator[ElementMatrixData]:
     """Call this to create a generator to conveniently fill the element matrix."""
-    for row, (psi, grad_psi) in enumerate(
-        zip(test.shape(geometry), test.grad_shape(geometry))
+    for row, (psi, grad_psi, hessian_psi) in enumerate(
+        zip(
+            test.shape(geometry),
+            test.grad_shape(geometry),
+            test.hessian_shape(geometry),
+        )
     ):
-        for col, (phi, grad_phi) in enumerate(
-            zip(trial.shape(geometry), trial.grad_shape(geometry))
+        for col, (phi, grad_phi, hessian_phi) in enumerate(
+            zip(
+                trial.shape(geometry),
+                trial.grad_shape(geometry),
+                trial.hessian_shape(geometry),
+            )
         ):
             yield ElementMatrixData(
                 trial_shape=phi,
                 trial_shape_grad=grad_phi,
+                trial_shape_hessian=hessian_phi,
                 test_shape=psi,
                 test_shape_grad=grad_psi,
+                test_shape_hessian=hessian_psi,
                 row=row,
                 col=col,
             )
@@ -254,6 +267,14 @@ def jac_blending_evaluate(
     jac = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
     return jac
 
+def hess_blending_evaluate(
+    symbolizer: Symbolizer, geometry: ElementGeometry, blending: GeometryMap
+) -> List[sp.Matrix]:
+    affine_points = symbolizer.affine_vertices_as_vectors(
+        geometry.dimensions, geometry.num_vertices
+    )
+    hess = blending.hessian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
+    return hess
 
 def abs_det_jac_blending_eval_symbols(
     geometry: ElementGeometry, symbolizer: Symbolizer, q_pt: str = ""
@@ -267,6 +288,44 @@ def jac_blending_inv_eval_symbols(
 ) -> sp.Matrix:
     jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
     return inv(jac_blending)
+
+
+def hessian_ref_to_affine(
+    geometry: ElementGeometry, hessian_ref: sp.Matrix, Jinv: sp.Matrix
+) -> sp.Matrix:
+    hessian_affine = Jinv.T * hessian_ref * Jinv
+    return hessian_affine
+
+
+def hessian_affine_to_blending(
+    geometry: ElementGeometry,
+    hessian_affine: sp.Matrix,
+    hessian_blending_map: List[sp.Matrix],
+    Jinv: sp.Matrix,
+    shape_grad_affine: sp.Matrix,
+) -> sp.Matrix:
+    """
+    This stack answer was for nonlinear FE mapping (Q2 elements) but just using the same derivation for our blending nonlinear mapping
+    https://scicomp.stackexchange.com/q/36780
+    """
+
+    jacinvjac_blending = []
+    # jacinvjac_blending = sp.MutableDenseNDimArray(hessian_blending_map) * 0.0
+
+    for i in range(geometry.dimensions):
+        jacinvjac_blending.append(-Jinv * hessian_blending_map[i] * Jinv)
+
+    hessian_blending = Jinv * hessian_affine * Jinv.T
+
+    d = geometry.dimensions
+    aux_matrix = sp.zeros(d, d)
+
+    for i in range(geometry.dimensions):
+        aux_matrix[:, i] = jacinvjac_blending[i] * shape_grad_affine
+
+    hessian_blending += Jinv * aux_matrix
+
+    return hessian_blending
 
 
 def scalar_space_dependent_coefficient(

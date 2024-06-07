@@ -32,6 +32,7 @@ from hog.symbolizer import Symbolizer
 from hog.sympy_extensions import fast_subs
 from hog.fem_helpers import (
     jac_blending_evaluate,
+    hess_blending_evaluate,
     abs_det_jac_blending_eval_symbols,
     jac_blending_inv_eval_symbols,
 )
@@ -111,6 +112,14 @@ class QuadLoop:
 
             quadrature_assignments += self.blending_quad_loop_assignments(
                 self.quadrature.geometry, self.symbolizer, jac_evaluated
+            )
+
+            hess = hess_blending_evaluate(
+                self.symbolizer, self.quadrature.geometry, self.blending
+            )
+            hess_evaluated = [fast_subs(hess[idx], coord_subs_dict) for idx in range(len(hess))]
+            quadrature_assignments += self.blending_hessian_quad_loop_assignments(
+                self.quadrature.geometry, self.symbolizer, hess_evaluated
             )
 
         for row in range(self.mat_integrand.rows):
@@ -217,6 +226,26 @@ class QuadLoop:
             )
             for i in range(dim)
             for j in range(dim)
+        ]
+
+        return quadrature_assignments
+    
+    def blending_hessian_quad_loop_assignments(
+        self,
+        geometry: ElementGeometry,
+        symbolizer: Symbolizer,
+        hessian_blending_evaluated: List[sp.Matrix],
+    ) -> List[ast.SympyAssignment]:
+        quadrature_assignments = []
+
+        hess_symbols = symbolizer.hessian_blending_map(geometry.dimensions)
+
+        dim = geometry.dimensions
+        quadrature_assignments += [
+            ast.SympyAssignment(hess_symbols[k][i, j], hessian_blending_evaluated[k][i, j], is_const=False)
+            for i in range(dim)
+            for j in range(dim)
+            for k in range(dim)
         ]
 
         return quadrature_assignments

@@ -20,7 +20,7 @@ import sympy as sp
 
 from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
 from hog.exception import HOGException
-from hog.math_helpers import grad
+from hog.math_helpers import grad, hessian
 from hog.symbolizer import Symbolizer
 
 
@@ -92,6 +92,28 @@ class FunctionSpace(Protocol):
 
         raise HOGException(
             f"Gradient of shape function not available for domain type {domain}"
+        )
+    
+    def hessian_shape(
+        self,
+        geometry: ElementGeometry,
+        domain: str = "reference",
+        dof_map: Optional[List[int]] = None,
+    ) -> List[sp.MatrixBase]:
+        """Returns a list containing the hessians of the shape functions on the element.
+
+        :param dof_map: this list can be used to specify (remap) the DoF ordering of the element
+        """
+        if domain in ["ref", "reference"]:
+            symbols = self.symbolizer.ref_coords_as_list(geometry.dimensions)
+            basis_functions_hessians = [
+                hessian(f, symbols)
+                for f in self.shape(geometry, domain=domain, dof_map=dof_map)
+            ]
+            return basis_functions_hessians
+
+        raise HOGException(
+            f"Hessian of shape function not available for domain type {domain}"
         )
 
     def num_dofs(self, geometry: ElementGeometry) -> int:
