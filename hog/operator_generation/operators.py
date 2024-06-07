@@ -908,6 +908,19 @@ class HyTeGElementwiseOperator:
                     )
                 )
 
+                if integration_info.blending.hessian_used:
+                    blending_assignments += (
+                        hog.code_generation.hessian_matrix_assignments(
+                            mat,
+                            integration_info.tables + quad_loop,
+                            geometry,
+                            self.symbolizer,
+                            affine_points=element_vertex_coordinates_symbols,
+                            blending=integration_info.blending,
+                            quad_info=integration_info.quad,
+                        )
+                    )
+
                 with TimedLogger("cse on blending operation", logging.DEBUG):
                     cse_impl = self._optimizer.cse_impl()
                     blending_assignments = hog.cse.cse(

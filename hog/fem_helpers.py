@@ -77,10 +77,18 @@ def element_matrix_iterator(
 ) -> Iterator[ElementMatrixData]:
     """Call this to create a generator to conveniently fill the element matrix."""
     for row, (psi, grad_psi, hessian_psi) in enumerate(
-            zip(test.shape(geometry), test.grad_shape(geometry), test.hessian_shape(geometry))
+        zip(
+            test.shape(geometry),
+            test.grad_shape(geometry),
+            test.hessian_shape(geometry),
+        )
     ):
         for col, (phi, grad_phi, hessian_phi) in enumerate(
-                zip(trial.shape(geometry), trial.grad_shape(geometry), trial.hessian_shape(geometry))
+            zip(
+                trial.shape(geometry),
+                trial.grad_shape(geometry),
+                trial.hessian_shape(geometry),
+            )
         ):
             yield ElementMatrixData(
                 trial_shape=phi,
@@ -259,6 +267,14 @@ def jac_blending_evaluate(
     jac = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
     return jac
 
+def hess_blending_evaluate(
+    symbolizer: Symbolizer, geometry: ElementGeometry, blending: GeometryMap
+) -> List[sp.Matrix]:
+    affine_points = symbolizer.affine_vertices_as_vectors(
+        geometry.dimensions, geometry.num_vertices
+    )
+    hess = blending.hessian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
+    return hess
 
 def abs_det_jac_blending_eval_symbols(
     geometry: ElementGeometry, symbolizer: Symbolizer, q_pt: str = ""
@@ -273,75 +289,45 @@ def jac_blending_inv_eval_symbols(
     jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions, q_pt)
     return inv(jac_blending)
 
-def hessian_ref_to_affine(geometry: ElementGeometry, hessian_ref: sp.Array, Jinv: sp.Matrix):
-    hessian_affine = hessian_ref * 0.0
-    for i in range(geometry.dimensions):
-        for l in range(geometry.dimensions):
-            hessian_affine[i, l] = 0.0
-            for j in range(geometry.dimensions):
-                for k in range(geometry.dimensions):
-                    hessian_affine[i, l] += Jinv[k, i] * Jinv[j, l] * hessian_ref[k, j]
+
+def hessian_ref_to_affine(
+    geometry: ElementGeometry, hessian_ref: sp.Matrix, Jinv: sp.Matrix
+):
+    hessian_affine = Jinv.T * hessian_ref * Jinv
     return hessian_affine
 
-def hessian_affine_to_blending(geometry: ElementGeometry, hessian_affine: sp.Array, hessian_blending_map: sp.Array, Jinv: sp.Matrix, shape_grad_affine: sp.Matrix, jacinvjac_blending: sp.Array = None):
+
+def hessian_affine_to_blending(
+    geometry: ElementGeometry,
+    hessian_affine: sp.Matrix,
+    hessian_blending_map: List[sp.Matrix],
+    Jinv: sp.Matrix,
+    shape_grad_affine: sp.Matrix,
+    jacinvjac_blending: List[sp.Matrix] = None,
+):
     """
     This stack answer was for nonlinear FE mapping (Q2 elements) but just using the same derivation for our blending nonlinear mapping
     https://scicomp.stackexchange.com/q/36780
     """
 
-    if jacinvjac_blending == None:
-        jacinvjac_blending = sp.MutableDenseNDimArray(hessian_blending_map) * 0.0
-
-        for d in range(geometry.dimensions):
-            for i in range(geometry.dimensions):
-                for j in range(geometry.dimensions):
-                    for k in range(geometry.dimensions):
-                        for l in range(geometry.dimensions):
-                            jacinvjac_blending[d, i, j] += -Jinv[i, k] * hessian_blending_map[d, k, l] * Jinv[l, j]
-
-    hessian_blending = hessian_affine * 0.0
+    jacinvjac_blending = []
+    # jacinvjac_blending = sp.MutableDenseNDimArray(hessian_blending_map) * 0.0
 
     for i in range(geometry.dimensions):
-        for j in range(geometry.dimensions):
-            hessian_blending[i, j] = 0.0
-            for k in range(geometry.dimensions):
-                for l in range(geometry.dimensions):
-                    hessian_blending[i, j] += Jinv[i, k] * Jinv[j, l] * hessian_affine[k, l] + Jinv[i, k] * jacinvjac_blending[k, j, l] * shape_grad_affine[l]
+        jacinvjac_blending.append(-Jinv * hessian_blending_map[i] * Jinv)
+
+    hessian_blending = Jinv * hessian_affine * Jinv.T
+
+    d = geometry.dimensions
+    aux_matrix = sp.zeros(d, d)
+
+    for i in range(geometry.dimensions):
+        aux_matrix[:, i] = jacinvjac_blending[i] * shape_grad_affine
+
+    hessian_blending += Jinv * aux_matrix
 
     return hessian_blending
 
-def jacinvjac_affine_to_physical(
-        geometry: ElementGeometry, symbolizer: Symbolizer
-) -> sp.Matrix:
-    """Returns the Jacobian of the transformation from the affine (computational) to the physical element."""
-    blending_class: type[MultiAssignment]
-    if isinstance(geometry, TriangleElement):
-        blending_class = BlendingDFInvDFTriangle
-    elif isinstance(geometry, TetrahedronElement):
-        raise HOGException("Blending not implemented for the passed element geometry.")
-    else:
-        raise HOGException("Blending not implemented for the passed element geometry.")
-
-    t = trafo_ref_to_affine(geometry, symbolizer)
-
-    d = geometry.dimensions
-    rows, cols = d, d * d
-
-    jacinvjac = sp.MutableDenseNDimArray([[[0.0]*d]*d]*d)
-
-    for i in range(rows):
-        for k in range(cols):
-            output_arg = i * cols + k
-            if len(t) != blending_class.num_input_args():
-                raise HOGException(
-                    f"Wrong number of input arguments to {blending_class.name()}."
-                )
-            if output_arg >= blending_class.num_output_args():
-                raise HOGException(
-                    f"{blending_class.name()} output argument index out of range."
-                )
-            jacinvjac[int(k / d), k % d, i] = blending_class(sp.Symbol("blend"), i * cols + k, *t)
-    return jacinvjac
 
 def scalar_space_dependent_coefficient(
     name: str,

@@ -28,7 +28,6 @@ from hog.fem_helpers import (
     jac_affine_to_physical,
     hessian_ref_to_affine,
     hessian_affine_to_blending,
-    jacinvjac_affine_to_physical,
     create_empty_element_matrix,
     element_matrix_iterator,
     scalar_space_dependent_coefficient,
@@ -1296,6 +1295,7 @@ where
         docstring=docstring,
     )
 
+
 def shear_heating(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -1388,7 +1388,9 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                 basis_eval=phi_eval_symbols,
             )
         else:
-            raise HOGException("scalar_space_dependent_coefficient currently not supported in opgen.")
+            raise HOGException(
+                "scalar_space_dependent_coefficient currently not supported in opgen."
+            )
             # mu = scalar_space_dependent_coefficient(
             #     "mu", geometry, symbolizer, blending=blending
             # )
@@ -1432,7 +1434,6 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                 function_id="grad_uy",
                 dof_symbols=dof_symbols_uy,
             )
-
 
             # if geometry.dimensions > 2:
             uz, dof_symbols_uz = fem_function_on_element(
@@ -1488,21 +1489,17 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         for data in it:
             phi = data.trial_shape
             psi = data.test_shape
-            
+
             if blending != IdentityMap():
                 affine_factor = (
                     tabulation.register_factor(
                         "affine_factor_symbol",
                         sp.Matrix([phi * psi * jac_affine_det]),
                     )
-                )[
-                    0
-                ]
+                )[0]
                 form = (
                     mu[0]
-                    * (
-                        double_contraction(tau, grad_u)[0]
-                    )
+                    * (double_contraction(tau, grad_u)[0])
                     * jac_blending_det
                     * affine_factor
                 )
@@ -1510,19 +1507,10 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
                 shear_heating_det_symbol = (
                     tabulation.register_factor(
                         "shear_heating_det_symbol",
-                        (
-                            double_contraction(tau, grad_u)
-                        )
-                        * phi
-                        * psi 
-                        * jac_affine_det,
+                        (double_contraction(tau, grad_u)) * phi * psi * jac_affine_det,
                     )
-                )[
-                    0
-                ]
-                form = (
-                    mu[0] * shear_heating_det_symbol
-                )
+                )[0]
+                form = mu[0] * shear_heating_det_symbol
 
             mat[data.row, data.col] = form
 
@@ -1532,6 +1520,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         symmetric=component_trial == component_test,
         docstring=docstring,
     )
+
 
 def divdiv(
     trial: FunctionSpace,
@@ -1637,6 +1626,7 @@ Weak formulation
         docstring=docstring,
     )
 
+
 def supg_diffusion(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -1644,7 +1634,7 @@ def supg_diffusion(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     velocity_function_space: FunctionSpace = None,
-    diffusivityXdelta_function_space: FunctionSpace = None
+    diffusivityXdelta_function_space: FunctionSpace = None,
 ) -> Form:
     docstring = f"""
 Second derivative operator for testing.
@@ -1664,7 +1654,7 @@ Weak formulation
 
     -------------------
 
-    For ExternalMap (only for testing),
+    For ExternalMap (only for testing, currently not supported),
 
     ∫ (ΔT) s
 """
@@ -1682,18 +1672,22 @@ Weak formulation
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
-            TimedLogger("ExternalMap is not tested well").log()
-            jac_blending = jac_affine_to_physical(geometry, symbolizer)
-            jacinvjac_blending = jacinvjac_affine_to_physical(geometry, symbolizer)
+            HOGException("ExternalMap is not supported")
         else:
             affine_coords = trafo_ref_to_affine(geometry, symbolizer)
-            jac_blending = blending.jacobian(affine_coords)
+            jac_blending = symbolizer.jac_affine_to_blending(geometry.dimensions)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(
+                geometry.dimensions
+            )
+            jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
             if not isinstance(blending, IdentityMap):
-                hessian_blending_map = blending.hessian(affine_coords)
+                # hessian_blending_map = blending.hessian(affine_coords)
+                hessian_blending_map = symbolizer.hessian_blending_map(geometry.dimensions)
+                blending.hessian_used = True
 
-        jac_blending_det = abs(det(jac_blending))
-        with TimedLogger("inverting blending Jacobian", level=logging.DEBUG):
-            jac_blending_inv = inv(jac_blending)
+        # jac_blending_det = abs(det(jac_blending))
+        # with TimedLogger("inverting blending Jacobian", level=logging.DEBUG):
+        #     jac_blending_inv = inv(jac_blending)
 
         mat = create_empty_element_matrix(trial, test, geometry)
         it = element_matrix_iterator(trial, test, geometry)
@@ -1752,7 +1746,9 @@ Weak formulation
             grad_phi = data.trial_shape_grad
             grad_psi = data.test_shape_grad
             hessian_phi = data.trial_shape_hessian
-            hessian_affine = hessian_ref_to_affine(geometry, hessian_phi, jac_affine_inv)
+            hessian_affine = hessian_ref_to_affine(
+                geometry, hessian_phi, jac_affine_inv
+            )
 
             hessian_affine_symbols = tabulation.register_factor(
                 "hessian_affine",
@@ -1769,25 +1765,15 @@ Weak formulation
                 jac_affine_inv.T * grad_psi,
             )
 
-            jac_blending_inv_T_jac_affine_inv_T_grad_psi_symbols = tabulation.register_factor(
-                "jac_affine_inv_T_grad_psi",
-                jac_blending_inv.T * jac_affine_inv_T_grad_psi_symbols,
-            )
+            # jac_blending_inv_T_jac_affine_inv_T_grad_psi_symbols = tabulation.register_factor(
+            #     "jac_affine_inv_T_grad_psi",
+            #     jac_blending_inv.T * jac_affine_inv_T_grad_psi_symbols,
+            # )
 
-            if isinstance(blending, ExternalMap):
-                hessian_blending = hessian_affine_to_blending(geometry, hessian_affine, None, jac_blending_inv.T, jac_affine_inv_T_grad_phi_symbols, jacinvjac_blending)
-                
-                laplacian = sum([hessian_blending[i, i] for i in range(geometry.dimensions)])
-
-                form = (
-                    laplacian * psi
-                    # * dot(u, jac_blending_inv_T_jac_affine_inv_T_grad_psi_symbols)
-                    # * kdelta
-                    * jac_affine_det
-                    * jac_blending_det
+            if isinstance(blending, IdentityMap):
+                laplacian = sum(
+                    [hessian_affine_symbols[i, i] for i in range(geometry.dimensions)]
                 )
-            elif isinstance(blending, IdentityMap):
-                laplacian = sum([hessian_affine_symbols[i, i] for i in range(geometry.dimensions)])
                 form = (
                     laplacian
                     * dot(u, jac_affine_inv_T_grad_psi_symbols)
@@ -1795,13 +1781,21 @@ Weak formulation
                     * jac_affine_det
                 )
             else:
-                hessian_blending = hessian_affine_to_blending(geometry, hessian_affine, hessian_blending_map, jac_blending_inv.T, jac_affine_inv_T_grad_phi_symbols)
+                hessian_blending = hessian_affine_to_blending(
+                    geometry,
+                    hessian_affine,
+                    hessian_blending_map,
+                    jac_blending_inv.T,
+                    jac_affine_inv_T_grad_phi_symbols,
+                )
 
-                laplacian = sum([hessian_blending[i, i, 0] for i in range(geometry.dimensions)])
+                laplacian = sum(
+                    [hessian_blending[i, i] for i in range(geometry.dimensions)]
+                )
 
                 form = (
                     laplacian
-                    * dot(u, jac_blending_inv_T_jac_affine_inv_T_grad_psi_symbols)
+                    * dot(u, jac_blending_inv.T * jac_affine_inv.T * grad_psi)
                     * kdelta
                     * jac_affine_det
                     * jac_blending_det
@@ -1811,6 +1805,7 @@ Weak formulation
             mat[data.row, data.col] = form
 
     return Form(mat, tabulation, symmetric=False, docstring=docstring)
+
 
 def zero_form(
     trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry

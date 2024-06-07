@@ -49,8 +49,10 @@ class GeometryMap:
     def jacobian(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the Jacobian of the geometry map at the passed point."""
         raise HOGException("jacobian() not implemented for this map.")
+
+    hessian_used = False
     
-    def hessian(self, x: sp.Matrix) -> sp.Array:
+    def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
         """Evaluates the hessian of the geometry map at the passed point."""
         raise HOGException("hessian() not implemented for this map.")
 
@@ -185,8 +187,8 @@ class AnnulusMap(GeometryMap):
         )
 
         return jac
-    
-    def hessian(self, x: sp.Matrix) -> sp.Matrix:
+
+    def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
         """Evaluates the Jacobian of the geometry map at the passed point."""
 
         if sp.shape(x) != (2, 1):
@@ -198,7 +200,7 @@ class AnnulusMap(GeometryMap):
         rayVertex = self.rayVertex
         thrVertex = self.thrVertex
 
-        xAnnulus, yAnnulus = sp.symbols('x y')
+        xAnnulus, yAnnulus = sp.symbols("x y")
 
         dist = radRefVertex - radRayVertex
         areaT = (refVertex[0] - rayVertex[0]) * (thrVertex[1] - rayVertex[1]) - (
@@ -227,13 +229,11 @@ class AnnulusMap(GeometryMap):
                 [-yAnnulus * tmp5 + tmp2 * tmp3, xAnnulus * tmp5 - tmp2 * tmp4],
             ]
         ).T
-        
-        hess = sp.Array(
-            [
-                sp.Array(sp.diff(jac, xAnnulus).subs([(xAnnulus, x[0]), (yAnnulus, x[1])])), 
-                sp.Array(sp.diff(jac, yAnnulus).subs([(xAnnulus, x[0]), (yAnnulus, x[1])]))
-            ]
-        )
+
+        hess = [
+            sp.diff(jac, xAnnulus).subs([(xAnnulus, x[0]), (yAnnulus, x[1])]),
+            sp.diff(jac, yAnnulus).subs([(xAnnulus, x[0]), (yAnnulus, x[1])]),
+        ]
 
         return hess
 
@@ -342,7 +342,12 @@ class IcosahedralShellMap(GeometryMap):
 
         return xnew
 
-    def jacobian_evaluate(self, x):
+    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (3, 1):
+            raise HOGException("Invalid input shape for IcosahedralShellMap.")
+
         radRefVertex = self.radRefVertex
         radRayVertex = self.radRayVertex
         refVertex = self.refVertex
@@ -423,31 +428,105 @@ class IcosahedralShellMap(GeometryMap):
 
         return jac
 
-    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+    def hessian(self, x_: sp.Matrix) -> List[sp.Matrix]:
         """Evaluates the Jacobian of the geometry map at the passed point."""
 
-        if sp.shape(x) != (3, 1):
+        if sp.shape(x_) != (3, 1):
             raise HOGException("Invalid input shape for IcosahedralShellMap.")
 
-        return self.jacobian_evaluate(x)
-    
-    def hessian(self, x: sp.Matrix) -> sp.Array:
-        """Evaluates the Jacobian of the geometry map at the passed point."""
+        xAnnulus, yAnnulus, zAnnulus = sp.symbols("x y z")
 
-        if sp.shape(x) != (3, 1):
-            raise HOGException("Invalid input shape for IcosahedralShellMap.")
+        x = [xAnnulus, yAnnulus, zAnnulus]
 
-        xAnnulus, yAnnulus, zAnnulus = sp.symbols('x y z')
+        radRefVertex = self.radRefVertex
+        radRayVertex = self.radRayVertex
+        refVertex = self.refVertex
+        rayVertex = self.rayVertex
+        thrVertex = self.thrVertex
+        forVertex = self.forVertex
 
-        jac = sp.simplify(self.jacobian_evaluate([xAnnulus, yAnnulus, zAnnulus]).T)
-
-        hess = sp.Array(
-            [
-                sp.Array(sp.simplify(sp.diff(jac, xAnnulus)).subs([(xAnnulus, x[0]), (yAnnulus, x[1]), (zAnnulus, x[2])])), 
-                sp.Array(sp.simplify(sp.diff(jac, yAnnulus)).subs([(xAnnulus, x[0]), (yAnnulus, x[1]), (zAnnulus, x[2])])),
-                sp.Array(sp.simplify(sp.diff(jac, zAnnulus)).subs([(xAnnulus, x[0]), (yAnnulus, x[1]), (zAnnulus, x[2])]))
-            ]
+        tmp0 = x[0] * x[0]
+        tmp1 = rayVertex[2] - refVertex[2]
+        tmp2 = rayVertex[0] - thrVertex[0]
+        tmp3 = rayVertex[1] - forVertex[1]
+        tmp4 = tmp2 * tmp3
+        tmp5 = rayVertex[1] - refVertex[1]
+        tmp6 = rayVertex[0] - forVertex[0]
+        tmp7 = rayVertex[2] - thrVertex[2]
+        tmp8 = tmp6 * tmp7
+        tmp9 = rayVertex[0] - refVertex[0]
+        tmp10 = rayVertex[1] - thrVertex[1]
+        tmp11 = rayVertex[2] - forVertex[2]
+        tmp12 = tmp10 * tmp11
+        tmp13 = tmp11 * tmp2
+        tmp14 = tmp10 * tmp6
+        tmp15 = tmp3 * tmp7
+        tmp16 = (
+            -tmp1 * tmp14
+            + tmp1 * tmp4
+            + tmp12 * tmp9
+            - tmp13 * tmp5
+            - tmp15 * tmp9
+            + tmp5 * tmp8
         )
+        tmp17 = radRayVertex - radRefVertex
+        tmp18 = rayVertex[2] - x[2]
+        tmp19 = rayVertex[1] - x[1]
+        tmp20 = rayVertex[0] - x[0]
+        tmp21 = radRayVertex * tmp16 - tmp17 * (
+            tmp12 * tmp20
+            - tmp13 * tmp19
+            - tmp14 * tmp18
+            - tmp15 * tmp20
+            + tmp18 * tmp4
+            + tmp19 * tmp8
+        )
+        tmp22 = x[1] * x[1]
+        tmp23 = x[2] * x[2]
+        tmp24 = tmp0 + tmp22 + tmp23
+        tmp25 = tmp17 * (tmp12 - tmp15)
+        tmp26 = 1.0 / (tmp16 * tmp24 ** (sp.Rational(3, 2)))
+        tmp27 = tmp13 - tmp8
+        tmp28 = tmp17 * tmp24
+        tmp29 = tmp21 * x[1] + tmp27 * tmp28
+        tmp30 = tmp26 * x[0]
+        tmp31 = -tmp14 + tmp4
+        tmp32 = -tmp21 * x[2] + tmp28 * tmp31
+        tmp33 = -tmp21 * x[0] + tmp24 * tmp25
+        tmp34 = tmp26 * x[1]
+        tmp35 = tmp26 * x[2]
+
+        jac = sp.Matrix(
+            [
+                [
+                    tmp26 * (-tmp0 * tmp21 + tmp24 * (tmp21 + tmp25 * x[0])),
+                    -tmp29 * tmp30,
+                    tmp30 * tmp32,
+                ],
+                [
+                    tmp33 * tmp34,
+                    tmp26 * (-tmp21 * tmp22 + tmp24 * (-tmp17 * tmp27 * x[1] + tmp21)),
+                    tmp32 * tmp34,
+                ],
+                [
+                    tmp33 * tmp35,
+                    -tmp29 * tmp35,
+                    tmp26 * (-tmp21 * tmp23 + tmp24 * (tmp17 * tmp31 * x[2] + tmp21)),
+                ],
+            ]
+        ).T
+
+        hess = [
+            sp.diff(jac, xAnnulus).subs(
+                [(xAnnulus, x_[0]), (yAnnulus, x_[1]), (zAnnulus, x_[2])]
+            ),
+            sp.diff(jac, yAnnulus).subs(
+                [(xAnnulus, x_[0]), (yAnnulus, x_[1]), (zAnnulus, x_[2])]
+            ),
+            sp.diff(jac, zAnnulus).subs(
+                [(xAnnulus, x_[0]), (yAnnulus, x_[1]), (zAnnulus, x_[2])]
+            ),
+        ]
 
         return hess
 
