@@ -49,8 +49,6 @@ class GeometryMap:
     def jacobian(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the Jacobian of the geometry map at the passed point."""
         raise HOGException("jacobian() not implemented for this map.")
-
-    hessian_used = False
     
     def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
         """Evaluates the hessian of the geometry map at the passed point."""

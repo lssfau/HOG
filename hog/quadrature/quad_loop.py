@@ -114,14 +114,13 @@ class QuadLoop:
                 self.quadrature.geometry, self.symbolizer, jac_evaluated
             )
 
-            if self.blending.hessian_used:
-                hess = hess_blending_evaluate(
-                    self.symbolizer, self.quadrature.geometry, self.blending
-                )
-                hess_evaluated = [fast_subs(hess[idx], coord_subs_dict) for idx in range(len(hess))]
-                quadrature_assignments += self.blending_hessian_quad_loop_assignments(
-                    self.quadrature.geometry, self.symbolizer, hess_evaluated
-                )
+            hess = hess_blending_evaluate(
+                self.symbolizer, self.quadrature.geometry, self.blending
+            )
+            hess_evaluated = [fast_subs(hess[idx], coord_subs_dict) for idx in range(len(hess))]
+            quadrature_assignments += self.blending_hessian_quad_loop_assignments(
+                self.quadrature.geometry, self.symbolizer, hess_evaluated
+            )
 
         for row in range(self.mat_integrand.rows):
             for col in range(self.mat_integrand.cols):

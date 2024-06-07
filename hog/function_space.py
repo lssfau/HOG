@@ -100,7 +100,7 @@ class FunctionSpace(Protocol):
         domain: str = "reference",
         dof_map: Optional[List[int]] = None,
     ) -> List[sp.MatrixBase]:
-        """Returns a list containing the gradients of the shape functions on the element.
+        """Returns a list containing the hessians of the shape functions on the element.
 
         :param dof_map: this list can be used to specify (remap) the DoF ordering of the element
         """

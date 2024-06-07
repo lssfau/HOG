@@ -1650,7 +1650,7 @@ def supg_diffusion(
     blending: GeometryMap = IdentityMap(),
 ) -> Form:
     docstring = f"""
-Second derivative operator for testing.
+Form for SUPGDiffusion operator used for SUPG stabilisation
 
 Geometry map: {blending}
 
@@ -1696,7 +1696,6 @@ Weak formulation
             if not isinstance(blending, IdentityMap):
                 # hessian_blending_map = blending.hessian(affine_coords)
                 hessian_blending_map = symbolizer.hessian_blending_map(geometry.dimensions)
-                blending.hessian_used = True
 
         # jac_blending_det = abs(det(jac_blending))
         # with TimedLogger("inverting blending Jacobian", level=logging.DEBUG):
