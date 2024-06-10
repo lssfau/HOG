@@ -18,6 +18,7 @@ import logging
 import sympy as sp
 
 from hog.element_geometry import ElementGeometry
+from hog.element_geometry import EmbeddedTriangle
 from hog.exception import HOGException
 from hog.fem_helpers import (
     trafo_ref_to_affine,
@@ -62,8 +63,6 @@ Weak formulation
         raise HOGException(
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
-    
-    from hog.element_geometry import EmbeddedTriangle
 
     if not isinstance(geometry, EmbeddedTriangle):
         raise HOGException("Laplace Beltrami only works for embedded triangles")
@@ -135,11 +134,9 @@ Weak formulation
         raise HOGException(
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
-    
-    from hog.element_geometry import EmbeddedTriangle
 
     if not isinstance(geometry, EmbeddedTriangle):
-        raise HOGException("Laplace Beltrami only works for embedded triangles")
+        raise HOGException("Manifold forms only work for embedded triangles.")
 
     with TimedLogger("assembling laplace beltrami matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
@@ -168,7 +165,7 @@ Weak formulation
                     phi = data.trial_shape
                     psi = data.test_shape
                     manifold_mass_symbol = sp.Matrix(tabulation.register_factor(
-                        "laplace_beltrami_symbol",
+                        "manifold_mass_symbol",
                         sp.Matrix([phi * psi * fundamental_form_det ** 0.5])
                     ))
                     form = manifold_mass_symbol[0]
@@ -203,6 +200,9 @@ Weak formulation
 """
     with TimedLogger("assembling manifold vector mass matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
+
+        if not isinstance(geometry, EmbeddedTriangle):
+            raise HOGException("Manifold forms only work for embedded triangles.")
 
         projection = faceProjection(geometry, symbolizer, blending=blending)
 
@@ -272,6 +272,9 @@ Weak formulation
     with TimedLogger("assembling manifold normal penalty matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
+        if not isinstance(geometry, EmbeddedTriangle):
+            raise HOGException("Manifold forms only work for embedded triangles.")
+
         normal = embeddedNormal(geometry, symbolizer, blending)
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
@@ -296,7 +299,7 @@ Weak formulation
 
             form = sp.Matrix(
                 tabulation.register_factor(
-                    "manifold_vector_mass_symbol",
+                    "manifold_normal_penalty_symbol",
                     phi_normal * psi_normal * fundamental_form_det**0.5
                 )
             )[0]
@@ -319,7 +322,7 @@ def manifold_divergence(
     transpose: bool = False
 ) -> Form:
     docstring = f"""
-Manifold normal penaly operator.
+Manifold divergence operator.
 
 Component index: {component_index}
 Geometry map:    {blending}
@@ -335,6 +338,9 @@ Weak formulation
 
     with TimedLogger("assembling manifold div matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
+
+        if not isinstance(geometry, EmbeddedTriangle):
+            raise HOGException("Manifold forms only work for embedded triangles.")
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
 
@@ -364,8 +370,6 @@ Weak formulation
                 * phi
                 * fundamental_form_det**0.5
             )
-
-            print("form =", form)
             
             mat[data.row, data.col] = form
 
@@ -386,7 +390,7 @@ def manifold_vector_divergence(
     transpose: bool = False
 ) -> Form:
     docstring = f"""
-Manifold normal penaly operator.
+Manifold vector divergence operator.
 
 Component index: {component_index}
 Geometry map:    {blending}
@@ -403,6 +407,11 @@ Weak formulation
 
     with TimedLogger("assembling manifold div matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
+
+        logging.info(f"WARNING: Manifold vector divergence does NOT compute derivative of matrix P yet. Generated form might not work as intended.")
+
+        if not isinstance(geometry, EmbeddedTriangle):
+            raise HOGException("Manifold forms only work for embedded triangles.")
 
         projection_mat = faceProjection(geometry, symbolizer, blending=blending)
 
@@ -427,12 +436,11 @@ Weak formulation
                 phi_vec = (projection_mat * (e_vec(geometry.dimensions, component_index) * data.trial_shape).jacobian(ref_symbols_list)).T
                 phi = data.test_shape
             else:
-                print("trial_degree =", trial.degree, " , test_degree =", test.degree)
                 phi = data.trial_shape
                 phi_vec = (projection_mat * (e_vec(geometry.dimensions, component_index) * data.test_shape).jacobian(ref_symbols_list)).T
 
             form = (
-                (jac_total * fundamental_form_inv * (projection_mat * phi_vec.jacobian(ref_symbols_list)).T).trace()
+                (jac_total * fundamental_form_inv * phi_vec).trace()
                 * phi
                 * fundamental_form_det**0.5
             )
@@ -474,6 +482,9 @@ Weak formulation
 
     with TimedLogger("assembling manifold epsilon matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
+
+        if not isinstance(geometry, EmbeddedTriangle):
+            raise HOGException("Manifold forms only work for embedded triangles.")
 
         projection_mat = faceProjection(geometry, symbolizer, blending=blending)
 
@@ -530,7 +541,7 @@ def vector_laplace_beltrami(
     component_test: int = 0
 ) -> Form:
     docstring = f"""
-Manifold epsilon operator.
+Manifold vector laplace beltrami operator.
 
 Component trial: {component_trial}
 Component test:  {component_test}
@@ -548,6 +559,9 @@ Weak formulation
 
     with TimedLogger("assembling vector laplace beltrami matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
+
+        if not isinstance(geometry, EmbeddedTriangle):
+            raise HOGException("Manifold forms only work for embedded triangles.")
 
         projection_mat = faceProjection(geometry, symbolizer, blending=blending)
 

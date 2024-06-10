@@ -603,18 +603,6 @@ for trial_deg, test_deg, transpose in [
                 )
             )
 
-"""
-form_infos.append(
-    FormInfo(
-        "manifold_div",
-        trial_degree=2,
-        test_degree=1,
-        quad_schemes={3: 3},
-        #Check what row_dim and col_dim are...
-    )
-)
-"""
-
 for blending in [IdentityMap(), ExternalMap()]:
     form_infos.append(
         FormInfo(
@@ -1113,6 +1101,7 @@ def main():
                                         form_info.quad_schemes[geometry.dimensions]
                                     ),
                                     EmbeddedTriangle(),
+                                    inline_values=form_info.inline_quad,
                                 )
                             else:
                                 quad = Quadrature(
@@ -1124,6 +1113,7 @@ def main():
                                     geometry,
                                     inline_values=form_info.inline_quad,
                                 )
+
                             mat = form_func(
                                 form_info.form_name,
                                 row,
