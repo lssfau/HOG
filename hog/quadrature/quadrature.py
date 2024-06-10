@@ -96,7 +96,7 @@ def select_quadrule(
                 warnings.simplefilter("ignore")
 
                 all_schemes = []
-                if isinstance(geometry, TriangleElement):
+                if isinstance(geometry, TriangleElement) or isinstance(geometry, EmbeddedTriangle):
                     schemes = quadpy.t2.schemes
                 elif isinstance(geometry, TetrahedronElement):
                     schemes = quadpy.t3.schemes
