@@ -19,22 +19,28 @@ import sympy as sp
 
 from hog.exception import HOGException
 
-from hog.element_geometry import (
-    ElementGeometry,
-    EmbeddedTriangle
-)
+from hog.element_geometry import ElementGeometry, EmbeddedTriangle
 from hog.symbolizer import Symbolizer
 from hog.blending import GeometryMap, IdentityMap
 from hog.fem_helpers import jac_affine_to_physical
 from hog.external_functions import BlendingFEmbeddedTriangle
 
-def embeddedNormal(geometry: ElementGeometry, symbolizer: Symbolizer, blending: GeometryMap = IdentityMap()) -> sp.Matrix:
+
+def embedded_normal(
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
+) -> sp.Matrix:
     """Returns an unoriented unit normal vector for an embedded triangle."""
 
     if not isinstance(geometry, EmbeddedTriangle):
-        raise HOGException("Embedded normal vectors are only defined for embedded triangles.")
-    
-    vert_points = symbolizer.affine_vertices_as_vectors(geometry.dimensions, geometry.num_vertices)
+        raise HOGException(
+            "Embedded normal vectors are only defined for embedded triangles."
+        )
+
+    vert_points = symbolizer.affine_vertices_as_vectors(
+        geometry.dimensions, geometry.num_vertices
+    )
     span0 = vert_points[1] - vert_points[0]
     span1 = vert_points[2] - vert_points[0]
 
@@ -43,22 +49,35 @@ def embeddedNormal(geometry: ElementGeometry, symbolizer: Symbolizer, blending: 
         span0 = blending_jac.T * span0
         span1 = blending_jac.T * span1
 
-    normal = sp.Matrix([
-        span0[1] * span1[2] - span0[2] * span1[1],
-        span0[2] * span1[0] - span0[0] * span1[2],
-        span0[0] * span1[1] - span0[1] * span1[0]
-    ])
-    normal = normal / (normal[0]**2 + normal[1]**2 + normal[2]**2)**0.5
+    normal = sp.Matrix(
+        [
+            span0[1] * span1[2] - span0[2] * span1[1],
+            span0[2] * span1[0] - span0[0] * span1[2],
+            span0[0] * span1[1] - span0[1] * span1[0],
+        ]
+    )
+    normal = normal / (normal[0] ** 2 + normal[1] ** 2 + normal[2] ** 2) ** 0.5
     return normal
 
-def faceProjection(geometry: ElementGeometry, symbolizer: Symbolizer, blending: GeometryMap = IdentityMap()) -> sp.Matrix:
+
+def face_projection(
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
+) -> sp.Matrix:
     """Returns a projection matrix for an embedded triangle."""
 
     if not isinstance(geometry, EmbeddedTriangle):
-        raise HOGException("Projection matrices are only defined for embedded triangles.")
+        raise HOGException(
+            "Projection matrices are only defined for embedded triangles."
+        )
 
-    normal = embeddedNormal(geometry, symbolizer, blending=blending)
-    projection = sp.Matrix([[1.0-normal[0]**2, -normal[0]*normal[1], -normal[0]*normal[2]],
-                            [-normal[0]*normal[1], 1.0-normal[1]**2, -normal[1]*normal[2]],
-                            [-normal[0]*normal[2], -normal[1]*normal[2], 1.0-normal[2]**2]])
+    normal = embedded_normal(geometry, symbolizer, blending=blending)
+    projection = sp.Matrix(
+        [
+            [1.0 - normal[0] ** 2, -normal[0] * normal[1], -normal[0] * normal[2]],
+            [-normal[0] * normal[1], 1.0 - normal[1] ** 2, -normal[1] * normal[2]],
+            [-normal[0] * normal[2], -normal[1] * normal[2], 1.0 - normal[2] ** 2],
+        ]
+    )
     return projection

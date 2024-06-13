@@ -200,7 +200,7 @@ def jac_ref_to_affine(
     """
     ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
     if isinstance(geometry, EmbeddedTriangle):
-        ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions-1)
+        ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
 
     trafo = trafo_ref_to_affine(geometry, symbolizer, affine_points=affine_points)
     return trafo.jacobian(ref_symbols_list)
@@ -280,6 +280,7 @@ def jac_blending_evaluate(
     jac = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
     return jac
 
+
 def hess_blending_evaluate(
     symbolizer: Symbolizer, geometry: ElementGeometry, blending: GeometryMap
 ) -> List[sp.Matrix]:
@@ -288,6 +289,7 @@ def hess_blending_evaluate(
     )
     hess = blending.hessian(trafo_ref_to_affine(geometry, symbolizer, affine_points))
     return hess
+
 
 def abs_det_jac_blending_eval_symbols(
     geometry: ElementGeometry, symbolizer: Symbolizer, q_pt: str = ""

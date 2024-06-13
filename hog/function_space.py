@@ -18,7 +18,12 @@ from pyclbr import Function
 from typing import Any, List, Optional, Protocol
 import sympy as sp
 
-from hog.element_geometry import ElementGeometry, TriangleElement, EmbeddedTriangle, TetrahedronElement
+from hog.element_geometry import (
+    ElementGeometry,
+    TriangleElement,
+    EmbeddedTriangle,
+    TetrahedronElement,
+)
 from hog.exception import HOGException
 from hog.math_helpers import grad, hessian
 from hog.symbolizer import Symbolizer
@@ -95,7 +100,7 @@ class FunctionSpace(Protocol):
         raise HOGException(
             f"Gradient of shape function not available for domain type {domain}"
         )
-    
+
     def hessian_shape(
         self,
         geometry: ElementGeometry,
@@ -217,7 +222,7 @@ class LagrangianFunctionSpace(FunctionSpace):
             ):
                 basis_functions = [sp.sympify(1)]
 
-            elif(
+            elif (
                 isinstance(geometry, EmbeddedTriangle)
                 and self.family in ["Lagrange"]
                 and self._degree == 1
@@ -228,7 +233,7 @@ class LagrangianFunctionSpace(FunctionSpace):
                     symbols[1],
                 ]
 
-            elif(
+            elif (
                 isinstance(geometry, EmbeddedTriangle)
                 and self.family in ["Lagrange"]
                 and self._degree == 2
@@ -236,12 +241,12 @@ class LagrangianFunctionSpace(FunctionSpace):
                 x = symbols[0]
                 y = symbols[1]
                 basis_functions = [
-                    2 * x ** 2 + 4 * x * y - 3 * x + 2 * y ** 2 - 3 * y + 1,
-                    2 * x ** 2 - x,
-                    2 * y ** 2 - y,
+                    2 * x**2 + 4 * x * y - 3 * x + 2 * y**2 - 3 * y + 1,
+                    2 * x**2 - x,
+                    2 * y**2 - y,
                     4 * x * y,
-                    -4 * x * y - 4 * y ** 2 + 4 * y,
-                    -4 * x ** 2 - 4 * x * y + 4 * x,
+                    -4 * x * y - 4 * y**2 + 4 * y,
+                    -4 * x**2 - 4 * x * y + 4 * x,
                 ]
 
             elif (

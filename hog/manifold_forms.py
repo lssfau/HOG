@@ -26,7 +26,7 @@ from hog.fem_helpers import (
     jac_ref_to_affine,
     jac_affine_to_physical,
     create_empty_element_matrix,
-    element_matrix_iterator
+    element_matrix_iterator,
 )
 from hog.function_space import FunctionSpace
 from hog.math_helpers import dot, inv, abs, det, double_contraction, e_vec
@@ -36,14 +36,15 @@ from hog.logger import TimedLogger
 from hog.blending import GeometryMap, ExternalMap, IdentityMap
 from hog.forms import Form
 
-from hog.manifold_helpers import faceProjection, embeddedNormal
+from hog.manifold_helpers import face_projection, embedded_normal
+
 
 def laplace_beltrami(
     trial: FunctionSpace,
     test: FunctionSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
-    blending: GeometryMap = IdentityMap()
+    blending: GeometryMap = IdentityMap(),
 ) -> Form:
     docstring = f"""
 Laplace beltrami operator.
@@ -79,7 +80,7 @@ Weak formulation
 
         fundamental_form = jac_affine.T * jac_blending.T * jac_blending * jac_affine
         with TimedLogger("inverting first fundamental form", level=logging.DEBUG):
-            fundamental_form_inv= inv(fundamental_form)
+            fundamental_form_inv = inv(fundamental_form)
         fundamental_form_det = abs(det(fundamental_form))
 
         mat = create_empty_element_matrix(trial, test, geometry)
@@ -92,29 +93,32 @@ Weak formulation
             for data in it:
                 with TimedLogger(
                     f"Integrating row = {data.row} , col = {data.col}",
-                    level=logging.DEBUG
+                    level=logging.DEBUG,
                 ):
                     grad_phi = data.trial_shape_grad
                     grad_psi = data.test_shape_grad
-                    laplace_beltrami_symbol = sp.Matrix(tabulation.register_factor(
-                        "laplace_beltrami_symbol",
-                        dot(
-                            grad_phi,
-                            fundamental_form_inv * grad_psi,
+                    laplace_beltrami_symbol = sp.Matrix(
+                        tabulation.register_factor(
+                            "laplace_beltrami_symbol",
+                            dot(
+                                grad_phi,
+                                fundamental_form_inv * grad_psi,
+                            )
+                            * (fundamental_form_det**0.5),
                         )
-                        * (fundamental_form_det ** 0.5)
-                    ))
+                    )
                     form = laplace_beltrami_symbol[0]
                     mat[data.row, data.col] = form
 
     return Form(mat, tabulation, symmetric=True, docstring=docstring)
+
 
 def manifold_mass(
     trial: FunctionSpace,
     test: FunctionSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
-    blending: GeometryMap = IdentityMap()
+    blending: GeometryMap = IdentityMap(),
 ) -> Form:
     docstring = f"""
 Manifold mass operator.
@@ -148,7 +152,9 @@ Weak formulation
         else:
             jac_blending = blending.jacobian(trafo_ref_to_affine(geometry, symbolizer))
 
-        fundamental_form_det = abs(det(jac_affine.T * jac_blending.T * jac_blending * jac_affine))
+        fundamental_form_det = abs(
+            det(jac_affine.T * jac_blending.T * jac_blending * jac_affine)
+        )
 
         mat = create_empty_element_matrix(trial, test, geometry)
         it = element_matrix_iterator(trial, test, geometry)
@@ -160,18 +166,21 @@ Weak formulation
             for data in it:
                 with TimedLogger(
                     f"Integrating row = {data.row} , col = {data.col}",
-                    level=logging.DEBUG
+                    level=logging.DEBUG,
                 ):
                     phi = data.trial_shape
                     psi = data.test_shape
-                    manifold_mass_symbol = sp.Matrix(tabulation.register_factor(
-                        "manifold_mass_symbol",
-                        sp.Matrix([phi * psi * fundamental_form_det ** 0.5])
-                    ))
+                    manifold_mass_symbol = sp.Matrix(
+                        tabulation.register_factor(
+                            "manifold_mass_symbol",
+                            sp.Matrix([phi * psi * fundamental_form_det**0.5]),
+                        )
+                    )
                     form = manifold_mass_symbol[0]
                     mat[data.row, data.col] = form
 
     return Form(mat, tabulation, symmetric=True, docstring=docstring)
+
 
 def manifold_vector_mass(
     trial: FunctionSpace,
@@ -204,7 +213,7 @@ Weak formulation
         if not isinstance(geometry, EmbeddedTriangle):
             raise HOGException("Manifold forms only work for embedded triangles.")
 
-        projection = faceProjection(geometry, symbolizer, blending=blending)
+        projection = face_projection(geometry, symbolizer, blending=blending)
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
 
@@ -213,7 +222,9 @@ Weak formulation
         else:
             jac_blending = sp.eye(3)
 
-        fundamental_form_det = abs(det(jac_affine.T * jac_blending.T * jac_blending * jac_affine))
+        fundamental_form_det = abs(
+            det(jac_affine.T * jac_blending.T * jac_blending * jac_affine)
+        )
 
         mat = create_empty_element_matrix(trial, test, geometry)
         it = element_matrix_iterator(trial, test, geometry)
@@ -229,10 +240,7 @@ Weak formulation
             form = sp.Matrix(
                 tabulation.register_factor(
                     "manifold_vector_mass_symbol",
-                    dot(
-                        projected_phi,
-                        projected_psi
-                    ) * fundamental_form_det**0.5
+                    dot(projected_phi, projected_psi) * fundamental_form_det**0.5,
                 )
             )[0]
             mat[data.row, data.col] = form
@@ -243,6 +251,7 @@ Weak formulation
         symmetric=component_trial == component_test,
         docstring=docstring,
     )
+
 
 def manifold_normal_penalty(
     trial: FunctionSpace,
@@ -275,7 +284,7 @@ Weak formulation
         if not isinstance(geometry, EmbeddedTriangle):
             raise HOGException("Manifold forms only work for embedded triangles.")
 
-        normal = embeddedNormal(geometry, symbolizer, blending)
+        normal = embedded_normal(geometry, symbolizer, blending)
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
 
@@ -284,7 +293,9 @@ Weak formulation
         else:
             jac_blending = sp.eye(3)
 
-        fundamental_form_det = abs(det(jac_affine.T * jac_blending.T * jac_blending * jac_affine))
+        fundamental_form_det = abs(
+            det(jac_affine.T * jac_blending.T * jac_blending * jac_affine)
+        )
 
         mat = create_empty_element_matrix(trial, test, geometry)
         it = element_matrix_iterator(trial, test, geometry)
@@ -300,7 +311,7 @@ Weak formulation
             form = sp.Matrix(
                 tabulation.register_factor(
                     "manifold_normal_penalty_symbol",
-                    phi_normal * psi_normal * fundamental_form_det**0.5
+                    phi_normal * psi_normal * fundamental_form_det**0.5,
                 )
             )[0]
             mat[data.row, data.col] = form
@@ -312,6 +323,7 @@ Weak formulation
         docstring=docstring,
     )
 
+
 def manifold_divergence(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -319,7 +331,7 @@ def manifold_divergence(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_index: int = 0,
-    transpose: bool = False
+    transpose: bool = False,
 ) -> Form:
     docstring = f"""
 Manifold divergence operator.
@@ -370,7 +382,7 @@ Weak formulation
                 * phi
                 * fundamental_form_det**0.5
             )
-            
+
             mat[data.row, data.col] = form
 
     return Form(
@@ -380,6 +392,7 @@ Weak formulation
         docstring=docstring,
     )
 
+
 def manifold_vector_divergence(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -387,7 +400,7 @@ def manifold_vector_divergence(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_index: int = 0,
-    transpose: bool = False
+    transpose: bool = False,
 ) -> Form:
     docstring = f"""
 Manifold vector divergence operator.
@@ -408,12 +421,14 @@ Weak formulation
     with TimedLogger("assembling manifold div matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        logging.info(f"WARNING: Manifold vector divergence does NOT compute derivative of matrix P yet. Generated form might not work as intended.")
+        logging.info(
+            f"WARNING: Manifold vector divergence does NOT compute derivative of matrix P yet. Generated form might not work as intended."
+        )
 
         if not isinstance(geometry, EmbeddedTriangle):
             raise HOGException("Manifold forms only work for embedded triangles.")
 
-        projection_mat = faceProjection(geometry, symbolizer, blending=blending)
+        projection_mat = face_projection(geometry, symbolizer, blending=blending)
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
 
@@ -431,20 +446,30 @@ Weak formulation
         it = element_matrix_iterator(trial, test, geometry)
 
         for data in it:
-            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions-1)
+            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
             if not transpose:
-                phi_vec = (projection_mat * (e_vec(geometry.dimensions, component_index) * data.trial_shape).jacobian(ref_symbols_list)).T
+                phi_vec = (
+                    projection_mat
+                    * (
+                        e_vec(geometry.dimensions, component_index) * data.trial_shape
+                    ).jacobian(ref_symbols_list)
+                ).T
                 phi = data.test_shape
             else:
                 phi = data.trial_shape
-                phi_vec = (projection_mat * (e_vec(geometry.dimensions, component_index) * data.test_shape).jacobian(ref_symbols_list)).T
+                phi_vec = (
+                    projection_mat
+                    * (
+                        e_vec(geometry.dimensions, component_index) * data.test_shape
+                    ).jacobian(ref_symbols_list)
+                ).T
 
             form = (
                 (jac_total * fundamental_form_inv * phi_vec).trace()
                 * phi
                 * fundamental_form_det**0.5
             )
-            
+
             mat[data.row, data.col] = form
 
     return Form(
@@ -454,6 +479,7 @@ Weak formulation
         docstring=docstring,
     )
 
+
 def manifold_epsilon(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -461,7 +487,7 @@ def manifold_epsilon(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_trial: int = 0,
-    component_test: int = 0
+    component_test: int = 0,
 ) -> Form:
     docstring = f"""
 Manifold epsilon operator.
@@ -486,7 +512,7 @@ Weak formulation
         if not isinstance(geometry, EmbeddedTriangle):
             raise HOGException("Manifold forms only work for embedded triangles.")
 
-        projection_mat = faceProjection(geometry, symbolizer, blending=blending)
+        projection_mat = face_projection(geometry, symbolizer, blending=blending)
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
 
@@ -504,14 +530,28 @@ Weak formulation
         it = element_matrix_iterator(trial, test, geometry)
 
         for data in it:
-            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions-1)
+            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
             phi = data.trial_shape
             psi = data.test_shape
-            unscaled_phi_projected_grad = (projection_mat * (e_vec(geometry.dimensions, component_trial) * phi).jacobian(ref_symbols_list)).T
-            unscaled_psi_projected_grad = (projection_mat * (e_vec(geometry.dimensions, component_test) * psi).jacobian(ref_symbols_list)).T
-       
-            phi_projected_grad = jac_total * fundamental_form_inv * unscaled_phi_projected_grad
-            psi_projected_grad = jac_total * fundamental_form_inv * unscaled_psi_projected_grad
+            unscaled_phi_projected_grad = (
+                projection_mat
+                * (e_vec(geometry.dimensions, component_trial) * phi).jacobian(
+                    ref_symbols_list
+                )
+            ).T
+            unscaled_psi_projected_grad = (
+                projection_mat
+                * (e_vec(geometry.dimensions, component_test) * psi).jacobian(
+                    ref_symbols_list
+                )
+            ).T
+
+            phi_projected_grad = (
+                jac_total * fundamental_form_inv * unscaled_phi_projected_grad
+            )
+            psi_projected_grad = (
+                jac_total * fundamental_form_inv * unscaled_psi_projected_grad
+            )
 
             phi_epsilon = 0.5 * (phi_projected_grad + phi_projected_grad.T)
             psi_epsilon = 0.5 * (psi_projected_grad + psi_projected_grad.T)
@@ -519,17 +559,18 @@ Weak formulation
             form = tabulation.register_factor(
                 "epsilon_epsilon_prod",
                 double_contraction(phi_epsilon, psi_epsilon)
-                * fundamental_form_det**0.5
+                * fundamental_form_det**0.5,
             )[0]
-            
-            mat[data.row, data.col] = form 
+
+            mat[data.row, data.col] = form
 
     return Form(
         mat,
         tabulation,
-        symmetric= component_trial == component_test,
+        symmetric=component_trial == component_test,
         docstring=docstring,
     )
+
 
 def vector_laplace_beltrami(
     trial: FunctionSpace,
@@ -538,7 +579,7 @@ def vector_laplace_beltrami(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_trial: int = 0,
-    component_test: int = 0
+    component_test: int = 0,
 ) -> Form:
     docstring = f"""
 Manifold vector laplace beltrami operator.
@@ -563,7 +604,7 @@ Weak formulation
         if not isinstance(geometry, EmbeddedTriangle):
             raise HOGException("Manifold forms only work for embedded triangles.")
 
-        projection_mat = faceProjection(geometry, symbolizer, blending=blending)
+        projection_mat = face_projection(geometry, symbolizer, blending=blending)
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
 
@@ -581,26 +622,40 @@ Weak formulation
         it = element_matrix_iterator(trial, test, geometry)
 
         for data in it:
-            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions-1)
+            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
             phi = data.trial_shape
             psi = data.test_shape
-            unscaled_phi_projected_grad = (projection_mat * (e_vec(geometry.dimensions, component_trial) * phi).jacobian(ref_symbols_list)).T
-            unscaled_psi_projected_grad = (projection_mat * (e_vec(geometry.dimensions, component_test) * psi).jacobian(ref_symbols_list)).T
-       
-            phi_projected_grad = jac_total * fundamental_form_inv * unscaled_phi_projected_grad
-            psi_projected_grad = jac_total * fundamental_form_inv * unscaled_psi_projected_grad
+            unscaled_phi_projected_grad = (
+                projection_mat
+                * (e_vec(geometry.dimensions, component_trial) * phi).jacobian(
+                    ref_symbols_list
+                )
+            ).T
+            unscaled_psi_projected_grad = (
+                projection_mat
+                * (e_vec(geometry.dimensions, component_test) * psi).jacobian(
+                    ref_symbols_list
+                )
+            ).T
+
+            phi_projected_grad = (
+                jac_total * fundamental_form_inv * unscaled_phi_projected_grad
+            )
+            psi_projected_grad = (
+                jac_total * fundamental_form_inv * unscaled_psi_projected_grad
+            )
 
             form = tabulation.register_factor(
                 "phi_psi_prod",
                 double_contraction(phi_projected_grad, psi_projected_grad)
-                * fundamental_form_det**0.5
+                * fundamental_form_det**0.5,
             )[0]
-            
-            mat[data.row, data.col] = form 
+
+            mat[data.row, data.col] = form
 
     return Form(
         mat,
         tabulation,
-        symmetric= component_trial == component_test,
+        symmetric=component_trial == component_test,
         docstring=docstring,
     )
