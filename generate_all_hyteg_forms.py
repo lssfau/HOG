@@ -1094,25 +1094,14 @@ def main():
                         with TimedLogger(
                             f"- Generating code for class {form_info.class_name(row,col)}, {geometry.dimensions}D"
                         ):
-                            # THIS IS JUST A HACK TO REBASE THE MANIFOLD STUFF ON MAIN
-                            if geometry == EmbeddedTriangle():
-                                quad = Quadrature(
-                                    quadpy.t2.get_good_scheme(
-                                        form_info.quad_schemes[geometry.dimensions]
-                                    ),
-                                    EmbeddedTriangle(),
-                                    inline_values=form_info.inline_quad,
-                                )
-                            else:
-                                quad = Quadrature(
-                                    select_quadrule(
-                                        form_info.quad_schemes[geometry.dimensions],
-                                        geometry,
-                                    ),
-                                    # form_info.quad_schemes[geometry.dimensions],
+                            quad = Quadrature(
+                                select_quadrule(
+                                    form_info.quad_schemes[geometry.dimensions],
                                     geometry,
-                                    inline_values=form_info.inline_quad,
-                                )
+                                ),
+                                geometry,
+                                inline_values=form_info.inline_quad,
+                            )
 
                             mat = form_func(
                                 form_info.form_name,
