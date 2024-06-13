@@ -35,6 +35,25 @@ geometryMap_->evalF( in, out );
 *out_1 = out[1];"""
 
 
+class BlendingFEmbeddedTriangle(MultiAssignment):
+    def function_name(self):
+        return "Blending_F_EmbeddedTriangle"
+
+    def num_input_args(self):
+        return 3
+
+    def num_output_args(self):
+        return 3
+
+    def implementation(self):
+        return """Point3D  in( {in_0, in_1, in_2} );
+Point3D out;
+geometryMap_->evalF( in, out );
+*out_0 = out[0];
+*out_1 = out[1];
+*out_2 = out[2];"""
+
+
 class BlendingFTetrahedron(MultiAssignment):
     def function_name(self):
         return "Blending_F_Tetrahedron"
@@ -74,6 +93,33 @@ geometryMap_->evalDF( mappedPt, DPsi );
 *out_1 = DPsi( 0, 1 );
 *out_2 = DPsi( 1, 0 );
 *out_3 = DPsi( 1, 1 );"""
+
+
+class BlendingDFEmbeddedTriangle(MultiAssignment):
+    def function_name(self):
+        return "Blending_DF_EmbeddedTriangle"
+
+    @classmethod
+    def num_input_args(cls):
+        return 3
+
+    @classmethod
+    def num_output_args(cls):
+        return 3 * 3
+
+    def implementation(self):
+        return """Point3D  mappedPt( {in_0, in_1, in_2} );
+Matrix3r DPsi;
+geometryMap_->evalDF( mappedPt, DPsi );
+*out_0 = DPsi( 0, 0 );
+*out_1 = DPsi( 0, 1 );
+*out_2 = DPsi( 0, 2 );
+*out_3 = DPsi( 1, 0 );
+*out_4 = DPsi( 1, 1 );
+*out_5 = DPsi( 1, 2 );
+*out_6 = DPsi( 2, 0 );
+*out_7 = DPsi( 2, 1 );
+*out_8 = DPsi( 2, 2 );"""
 
 
 class BlendingDFInvDFTriangle(MultiAssignment):

@@ -23,9 +23,15 @@ import itertools
 import sympy as sp
 from sympy.core.cache import clear_cache
 import re
+import quadpy
 
 from hog.blending import GeometryMap, IdentityMap, ExternalMap, AnnulusMap
-from hog.element_geometry import TriangleElement, TetrahedronElement, ElementGeometry
+from hog.element_geometry import (
+    TriangleElement,
+    TetrahedronElement,
+    EmbeddedTriangle,
+    ElementGeometry,
+)
 from hog.function_space import FunctionSpace, LagrangianFunctionSpace, N1E1Space
 from hog.forms import (
     mass,
@@ -39,6 +45,16 @@ from hog.forms import (
     full_stokes,
     divdiv,
     supg_diffusion,
+)
+from hog.manifold_forms import (
+    laplace_beltrami,
+    manifold_mass,
+    manifold_vector_mass,
+    manifold_normal_penalty,
+    manifold_divergence,
+    manifold_vector_divergence,
+    manifold_epsilon,
+    vector_laplace_beltrami,
 )
 from hog.forms_vectorial import mass_n1e1, curl_curl
 from hog.quadrature import Quadrature, select_quadrule
@@ -433,7 +449,28 @@ form_infos = [
         test_degree=2,
         quad_schemes={2: 4, 3: 4},
         blending=AnnulusMap(),
-    )
+    ),
+    FormInfo(
+        "laplace_beltrami",
+        trial_degree=1,
+        test_degree=1,
+        quad_schemes={3: 1},
+    ),
+    FormInfo(
+        "laplace_beltrami",
+        trial_degree=1,
+        test_degree=1,
+        quad_schemes={3: 3},
+        blending=ExternalMap(),
+    ),
+    FormInfo("manifold_mass", trial_degree=1, test_degree=1, quad_schemes={3: 1}),
+    FormInfo(
+        "manifold_mass",
+        trial_degree=1,
+        test_degree=1,
+        quad_schemes={3: 3},
+        blending=ExternalMap(),
+    ),
 ]
 
 for d in [1, 2]:
@@ -566,6 +603,135 @@ for trial_deg, test_deg, transpose in [
                 )
             )
 
+for blending in [IdentityMap(), ExternalMap()]:
+    form_infos.append(
+        FormInfo(
+            "manifold_vector_mass",
+            trial_degree=2,
+            test_degree=2,
+            quad_schemes={3: 3},
+            row_dim=3,
+            col_dim=3,
+            is_implemented=is_implemented_for_vector_to_vector,
+            blending=blending,
+        )
+    )
+
+    form_infos.append(
+        FormInfo(
+            "manifold_normal_penalty",
+            trial_degree=2,
+            test_degree=2,
+            quad_schemes={3: 3},
+            row_dim=3,
+            col_dim=3,
+            is_implemented=is_implemented_for_vector_to_vector,
+            blending=blending,
+        )
+    )
+
+    form_infos.append(
+        FormInfo(
+            "manifold_epsilon",
+            trial_degree=2,
+            test_degree=2,
+            quad_schemes={3: 3},
+            row_dim=3,
+            col_dim=3,
+            is_implemented=is_implemented_for_vector_to_vector,
+            blending=blending,
+        )
+    )
+
+    form_infos.append(
+        FormInfo(
+            "manifold_epsilon",
+            trial_degree=2,
+            test_degree=2,
+            quad_schemes={3: 6},
+            row_dim=3,
+            col_dim=3,
+            is_implemented=is_implemented_for_vector_to_vector,
+            blending=blending,
+        )
+    )
+
+    form_infos.append(
+        FormInfo(
+            "vector_laplace_beltrami",
+            trial_degree=2,
+            test_degree=2,
+            quad_schemes={3: 3},
+            row_dim=3,
+            col_dim=3,
+            is_implemented=is_implemented_for_vector_to_vector,
+            blending=blending,
+        )
+    )
+
+for trial_deg, test_deg, transpose in [(1, 2, True), (2, 1, False)]:
+    for blending in [IdentityMap(), ExternalMap()]:
+        if not transpose:
+            form_infos.append(
+                FormInfo(
+                    "manifold_div",
+                    trial_degree=trial_deg,
+                    test_degree=test_deg,
+                    quad_schemes={3: 3},
+                    row_dim=1,
+                    col_dim=3,
+                    is_implemented=is_implemented_for_vector_to_scalar,
+                    blending=blending,
+                )
+            )
+        else:
+            form_infos.append(
+                FormInfo(
+                    "manifold_divt",
+                    trial_degree=trial_deg,
+                    test_degree=test_deg,
+                    quad_schemes={3: 3},
+                    row_dim=3,
+                    col_dim=1,
+                    is_implemented=is_implemented_for_scalar_to_vector,
+                    blending=blending,
+                )
+            )
+
+for trial_deg, test_deg, transpose in [
+    (1, 2, True),
+    (2, 1, False),
+    (0, 2, True),
+    (2, 0, False),
+]:
+    for blending in [IdentityMap(), ExternalMap()]:
+        if not transpose:
+            form_infos.append(
+                FormInfo(
+                    "manifold_vector_div",
+                    trial_degree=trial_deg,
+                    test_degree=test_deg,
+                    quad_schemes={3: 3},
+                    row_dim=1,
+                    col_dim=3,
+                    is_implemented=is_implemented_for_vector_to_scalar,
+                    blending=blending,
+                )
+            )
+        else:
+            form_infos.append(
+                FormInfo(
+                    "manifold_vector_divt",
+                    trial_degree=trial_deg,
+                    test_degree=test_deg,
+                    quad_schemes={3: 3},
+                    row_dim=3,
+                    col_dim=1,
+                    is_implemented=is_implemented_for_scalar_to_vector,
+                    blending=blending,
+                )
+            )
+
 
 def form_func(
     name: str,
@@ -675,6 +841,94 @@ def form_func(
         ).integrate(quad, symbolizer)
     elif name.startswith("supg_d"):
         raise HOGException(f"SUPG Diffusion is not supported for form generation")
+    elif name.startswith("laplace_beltrami"):
+        return laplace_beltrami(
+            trial, test, geometry, symbolizer, blending=blending
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_mass"):
+        return manifold_mass(
+            trial, test, geometry, symbolizer, blending=blending
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_vector_mass"):
+        return manifold_vector_mass(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_trial=col,
+            component_test=row,
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_normal_penalty"):
+        return manifold_normal_penalty(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_trial=col,
+            component_test=row,
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_divt"):
+        return manifold_divergence(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_index=row,
+            transpose=True,
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_div"):
+        return manifold_divergence(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_index=col,
+            transpose=False,
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_vector_divt"):
+        return manifold_vector_divergence(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_index=row,
+            transpose=True,
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_vector_div"):
+        return manifold_vector_divergence(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_index=col,
+            transpose=False,
+        ).integrate(quad, symbolizer)
+    elif name.startswith("manifold_epsilon"):
+        return manifold_epsilon(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_trial=col,
+            component_test=row,
+        ).integrate(quad, symbolizer)
+    elif name.startswith("vector_laplace_beltrami"):
+        return vector_laplace_beltrami(
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_trial=col,
+            component_test=row,
+        ).integrate(quad, symbolizer)
     else:
         raise HOGException(f"Cannot call form function with name {name}.")
 
@@ -702,7 +956,7 @@ def parse_arguments():
         type=str,
         help="build form(s) only for triangle (2D) or tetrahedron (3D) elements; if not speficied we do both",
         nargs="?",
-        choices=["triangle", "tetrahedron", "both"],
+        choices=["triangle", "tetrahedron", "embedded_triangle", "both"],
         default="both",
     )
     parser.add_argument(
@@ -800,6 +1054,9 @@ def main():
     elif args.geometry == "tetrahedron":
         logger.info(f"- selected geometry: tetrahedron")
         geometries = [TetrahedronElement()]
+    elif args.geometry == "embedded_triangle":
+        logger.info(f"- selected geometry: embedded triangle")
+        geometries = [EmbeddedTriangle()]
     else:
         logger.info(f"- selected geometries: triangle, tetrahedron")
         geometries = [TriangleElement(), TetrahedronElement()]
@@ -838,11 +1095,14 @@ def main():
                             f"- Generating code for class {form_info.class_name(row,col)}, {geometry.dimensions}D"
                         ):
                             quad = Quadrature(
-                                select_quadrule(form_info.quad_schemes[geometry.dimensions], geometry),
-                                # form_info.quad_schemes[geometry.dimensions],
+                                select_quadrule(
+                                    form_info.quad_schemes[geometry.dimensions],
+                                    geometry,
+                                ),
                                 geometry,
                                 inline_values=form_info.inline_quad,
                             )
+
                             mat = form_func(
                                 form_info.form_name,
                                 row,

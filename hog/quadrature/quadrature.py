@@ -26,6 +26,7 @@ import sympy as sp
 from hog.element_geometry import (
     ElementGeometry,
     TriangleElement,
+    EmbeddedTriangle,
     TetrahedronElement,
     LineElement,
 )
@@ -95,7 +96,9 @@ def select_quadrule(
                 warnings.simplefilter("ignore")
 
                 all_schemes = []
-                if isinstance(geometry, TriangleElement):
+                if isinstance(geometry, TriangleElement) or isinstance(
+                    geometry, EmbeddedTriangle
+                ):
                     schemes = quadpy.t2.schemes
                 elif isinstance(geometry, TetrahedronElement):
                     schemes = quadpy.t3.schemes
@@ -223,6 +226,8 @@ class Quadrature:
                     f"Cannot apply quadrature rule to matrix of shape {f.shape}: {f}."
                 )
         ref_symbols = symbolizer.ref_coords_as_list(self._geometry.dimensions)
+        if isinstance(self._geometry, EmbeddedTriangle):
+            ref_symbols = symbolizer.ref_coords_as_list(self._geometry.dimensions - 1)
 
         if self._scheme_name == "exact":
             mat_entry = integrate_exact_over_reference(f, self._geometry, symbolizer)
@@ -285,6 +290,9 @@ class Quadrature:
             degree = scheme.degree
         elif isinstance(geometry, LineElement):
             vertices = np.asarray([[0.0], [1.0]])
+            degree = scheme.degree
+        elif isinstance(geometry, EmbeddedTriangle):
+            vertices = np.asarray([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
             degree = scheme.degree
         else:
             raise HOGException("Invalid geometry for quadrature.")

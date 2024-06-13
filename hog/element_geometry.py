@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
 class ElementGeometry:
     def __init__(self, dimensions: int, num_vertices: int):
         self.dimensions = dimensions
@@ -54,6 +55,17 @@ class TriangleElement(ElementGeometry):
 
     def __str__(self):
         return f"triangle, dim: 2, vertices: 3"
+
+    def __repr__(self):
+        return str(self)
+
+
+class EmbeddedTriangle(ElementGeometry):
+    def __init__(self):
+        super().__init__(3, 3)
+
+    def __str__(self):
+        return f"embedded triangle, dim: 3, vertices: 3"
 
     def __repr__(self):
         return str(self)
