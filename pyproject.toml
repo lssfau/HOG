@@ -3,6 +3,7 @@ name = "hog"
 version = "0.1"
 dependencies = [
   "islpy",
+  "ndim @ https://github.com/sigma-py/ndim/archive/refs/tags/v0.1.6.tar.gz",
   "numpy==1.24.3",
   "quadpy-gpl==0.16.10",
   "poly-cse-py",
