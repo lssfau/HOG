@@ -28,7 +28,7 @@ from hog.operator_generation.operators import (
 from hog.symbolizer import Symbolizer
 from hog.quadrature import Quadrature, select_quadrule
 from hog.forms import div_k_grad
-from hog.operator_generation.kernel_types import Apply
+from hog.operator_generation.kernel_types import ApplyWrapper
 from hog.operator_generation.types import hyteg_type
 from hog.blending import AnnulusMap
 
@@ -56,11 +56,12 @@ def test_opgen_smoke():
     type_descriptor = hyteg_type()
 
     kernel_types = [
-        Apply(
+        ApplyWrapper(
             test,
             trial,
             type_descriptor=type_descriptor,
             dims=[2],
+            loop_strategy=CUBES(),
         )
     ]
 
@@ -69,7 +70,7 @@ def test_opgen_smoke():
     operator = HyTeGElementwiseOperator(
         name,
         symbolizer=symbolizer,
-        kernel_types=kernel_types,
+        kernel_wrapper_types=kernel_types,
         opts=opts,
         type_descriptor=type_descriptor,
     )
@@ -85,7 +86,6 @@ def test_opgen_smoke():
 
     operator.generate_class_code(
         ".",
-        loop_strategy=CUBES(),
     )
 
 

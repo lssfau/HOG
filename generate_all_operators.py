@@ -53,10 +53,10 @@ from hog.function_space import (
 )
 from hog.logger import get_logger, TimedLogger
 from hog.operator_generation.kernel_types import (
-    Apply,
-    Assemble,
-    AssembleDiagonal,
-    KernelType,
+    ApplyWrapper,
+    AssembleWrapper,
+    AssembleDiagonalWrapper,
+    KernelWrapperType,
 )
 from hog.operator_generation.loop_strategies import (
     LoopStrategy,
@@ -354,7 +354,7 @@ def main():
             args.quad_degree if args.quad_rule is None else args.quad_rule,
         )
     }
-    
+
     enabled_geometries: Set[TriangleElement | TetrahedronElement] = set()
     if 2 in args.dimensions:
         enabled_geometries.add(TriangleElement())
@@ -488,7 +488,7 @@ class OperatorInfo:
         sp.Matrix,
     ]
     type_descriptor: HOGType
-    kernel_types: List[KernelType] = None  # type: ignore[assignment] # will definitely be initialized in __post_init__
+    kernel_types: List[KernelWrapperType] = None  # type: ignore[assignment] # will definitely be initialized in __post_init__
     geometries: Sequence[ElementGeometry] = field(
         default_factory=lambda: [TriangleElement(), TetrahedronElement()]
     )
@@ -507,29 +507,34 @@ class OperatorInfo:
         if self.kernel_types is None:
             dims = [g.dimensions for g in self.geometries]
             self.kernel_types = [
-                Apply(
+                ApplyWrapper(
                     self.test_space,
                     self.trial_space,
                     type_descriptor=self.type_descriptor,
                     dims=dims,
+                    loop_strategy=self.opts[0][1],
                 )
             ]
 
             all_opts = set().union(*[o for (o, _, _) in self.opts])
             if not ({Opts.VECTORIZE, Opts.VECTORIZE512}.intersection(all_opts)):
                 self.kernel_types.append(
-                    Assemble(
+                    AssembleWrapper(
                         self.test_space,
                         self.trial_space,
                         type_descriptor=self.type_descriptor,
                         dims=dims,
+                        loop_strategy=self.opts[0][1],
                     )
                 )
 
             if self.test_space == self.trial_space:
                 self.kernel_types.append(
-                    AssembleDiagonal(
-                        self.test_space, type_descriptor=self.type_descriptor, dims=dims
+                    AssembleDiagonalWrapper(
+                        self.test_space,
+                        type_descriptor=self.type_descriptor,
+                        dims=dims,
+                        loop_strategy=self.opts[0][1],
                     )
                 )
 
@@ -591,7 +596,7 @@ def all_operators(
     ops.append(OperatorInfo(mapping="P2", name="SUPGDiffusion", trial_space=P2, test_space=P2, 
                             form=partial(supg_diffusion, velocity_function_space=P2, diffusivityXdelta_function_space=P2), 
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
-    
+
     # fmt: on
 
     p2vec_epsilon = partial(
@@ -703,7 +708,7 @@ def generate_elementwise_op(
         name,
         symbolizer,
         opts=optimizations,
-        kernel_types=op_info.kernel_types,
+        kernel_wrapper_types=op_info.kernel_types,
         type_descriptor=type_descriptor,
     )
 
@@ -737,7 +742,6 @@ def generate_elementwise_op(
     dir_path = os.path.join(args.output, op_info.name.split("_")[0])
     operator.generate_class_code(
         dir_path,
-        loop_strategy=loop_strategy,
         clang_format_binary=args.clang_format_binary,
     )
 
