@@ -49,6 +49,17 @@ class LineElement(ElementGeometry):
         return str(self)
 
 
+class EmbeddedLine(ElementGeometry):
+    def __init__(self):
+        super().__init__(2, 2)
+
+    def __str__(self):
+        return f"embedded line, dim: 2, vertices: 2"
+
+    def __repr__(self):
+        return str(self)
+
+
 class TriangleElement(ElementGeometry):
     def __init__(self):
         super().__init__(2, 3)

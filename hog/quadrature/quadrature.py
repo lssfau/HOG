@@ -25,6 +25,7 @@ import sympy as sp
 
 from hog.element_geometry import (
     ElementGeometry,
+    EmbeddedLine,
     TriangleElement,
     EmbeddedTriangle,
     TetrahedronElement,
@@ -96,7 +97,19 @@ def select_quadrule(
                 warnings.simplefilter("ignore")
 
                 all_schemes = []
-                if isinstance(geometry, TriangleElement) or isinstance(
+                if isinstance(geometry, LineElement) or isinstance(
+                    geometry, EmbeddedLine
+                ):
+                    # Since line integrals can be approximated with arbitrary order, registering schemes is not
+                    # meaningful. I doubt that we will need quadrature with order > 20, so we simply limit it here.
+                    # If we require higher orders, simply bump this number.
+                    line_quad_degree_limit = 20
+                    # Also, for now let's restrict ourselves to Gauss-Legendre polynomials.
+                    schemes = {
+                        f"gauss_legendre_{d}": quadpy.c1.gauss_legendre(d)
+                        for d in range(1, line_quad_degree_limit + 1)
+                    }
+                elif isinstance(geometry, TriangleElement) or isinstance(
                     geometry, EmbeddedTriangle
                 ):
                     schemes = quadpy.t2.schemes
@@ -104,12 +117,23 @@ def select_quadrule(
                     schemes = quadpy.t3.schemes
                 for key, s in schemes.items():
                     try:
-                        scheme = s()
+                        if isinstance(geometry, LineElement) or isinstance(
+                            geometry, EmbeddedLine
+                        ):
+                            # For some reason the quadpy implementation is a little different for line segments.
+                            scheme = s
+                        else:
+                            scheme = s()
+
                     except TypeError as e:
                         pass
                     all_schemes.append(scheme)
 
             def select_degree(x: TnScheme) -> int:
+                if isinstance(geometry, LineElement) or isinstance(
+                    geometry, EmbeddedLine
+                ):
+                    return x.degree
                 if x.degree >= degree:
                     return x.points.shape[1]
                 else:
@@ -121,8 +145,12 @@ def select_quadrule(
     else:
         raise HOGException(f"Unexpected {scheme_info}")
 
+    if isinstance(geometry, LineElement) or isinstance(geometry, EmbeddedLine):
+        num_points = len(scheme.points)
+    else:
+        num_points = scheme.points.shape[1]
     logger.info(
-        f"Integrating over {geometry} with rule: {scheme.name} (degree: {scheme.degree}, #points: {scheme.points.shape[1]})."
+        f"Integrating over {geometry} with rule: {scheme.name} (degree: {scheme.degree}, #points: {num_points})."
     )
     return scheme
 
@@ -226,7 +254,7 @@ class Quadrature:
                     f"Cannot apply quadrature rule to matrix of shape {f.shape}: {f}."
                 )
         ref_symbols = symbolizer.ref_coords_as_list(self._geometry.dimensions)
-        if isinstance(self._geometry, EmbeddedTriangle):
+        if isinstance(self._geometry, EmbeddedLine) or isinstance(self._geometry, EmbeddedTriangle):
             ref_symbols = symbolizer.ref_coords_as_list(self._geometry.dimensions - 1)
 
         if self._scheme_name == "exact":
@@ -245,6 +273,8 @@ class Quadrature:
             for i, (point, weight) in enumerate(zip(inline_points, inline_weights)):
                 spat_coord_subs = {}
                 for idx, symbol in enumerate(ref_symbols):
+                    if not isinstance(point, sp.Matrix):
+                        point = sp.Matrix([point])
                     spat_coord_subs[symbol] = point[idx]
                 if not blending.is_affine():
                     for symbol in symbolizer.quadpoint_dependent_free_symbols(
@@ -288,7 +318,7 @@ class Quadrature:
         elif isinstance(geometry, TriangleElement):
             vertices = np.asarray([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
             degree = scheme.degree
-        elif isinstance(geometry, LineElement):
+        elif isinstance(geometry, LineElement) or isinstance(geometry, EmbeddedLine):
             vertices = np.asarray([[0.0], [1.0]])
             degree = scheme.degree
         elif isinstance(geometry, EmbeddedTriangle):
@@ -297,7 +327,7 @@ class Quadrature:
         else:
             raise HOGException("Invalid geometry for quadrature.")
 
-        if isinstance(geometry, LineElement):
+        if isinstance(geometry, LineElement) or isinstance(geometry, EmbeddedLine):
             points = [np.array([0.5 * (p + 1)]) for p in scheme.points]
             weights = 0.5 * scheme.weights
         else:

@@ -29,6 +29,7 @@ from hog.element_geometry import (
     ElementGeometry,
     TriangleElement,
     EmbeddedTriangle,
+    EmbeddedLine,
     TetrahedronElement,
     LineElement,
 )
@@ -118,7 +119,7 @@ def trafo_ref_to_affine(
                           vector symbols, useful for example if the trafo of two or more different elements is required
     """
     ref_symbols_vector = symbolizer.ref_coords_as_vector(geometry.dimensions)
-    if isinstance(geometry, EmbeddedTriangle):
+    if isinstance(geometry, EmbeddedLine) or isinstance(geometry, EmbeddedTriangle):
         ref_symbols_vector = symbolizer.ref_coords_as_vector(geometry.dimensions - 1)
 
     if affine_points is None:
@@ -199,7 +200,7 @@ def jac_ref_to_affine(
                           vector symbols, useful for example if the trafo of two or more different elements is required
     """
     ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
-    if isinstance(geometry, EmbeddedTriangle):
+    if isinstance(geometry, EmbeddedLine) or isinstance(geometry, EmbeddedTriangle):
         ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
 
     trafo = trafo_ref_to_affine(geometry, symbolizer, affine_points=affine_points)
