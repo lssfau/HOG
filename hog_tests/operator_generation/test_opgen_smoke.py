@@ -27,7 +27,7 @@ from hog.operator_generation.operators import (
 )
 from hog.symbolizer import Symbolizer
 from hog.quadrature import Quadrature, select_quadrule
-from hog.forms import div_k_grad
+from hog.forms import div_k_grad, mass
 from hog.operator_generation.kernel_types import ApplyWrapper
 from hog.operator_generation.types import hyteg_type
 from hog.blending import AnnulusMap
@@ -38,20 +38,29 @@ def test_opgen_smoke():
     Just a simple smoke test to check that an operator can be generated.
 
     If something is really broken, this will make the CI fail early.
+
+    We are generating a matvec method here for
+
+        ∫ k ∇u · ∇v dx + ∫ uv dx
+
+    with either integral being evaluated in their own kernel.
+
+    That may not be reasonable but tests some features.
     """
     clear_cache()
 
     symbolizer = Symbolizer()
     volume_geometry = TriangleElement()
 
-    name = f"P2DivKGradBlending"
+    name = f"P2DivKGradBlendingPlusMass"
 
     trial = LagrangianFunctionSpace(2, symbolizer)
     test = LagrangianFunctionSpace(2, symbolizer)
     coeff = LagrangianFunctionSpace(2, symbolizer)
     quad = Quadrature(select_quadrule(2, volume_geometry), volume_geometry)
 
-    form = div_k_grad(trial, test, volume_geometry, symbolizer, AnnulusMap(), coeff)
+    divkgrad = div_k_grad(trial, test, volume_geometry, symbolizer, AnnulusMap(), coeff)
+    m = mass(trial, test, volume_geometry, symbolizer, AnnulusMap())
 
     type_descriptor = hyteg_type()
 
@@ -75,13 +84,22 @@ def test_opgen_smoke():
         type_descriptor=type_descriptor,
     )
 
-    operator.set_element_matrix(
+    operator.add_integral(
         dim=volume_geometry.dimensions,
         geometry=volume_geometry,
         integration_domain=MacroIntegrationDomain.VOLUME,
         quad=quad,
-        blending=IdentityMap(),
-        form=form,
+        blending=AnnulusMap(),
+        form=divkgrad,
+    )
+
+    operator.add_integral(
+        dim=volume_geometry.dimensions,
+        geometry=volume_geometry,
+        integration_domain=MacroIntegrationDomain.VOLUME,
+        quad=quad,
+        blending=AnnulusMap(),
+        form=m,
     )
 
     operator.generate_class_code(

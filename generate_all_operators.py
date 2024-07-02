@@ -730,7 +730,7 @@ def generate_elementwise_op(
             blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
         )
 
-        operator.set_element_matrix(
+        operator.add_integral(
             dim=geometry.dimensions,
             geometry=geometry,
             integration_domain=MacroIntegrationDomain.VOLUME,

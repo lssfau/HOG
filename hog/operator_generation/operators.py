@@ -126,7 +126,7 @@ class Kernel:
     kernel_functions: List[KernelFunction]
     platform_dependent_funcs: List[Dict[str, KernelFunction]]
     operation_counts: List[str]
-    integration_info: IntegrationInfo
+    integration_infos: List[IntegrationInfo]
 
 
 class CppClassFiles(Enum):
@@ -171,8 +171,8 @@ class HyTeGElementwiseOperator:
         self.symbolizer = symbolizer
         self.kernel_wrapper_types = kernel_wrapper_types  # type of kernel: e.g. GEMV
 
-        # Holds one element matrix and quad scheme for each ElementGeometry.
-        self.element_matrices: Dict[int, IntegrationInfo] = {}
+        # Each IntegrationInfo object represents one integral of the weak formulation.
+        self.integration_infos: Dict[int, List[IntegrationInfo]] = {}
 
         self._optimizer = Optimizer(opts)
         self._optimizer_no_vec = Optimizer(opts - {Opts.VECTORIZE, Opts.VECTORIZE512})
@@ -185,7 +185,7 @@ class HyTeGElementwiseOperator:
         # implementations for each kernel, generated at a later stage
         self.kernels: List[Kernel] = []
 
-    def set_element_matrix(
+    def add_integral(
         self,
         dim: int,
         geometry: ElementGeometry,
@@ -195,7 +195,7 @@ class HyTeGElementwiseOperator:
         form: Form,
     ) -> None:
         """
-        Use this method to add element matrices to the operator.
+        Use this method to add integrals to the operator.
 
         :param dim: the dimensionality of the domain, i.e. the volume - it may be that this does not match the geometry
                     of the element, e.g., when facet integrals are required, note that only one routine per dim is
@@ -214,12 +214,6 @@ class HyTeGElementwiseOperator:
             raise HOGException("Only volume integrals supported as of now.")
         if dim != geometry.dimensions:
             raise HOGException("Only volume integrals supported as of now.")
-
-        if dim in self.element_matrices:
-            raise HOGException(
-                "You are trying to overwrite an already specified integration routine by calling this method twice with "
-                "the same dim argument."
-            )
 
         tables = []
         quad_loop = None
@@ -256,15 +250,20 @@ class HyTeGElementwiseOperator:
                                 mat[row, col], self.symbolizer, blending
                             )
 
-        self.element_matrices[dim] = IntegrationInfo(
-            geometry=geometry,
-            integration_domain=integration_domain,
-            quad=quad,
-            blending=blending,
-            tables=tables,
-            quad_loop=quad_loop,
-            mat=mat,
-            docstring=form.docstring,
+        if dim not in self.integration_infos:
+            self.integration_infos[dim] = []
+
+        self.integration_infos[dim].append(
+            IntegrationInfo(
+                geometry=geometry,
+                integration_domain=integration_domain,
+                quad=quad,
+                blending=blending,
+                tables=tables,
+                quad_loop=quad_loop,
+                mat=mat,
+                docstring=form.docstring,
+            )
         )
 
     def coefficients(self) -> List[FunctionSpaceImpl]:
@@ -310,8 +309,9 @@ class HyTeGElementwiseOperator:
 
         # Adding form docstring to C++ class
         form_docstrings = set()
-        for d, io in self.element_matrices.items():
-            form_docstrings.add(io.docstring)
+        for d, ios in self.integration_infos.items():
+            for io in ios:
+                form_docstrings.add(io.docstring)
         for form_docstring in form_docstrings:
             form_docstring_with_slashes = "/// ".join(form_docstring.splitlines(True))
             operator_cpp_class.add(CppComment(form_docstring_with_slashes, where="all"))
@@ -342,11 +342,12 @@ class HyTeGElementwiseOperator:
             kernel_op_count = (
                 f"Kernel wrapper type: {kernel.kernel_wrapper_type.name}\n"
             )
+
             for i, sub_kernel in enumerate(kernel.kernel_functions):
-                kernel_op_count += "\n".join(
+                kernel_op_count_subkernel = "\n".join(
                     [
                         f"Sub kernel {i}",
-                        f"- quadrature rule: {kernel.integration_info.quad}",
+                        f"- quadrature rule: {kernel.integration_infos[i].quad}",
                         f"- operations per element:",
                         kernel.operation_counts[i],
                     ]
@@ -360,9 +361,16 @@ class HyTeGElementwiseOperator:
                                     kernel,
                                     is_const=True,
                                     visibility="private",
-                                    docstring=indent(kernel_op_count, "/// "),
+                                    docstring=indent(
+                                        kernel_op_count
+                                        + "\n"
+                                        + kernel_op_count_subkernel,
+                                        "/// ",
+                                    ),
                                 )
-                                for platform, kernel in kernel.platform_dependent_funcs[i].items()
+                                for platform, kernel in kernel.platform_dependent_funcs[
+                                    i
+                                ].items()
                             }
                         )
                     )
@@ -372,7 +380,10 @@ class HyTeGElementwiseOperator:
                             kernel.kernel_functions[i],
                             is_const=True,
                             visibility="private",
-                            docstring=indent(kernel_op_count, "/// "),
+                            docstring=indent(
+                                kernel_op_count + "\n" + kernel_op_count_subkernel,
+                                "/// ",
+                            ),
                         )
                     )
 
@@ -430,8 +441,21 @@ class HyTeGElementwiseOperator:
             *[kt.includes() for kt in self.kernel_wrapper_types]
         )
         blending_includes = set()
-        for dim, integration_info in self.element_matrices.items():
-            for inc in integration_info.blending.coupling_includes():
+        for dim, integration_infos in self.integration_infos.items():
+
+            if not all(
+                [
+                    integration_infos[0].blending.coupling_includes()
+                    == io.blending.coupling_includes()
+                    for io in integration_infos
+                ]
+            ):
+                raise HOGException(
+                    "Seems that there are different blending functions in one bilinear form (likely in two different "
+                    "integrals). This is not supported yet. :("
+                )
+
+            for inc in integration_infos[0].blending.coupling_includes():
                 blending_includes.add(inc)
         all_includes = (
             self.INCLUDES | func_space_includes | kernel_includes | blending_includes
@@ -1057,65 +1081,75 @@ class HyTeGElementwiseOperator:
         """
 
         for kernel_wrapper_type in self.kernel_wrapper_types:
-            for dim, integration_info in self.element_matrices.items():
-                geometry = integration_info.geometry
-                macro_type = {2: "face", 3: "cell"}
+            for dim, integration_infos in self.integration_infos.items():
 
                 kernel_functions = []
                 kernel_op_counts = []
                 platform_dep_kernels = []
 
-                # # generate AST of kernel loop
-                # with TimedLogger(
-                #     f"Generating kernel wrapper: {kernel_wrapper_type.name} in {dim}D",
-                #     logging.INFO,
-                # ):
+                macro_type = {2: "face", 3: "cell"}
 
-                for (
-                    kernel_name,
-                    kernel_type,
-                    loop_strategy,
-                ) in kernel_wrapper_type.kernels():
+                geometry = integration_infos[0].geometry
+                if not all([geometry == io.geometry for io in integration_infos]):
+                    raise HOGException(
+                        "All element geometries should be the same. Regardless of whether you integrate over their "
+                        "boundary or volume. Dev note: this information seems to be redundant and we should only have "
+                        "it in one place."
+                    )
 
-                    (
-                        function_body,
-                        kernel_op_count,
-                    ) = self._generate_kernel(
-                        dim,
-                        integration_info,
+                for ii_id, integration_info in enumerate(integration_infos):
+
+                    # # generate AST of kernel loop
+                    # with TimedLogger(
+                    #     f"Generating kernel wrapper: {kernel_wrapper_type.name} in {dim}D",
+                    #     logging.INFO,
+                    # ):
+
+                    for (
+                        kernel_name,
                         kernel_type,
                         loop_strategy,
-                        kernel_wrapper_type.src_fields,
-                        kernel_wrapper_type.dst_fields,
-                    )
+                    ) in kernel_wrapper_type.kernels():
 
-                    kernel_function = KernelFunction(
-                        function_body,
-                        Target.CPU,
-                        Backend.C,
-                        make_python_function,
-                        ghost_layers=None,
-                        function_name=f"{kernel_wrapper_type.name}_macro_{geometry.dimensions}D",
-                        assignments=None,
-                    )
-
-                    kernel_functions.append(kernel_function)
-                    kernel_op_counts.append(kernel_op_count)
-
-                    # optimizer applies optimizations
-                    with TimedLogger(
-                        f"Optimizing kernel: {kernel_name} in {dim}D", logging.INFO
-                    ):
-                        optimizer = (
-                            self._optimizer
-                            if not isinstance(kernel_type, Assemble)
-                            else self._optimizer_no_vec
+                        (
+                            function_body,
+                            kernel_op_count,
+                        ) = self._generate_kernel(
+                            dim,
+                            integration_info,
+                            kernel_type,
+                            loop_strategy,
+                            kernel_wrapper_type.src_fields,
+                            kernel_wrapper_type.dst_fields,
                         )
-                        platform_dep_kernels.append(
-                            optimizer.apply_to_kernel(
-                                kernel_function, dim, loop_strategy
+
+                        kernel_function = KernelFunction(
+                            function_body,
+                            Target.CPU,
+                            Backend.C,
+                            make_python_function,
+                            ghost_layers=None,
+                            function_name=f"{kernel_wrapper_type.name}_macro_{geometry.dimensions}D_{ii_id}",
+                            assignments=None,
+                        )
+
+                        kernel_functions.append(kernel_function)
+                        kernel_op_counts.append(kernel_op_count)
+
+                        # optimizer applies optimizations
+                        with TimedLogger(
+                            f"Optimizing kernel: {kernel_name} in {dim}D", logging.INFO
+                        ):
+                            optimizer = (
+                                self._optimizer
+                                if not isinstance(kernel_type, Assemble)
+                                else self._optimizer_no_vec
                             )
-                        )
+                            platform_dep_kernels.append(
+                                optimizer.apply_to_kernel(
+                                    kernel_function, dim, loop_strategy
+                                )
+                            )
 
                 # Setup kernel wrapper string and op count table
                 #
@@ -1151,9 +1185,22 @@ class HyTeGElementwiseOperator:
                     ]
                 )
 
-                scalar_parameter_setup += (
-                    integration_info.blending.parameter_coupling_code()
-                )
+                blending_parameter_coupling_code = integration_infos[
+                    0
+                ].blending.parameter_coupling_code()
+                if not all(
+                    [
+                        blending_parameter_coupling_code
+                        == io.blending.parameter_coupling_code()
+                        for io in integration_infos
+                    ]
+                ):
+                    raise HOGException(
+                        "It seems you specified different blending maps for one bilinear form. "
+                        "This may be desired, but it is certainly not supported :)."
+                    )
+
+                scalar_parameter_setup += blending_parameter_coupling_code
 
                 kernel_wrapper_type.substitute(
                     {f"scalar_parameter_setup_{dim}D": scalar_parameter_setup}
@@ -1188,6 +1235,6 @@ class HyTeGElementwiseOperator:
                     kernel_functions,
                     platform_dep_kernels,
                     kernel_op_counts,
-                    integration_info,
+                    integration_infos,
                 )
                 self.kernels.append(kernel)
