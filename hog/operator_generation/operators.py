@@ -84,7 +84,7 @@ from hog.operator_generation.indexing import (
     IndexingInfo,
 )
 from hog.operator_generation.kernel_types import KernelWrapperType, KernelType, Assemble
-from hog.operator_generation.loop_strategies import LoopStrategy
+from hog.operator_generation.loop_strategies import LoopStrategy, SAWTOOTH, CUBES
 from hog.operator_generation.optimizer import Optimizer, Opts
 from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
@@ -100,6 +100,8 @@ class MacroIntegrationDomain(Enum):
 
 @dataclass
 class IntegrationInfo:
+    """Data associated with one integral term and the corresponding loop pattern."""
+
     geometry: ElementGeometry  # geometry of the element, e.g. tetrahedron
     integration_domain: (
         MacroIntegrationDomain  # entity of geometry to integrate over, e.g. facet
@@ -111,17 +113,22 @@ class IntegrationInfo:
     quad_loop: Optional[QuadLoop]
     mat: sp.MatrixBase
 
+    loop_strategy: LoopStrategy
+
+    name: str = "unknown_integral"
     docstring: str = ""
 
     def _str_(self):
-        return f"Integration Info: {self.geometry}, {self.integration_domain}, mat shape {self.mat.shape}, quad degree {self.quad.degree}, blending {self.blending}"
+        return f"Integration Info: {self.name}, {self.geometry}, {self.integration_domain}, mat shape {self.mat.shape}, quad degree {self.quad.degree}, blending {self.blending}"
 
     def _repr_(self):
         return str(self)
 
 
 @dataclass
-class Kernel:
+class OperatorMethod:
+    """Collection of kernels and metadata required for each method of an operator."""
+
     kernel_wrapper_type: KernelWrapperType
     kernel_functions: List[KernelFunction]
     platform_dependent_funcs: List[Dict[str, KernelFunction]]
@@ -183,29 +190,39 @@ class HyTeGElementwiseOperator:
         # coefficients
         self.coeffs: Dict[str, FunctionSpaceImpl] = {}
         # implementations for each kernel, generated at a later stage
-        self.kernels: List[Kernel] = []
+        self.operator_methods: List[OperatorMethod] = []
 
     def add_integral(
         self,
+        name: str,
         dim: int,
         geometry: ElementGeometry,
         integration_domain: MacroIntegrationDomain,
         quad: Quadrature,
         blending: GeometryMap,
         form: Form,
+        loop_strategy: LoopStrategy,
     ) -> None:
         """
         Use this method to add integrals to the operator.
 
+        :param name: some name for this integral (no spaces please)
         :param dim: the dimensionality of the domain, i.e. the volume - it may be that this does not match the geometry
                     of the element, e.g., when facet integrals are required, note that only one routine per dim is
                     created
         :param geometry: geometry that shall be integrated over
         :param integration_domain: where to integrate - see MacroIntegrationDomain
-        :param mat: the local element matrix
         :param quad: the employed quadrature scheme - should match what has been used to integrate the weak form
         :param blending: the same geometry map that has been passed to the form
+        :param form: the integrand
+        :param loop_strategy: loop pattern over the refined macro-volume - must somehow be compatible with the
+                              integration domain
         """
+
+        if "".join(name.split()) != name:
+            raise HOGException(
+                "Please give the integral an identifier without white space."
+            )
 
         if dim not in [2, 3]:
             raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
@@ -214,6 +231,11 @@ class HyTeGElementwiseOperator:
             raise HOGException("Only volume integrals supported as of now.")
         if dim != geometry.dimensions:
             raise HOGException("Only volume integrals supported as of now.")
+
+        if integration_domain == MacroIntegrationDomain.VOLUME and not (
+            isinstance(loop_strategy, SAWTOOTH) or isinstance(loop_strategy, CUBES)
+        ):
+            raise HOGException("Invalid loop strategy for volume integrals.")
 
         tables = []
         quad_loop = None
@@ -255,6 +277,7 @@ class HyTeGElementwiseOperator:
 
         self.integration_infos[dim].append(
             IntegrationInfo(
+                name=name,
                 geometry=geometry,
                 integration_domain=integration_domain,
                 quad=quad,
@@ -263,6 +286,7 @@ class HyTeGElementwiseOperator:
                 quad_loop=quad_loop,
                 mat=mat,
                 docstring=form.docstring,
+                loop_strategy=loop_strategy,
             )
         )
 
@@ -338,18 +362,39 @@ class HyTeGElementwiseOperator:
                 operator_cpp_class.add(member)
 
         # Add all kernels to the class.
-        for kernel in self.kernels:
+        for operator_method in self.operator_methods:
             kernel_op_count = (
-                f"Kernel wrapper type: {kernel.kernel_wrapper_type.name}\n"
+                f"Kernel wrapper type: {operator_method.kernel_wrapper_type.name}\n"
             )
 
-            for i, sub_kernel in enumerate(kernel.kernel_functions):
-                kernel_op_count_subkernel = "\n".join(
+            num_integrals = len(operator_method.integration_infos)
+
+            if num_integrals != len(
+                operator_method.kernel_functions
+            ) or num_integrals != len(operator_method.operation_counts):
+                raise HOGException(
+                    "There should be as many IntegrationInfo (aka integrals) as KernelFunctions (aka kernels)."
+                )
+
+            for (
+                integration_info,
+                sub_kernel,
+                operation_count,
+                platform_dependent_funcs,
+            ) in zip(
+                operator_method.integration_infos,
+                operator_method.kernel_functions,
+                operator_method.operation_counts,
+                operator_method.platform_dependent_funcs,
+            ):
+                kernel_docstring = "\n".join(
                     [
-                        f"Sub kernel {i}",
-                        f"- quadrature rule: {kernel.integration_infos[i].quad}",
+                        f"Integral name: {integration_info.name}",
+                        f"- kernel type: {operator_method.kernel_wrapper_type.kernel_type}",
+                        f"- loop strategy: {integration_info.loop_strategy}",
+                        f"- quadrature rule: {integration_info.quad}",
                         f"- operations per element:",
-                        kernel.operation_counts[i],
+                        operation_count,
                     ]
                 )
 
@@ -358,30 +403,26 @@ class HyTeGElementwiseOperator:
                         CppMethodWithVariants(
                             {
                                 platform: CppMethod.from_kernel_function(
-                                    kernel,
+                                    plat_dep_kernel,
                                     is_const=True,
                                     visibility="private",
                                     docstring=indent(
-                                        kernel_op_count
-                                        + "\n"
-                                        + kernel_op_count_subkernel,
+                                        kernel_op_count + "\n" + kernel_docstring,
                                         "/// ",
                                     ),
                                 )
-                                for platform, kernel in kernel.platform_dependent_funcs[
-                                    i
-                                ].items()
+                                for platform, plat_dep_kernel in platform_dependent_funcs.items()
                             }
                         )
                     )
                 else:
                     operator_cpp_class.add(
                         CppMethod.from_kernel_function(
-                            kernel.kernel_functions[i],
+                            sub_kernel,
                             is_const=True,
                             visibility="private",
                             docstring=indent(
-                                kernel_op_count + "\n" + kernel_op_count_subkernel,
+                                kernel_op_count + "\n" + kernel_docstring,
                                 "/// ",
                             ),
                         )
@@ -695,7 +736,6 @@ class HyTeGElementwiseOperator:
         dim: int,
         integration_info: IntegrationInfo,
         kernel_type: KernelType,
-        loop_strategy: LoopStrategy,
         src_fields: List[FunctionSpaceImpl],
         dst_fields: List[FunctionSpaceImpl],
     ) -> Tuple[ps.astnodes.Block, str]:
@@ -706,7 +746,6 @@ class HyTeGElementwiseOperator:
 
         :param integration_info: IntegrationInfo object holding the symbolic element matrix, quadrature rule,
                                  element geometry, etc.
-        :param loop_strategy:    defines the iteration pattern
         :param kernel_type:      specifies the kernel to execute - this could be e.g., a matrix-vector
                                  multiplication
         :returns: tuple (pre_loop_stmts, loop, operations_table)
@@ -816,7 +855,7 @@ class HyTeGElementwiseOperator:
         element_index = [
             LoopOverCoordinate.get_loop_counter_symbol(i) for i in range(dim)
         ]
-        loop = loop_strategy.create_loop(
+        loop = integration_info.loop_strategy.create_loop(
             dim, element_index, indexing_info.micro_edges_per_macro_edge
         )
 
@@ -1001,7 +1040,7 @@ class HyTeGElementwiseOperator:
             body = add_types(body, kernel_config)
 
             # add the created loop body of statements to the loop according to the loop strategy
-            loop_strategy.add_body_to_loop(loop, body, element_type)
+            integration_info.loop_strategy.add_body_to_loop(loop, body, element_type)
 
             # This actually replaces the abstract field access instances with
             # array accesses that contain the index computations.
@@ -1049,7 +1088,9 @@ class HyTeGElementwiseOperator:
             "renaming loop bodies and preloop stmts for element types", logging.DEBUG
         ):
             for element_type, preloop in preloop_stmts.items():
-                loop = loop_strategy.add_preloop_for_loop(loop, preloop, element_type)
+                loop = integration_info.loop_strategy.add_preloop_for_loop(
+                    loop, preloop, element_type
+                )
 
         # Add quadrature points and weights array declarations, but only those
         # which are actually needed.
@@ -1097,7 +1138,7 @@ class HyTeGElementwiseOperator:
                         "it in one place."
                     )
 
-                for ii_id, integration_info in enumerate(integration_infos):
+                for integration_info in integration_infos:
 
                     # # generate AST of kernel loop
                     # with TimedLogger(
@@ -1105,51 +1146,45 @@ class HyTeGElementwiseOperator:
                     #     logging.INFO,
                     # ):
 
-                    for (
-                        kernel_name,
-                        kernel_type,
-                        loop_strategy,
-                    ) in kernel_wrapper_type.kernels():
+                    (
+                        function_body,
+                        kernel_op_count,
+                    ) = self._generate_kernel(
+                        dim,
+                        integration_info,
+                        kernel_wrapper_type.kernel_type,
+                        kernel_wrapper_type.src_fields,
+                        kernel_wrapper_type.dst_fields,
+                    )
 
-                        (
-                            function_body,
-                            kernel_op_count,
-                        ) = self._generate_kernel(
-                            dim,
-                            integration_info,
-                            kernel_type,
-                            loop_strategy,
-                            kernel_wrapper_type.src_fields,
-                            kernel_wrapper_type.dst_fields,
+                    kernel_function = KernelFunction(
+                        function_body,
+                        Target.CPU,
+                        Backend.C,
+                        make_python_function,
+                        ghost_layers=None,
+                        function_name=f"{kernel_wrapper_type.name}_{integration_info.name}_macro_{geometry.dimensions}D",
+                        assignments=None,
+                    )
+
+                    kernel_functions.append(kernel_function)
+                    kernel_op_counts.append(kernel_op_count)
+
+                    # optimizer applies optimizations
+                    with TimedLogger(
+                        f"Optimizing kernel: {kernel_function.function_name} in {dim}D",
+                        logging.INFO,
+                    ):
+                        optimizer = (
+                            self._optimizer
+                            if not isinstance(kernel_wrapper_type.kernel_type, Assemble)
+                            else self._optimizer_no_vec
                         )
-
-                        kernel_function = KernelFunction(
-                            function_body,
-                            Target.CPU,
-                            Backend.C,
-                            make_python_function,
-                            ghost_layers=None,
-                            function_name=f"{kernel_wrapper_type.name}_macro_{geometry.dimensions}D_{ii_id}",
-                            assignments=None,
+                        platform_dep_kernels.append(
+                            optimizer.apply_to_kernel(
+                                kernel_function, dim, integration_info.loop_strategy
+                            )
                         )
-
-                        kernel_functions.append(kernel_function)
-                        kernel_op_counts.append(kernel_op_count)
-
-                        # optimizer applies optimizations
-                        with TimedLogger(
-                            f"Optimizing kernel: {kernel_name} in {dim}D", logging.INFO
-                        ):
-                            optimizer = (
-                                self._optimizer
-                                if not isinstance(kernel_type, Assemble)
-                                else self._optimizer_no_vec
-                            )
-                            platform_dep_kernels.append(
-                                optimizer.apply_to_kernel(
-                                    kernel_function, dim, loop_strategy
-                                )
-                            )
 
                 # Setup kernel wrapper string and op count table
                 #
@@ -1230,11 +1265,11 @@ class HyTeGElementwiseOperator:
                 )
 
                 # Collect all information
-                kernel = Kernel(
+                kernel = OperatorMethod(
                     kernel_wrapper_type,
                     kernel_functions,
                     platform_dep_kernels,
                     kernel_op_counts,
                     integration_infos,
                 )
-                self.kernels.append(kernel)
+                self.operator_methods.append(kernel)

@@ -70,7 +70,6 @@ def test_opgen_smoke():
             trial,
             type_descriptor=type_descriptor,
             dims=[2],
-            loop_strategy=CUBES(),
         )
     ]
 
@@ -85,21 +84,25 @@ def test_opgen_smoke():
     )
 
     operator.add_integral(
+        name="div_k_grad",
         dim=volume_geometry.dimensions,
         geometry=volume_geometry,
         integration_domain=MacroIntegrationDomain.VOLUME,
         quad=quad,
         blending=AnnulusMap(),
         form=divkgrad,
+        loop_strategy=CUBES(),
     )
 
     operator.add_integral(
+        name="mass",
         dim=volume_geometry.dimensions,
         geometry=volume_geometry,
         integration_domain=MacroIntegrationDomain.VOLUME,
         quad=quad,
         blending=AnnulusMap(),
         form=m,
+        loop_strategy=CUBES(),
     )
 
     operator.generate_class_code(

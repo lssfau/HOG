@@ -78,15 +78,14 @@ class KernelType(ABC):
     }
     ```
 
-    This class (KernelType) describes "metadata" that is associated with one of the actual kernels inside the method.
+    This class (KernelType) describes the "action" of the kernel (matvec, assembly, ...).
     Another class (KernelWrapperType) then describes what kind of pre- and post-processing is required.
-    One KernelWrapperType instance may thus be associated with one or more KernelType instances.
 
     ```
     void assemble() {         // from KernelTypeWrapper
         communication()       // from KernelTypeWrapper
-        kernel()              // from KernelType a
-        kernel_boundary()     // from KernelType b
+        kernel()              // from KernelType + IntegrationInfo 1
+        kernel_boundary()     // from KernelType + IntegrationInfo 2
         post_communication()  // from KernelTypeWrapper
     }
     ```
@@ -345,16 +344,9 @@ class KernelWrapperType(ABC):
     See documentation of class KernelType. 
     """
 
+    @property
     @abstractmethod
-    def kernels(self) -> List[Tuple[str, KernelType, LoopStrategy]]:
-        """
-        Returns a list of tuples that correspond to data required for the individual kernels that shall be executed one
-        after the other.
-
-        This includes:
-          (<name of the sub-kernel>, <kernel type>, <loop strategy>)
-        """
-        ...
+    def kernel_type(self) -> KernelType: ...
 
     @abstractmethod
     def includes(self) -> Set[str]: ...
@@ -379,10 +371,8 @@ class ApplyWrapper(KernelWrapperType):
         dst_space: FunctionSpace,
         type_descriptor: HOGType,
         dims: List[int] = [2, 3],
-        loop_strategy: LoopStrategy = SAWTOOTH(),
     ):
         self.name = "apply"
-        self.kernel_type = Apply()
         self.src: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
             src_space, "src", type_descriptor
         )
@@ -393,7 +383,6 @@ class ApplyWrapper(KernelWrapperType):
         self.dst_fields = [self.dst]
         self.dims = dims
         self.result_prefix = "elMatVec_"
-        self.loop_strategy = loop_strategy
 
         def macro_loop(dim: int) -> str:
             Macro = {2: "Face", 3: "Cell"}[dim]
@@ -489,8 +478,9 @@ class ApplyWrapper(KernelWrapperType):
             f'this->stopTiming( "{self.name}" );'
         )
 
-    def kernels(self) -> List[Tuple[str, KernelType, LoopStrategy]]:
-        return [(self.name + "_kernel", self.kernel_type, self.loop_strategy)]
+    @property
+    def kernel_type(self) -> KernelType:
+        return Apply()
 
     def includes(self) -> Set[str]:
         return (
@@ -545,7 +535,6 @@ class GEMVWrapper(KernelWrapperType):
         dst_fields: List[str] = ["dst"],
         scalar_params: List[str] = ["alpha", "beta"],
         dims: List[int] = [2, 3],
-        loop_strategy: LoopStrategy = SAWTOOTH(),
     ):
         pass
 
@@ -567,17 +556,14 @@ class AssembleDiagonalWrapper(KernelWrapperType):
         type_descriptor: HOGType,
         dst_field: str = "invDiag_",
         dims: List[int] = [2, 3],
-        loop_strategy: LoopStrategy = SAWTOOTH(),
     ):
         self.name = "computeInverseDiagonalOperatorValues"
-        self.kernel_type = AssembleDiagonal()
         self.dst: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
             fe_space, dst_field, type_descriptor, is_pointer=True
         )
         self.src_fields = []
         self.dst_fields = [self.dst]
         self.dims = dims
-        self.loop_strategy = loop_strategy
 
         def macro_loop(dim: int) -> str:
             Macro = {2: "Face", 3: "Cell"}[dim]
@@ -650,8 +636,9 @@ class AssembleDiagonalWrapper(KernelWrapperType):
             f'this->stopTiming( "{self.name}" );'
         )
 
-    def kernels(self) -> List[Tuple[str, KernelType, LoopStrategy]]:
-        return [(self.name + "_kernel", self.kernel_type, self.loop_strategy)]
+    @property
+    def kernel_type(self) -> KernelType:
+        return AssembleDiagonal()
 
     def includes(self) -> Set[str]:
         return {"hyteg/solvers/Smoothables.hpp"} | self.dst.includes()
@@ -696,11 +683,9 @@ class AssembleWrapper(KernelWrapperType):
         dst_space: FunctionSpace,
         type_descriptor: HOGType,
         dims: List[int] = [2, 3],
-        loop_strategy: LoopStrategy = SAWTOOTH(),
     ):
         idx_t = HOGType("idx_t", np.int64)
         self.name = "toMatrix"
-        self.kernel_type = Assemble(src_space, dst_space)
         self.src: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
             src_space, "src", idx_t
         )
@@ -716,7 +701,6 @@ class AssembleWrapper(KernelWrapperType):
 
         self.type_descriptor = type_descriptor
         self.dims = dims
-        self.loop_strategy = loop_strategy
 
         def macro_loop(dim: int) -> str:
             Macro = {2: "Face", 3: "Cell"}[dim]
@@ -771,8 +755,9 @@ class AssembleWrapper(KernelWrapperType):
             f'this->stopTiming( "{self.name}" );'
         )
 
-    def kernels(self) -> List[Tuple[str, KernelType, LoopStrategy]]:
-        return [(self.name + "_kernel", self.kernel_type, self.loop_strategy)]
+    @property
+    def kernel_type(self) -> KernelType:
+        return Assemble(self.src.fe_space, self.dst.fe_space)
 
     def includes(self) -> Set[str]:
         return (
