@@ -1139,35 +1139,35 @@ class HyTeGElementwiseOperator:
 
                 for integration_info in integration_infos:
 
-                    # # generate AST of kernel loop
-                    # with TimedLogger(
-                    #     f"Generating kernel wrapper: {kernel_wrapper_type.name} in {dim}D",
-                    #     logging.INFO,
-                    # ):
+                    # generate AST of kernel loop
+                    with TimedLogger(
+                        f"Generating kernel {integration_info.name} (wrapper: {kernel_wrapper_type.name} in {dim}D",
+                        logging.INFO,
+                    ):
 
-                    (
-                        function_body,
-                        kernel_op_count,
-                    ) = self._generate_kernel(
-                        dim,
-                        integration_info,
-                        kernel_wrapper_type.kernel_type,
-                        kernel_wrapper_type.src_fields,
-                        kernel_wrapper_type.dst_fields,
-                    )
+                        (
+                            function_body,
+                            kernel_op_count,
+                        ) = self._generate_kernel(
+                            dim,
+                            integration_info,
+                            kernel_wrapper_type.kernel_type,
+                            kernel_wrapper_type.src_fields,
+                            kernel_wrapper_type.dst_fields,
+                        )
 
-                    kernel_function = KernelFunction(
-                        function_body,
-                        Target.CPU,
-                        Backend.C,
-                        make_python_function,
-                        ghost_layers=None,
-                        function_name=f"{kernel_wrapper_type.name}_{integration_info.name}_macro_{geometry.dimensions}D",
-                        assignments=None,
-                    )
+                        kernel_function = KernelFunction(
+                            function_body,
+                            Target.CPU,
+                            Backend.C,
+                            make_python_function,
+                            ghost_layers=None,
+                            function_name=f"{kernel_wrapper_type.name}_{integration_info.name}_macro_{geometry.dimensions}D",
+                            assignments=None,
+                        )
 
-                    kernel_functions.append(kernel_function)
-                    kernel_op_counts.append(kernel_op_count)
+                        kernel_functions.append(kernel_function)
+                        kernel_op_counts.append(kernel_op_count)
 
                     # optimizer applies optimizations
                     with TimedLogger(
