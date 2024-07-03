@@ -512,7 +512,6 @@ class OperatorInfo:
                     self.trial_space,
                     type_descriptor=self.type_descriptor,
                     dims=dims,
-                    loop_strategy=self.opts[0][1],
                 )
             ]
 
@@ -524,7 +523,6 @@ class OperatorInfo:
                         self.trial_space,
                         type_descriptor=self.type_descriptor,
                         dims=dims,
-                        loop_strategy=self.opts[0][1],
                     )
                 )
 
@@ -534,7 +532,6 @@ class OperatorInfo:
                         self.test_space,
                         type_descriptor=self.type_descriptor,
                         dims=dims,
-                        loop_strategy=self.opts[0][1],
                     )
                 )
 
@@ -731,12 +728,14 @@ def generate_elementwise_op(
         )
 
         operator.add_integral(
+            name="".join(name.split()),
             dim=geometry.dimensions,
             geometry=geometry,
             integration_domain=MacroIntegrationDomain.VOLUME,
             quad=quad,
             blending=blending,
             form=form,
+            loop_strategy=loop_strategy,
         )
 
     dir_path = os.path.join(args.output, op_info.name.split("_")[0])

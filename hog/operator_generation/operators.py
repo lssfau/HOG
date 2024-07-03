@@ -363,9 +363,6 @@ class HyTeGElementwiseOperator:
 
         # Add all kernels to the class.
         for operator_method in self.operator_methods:
-            kernel_op_count = (
-                f"Kernel wrapper type: {operator_method.kernel_wrapper_type.name}\n"
-            )
 
             num_integrals = len(operator_method.integration_infos)
 
@@ -389,10 +386,12 @@ class HyTeGElementwiseOperator:
             ):
                 kernel_docstring = "\n".join(
                     [
-                        f"Integral name: {integration_info.name}",
-                        f"- kernel type: {operator_method.kernel_wrapper_type.kernel_type}",
-                        f"- loop strategy: {integration_info.loop_strategy}",
+                        f"\nIntegral: {integration_info.name}",
+                        f"- volume element:  {integration_info.geometry}",
+                        f"- kernel type:     {operator_method.kernel_wrapper_type.name}",
+                        f"- loop strategy:   {integration_info.loop_strategy}",
                         f"- quadrature rule: {integration_info.quad}",
+                        f"- blending map:    {integration_info.blending}",
                         f"- operations per element:",
                         operation_count,
                     ]
@@ -407,7 +406,7 @@ class HyTeGElementwiseOperator:
                                     is_const=True,
                                     visibility="private",
                                     docstring=indent(
-                                        kernel_op_count + "\n" + kernel_docstring,
+                                        kernel_docstring,
                                         "/// ",
                                     ),
                                 )
@@ -422,7 +421,7 @@ class HyTeGElementwiseOperator:
                             is_const=True,
                             visibility="private",
                             docstring=indent(
-                                kernel_op_count + "\n" + kernel_docstring,
+                                kernel_docstring,
                                 "/// ",
                             ),
                         )
