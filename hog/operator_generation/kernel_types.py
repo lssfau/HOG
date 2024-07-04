@@ -42,16 +42,54 @@ from hog.operator_generation.function_space_impls import FunctionSpaceImpl
 from hog.operator_generation.indexing import FaceType, CellType
 from hog.operator_generation.pystencils_extensions import create_generic_fields
 from hog.operator_generation.types import HOGPrecision, HOGType, hyteg_type
+from hog.operator_generation.loop_strategies import LoopStrategy, SAWTOOTH
 
 
 class KernelType(ABC):
-    name: str
-    src_fields: List[FunctionSpaceImpl]
-    dst_fields: List[FunctionSpaceImpl]
-    _template: Template
+    """
+    A HyTeG operator may implement multiple types of methods that perform some kind of operation on a function that
+    is inferred from the bilinear form. For instance, a (matrix-free) matrix-vector multiplication or the assembly
+    of its diagonal.
 
-    """Type to specify the type of kernel.
-    E.g. a GEMv kernel defines multiple source fields and scalar parameters."""
+    Certain operations such as setting boundary data to zero or communication have to be executed before the actual
+    kernel can be executed.
+
+    E.g.:
+
+    ```
+    void apply() {
+        communication()       // "pre-processing"
+        kernel()              // actual kernel
+        post_communication()  // "post-processing"
+    }
+    ```
+
+    For some applications, it might be necessary or at least comfortable to execute multiple kernels inside such a
+    method. For instance, if boundary conditions are applied:
+
+    ```
+    // form is sum of volume and boundary integral:
+    //     ∫ ... dΩ + ∫ ... dS
+    void assemble() {
+        communication()       // "pre-processing"
+        kernel()              // volume kernel (∫ ... dΩ)
+        kernel_boundary()     // boundary kernel (∫ ... dS | additive execution)
+        post_communication()  // "post-processing"
+    }
+    ```
+
+    This class (KernelType) describes the "action" of the kernel (matvec, assembly, ...).
+    Another class (KernelWrapperType) then describes what kind of pre- and post-processing is required.
+
+    ```
+    void assemble() {         // from KernelTypeWrapper
+        communication()       // from KernelTypeWrapper
+        kernel()              // from KernelType + IntegrationInfo 1
+        kernel_boundary()     // from KernelType + IntegrationInfo 2
+        post_communication()  // from KernelTypeWrapper
+    }
+    ```
+    """
 
     @abstractmethod
     def kernel_operation(
@@ -90,27 +128,243 @@ class KernelType(ABC):
         """
         ...
 
+
+class Apply(KernelType):
+    def __init__(self):
+        self.result_prefix = "elMatVec_"
+
+    def kernel_operation(
+        self,
+        src_vecs: List[sp.MatrixBase],
+        dst_vecs: List[sp.MatrixBase],
+        mat: sp.MatrixBase,
+        rows: int,
+    ) -> List[SympyAssignment]:
+        kernel_ops = mat * src_vecs[0]
+
+        tmp_symbols = sp.numbered_symbols(self.result_prefix)
+
+        kernel_op_assignments = [
+            SympyAssignment(tmp, kernel_op)
+            for tmp, kernel_op in zip(tmp_symbols, kernel_ops)
+        ]
+
+        return kernel_op_assignments
+
+    def kernel_post_operation(
+        self,
+        geometry: ElementGeometry,
+        element_index: Tuple[int, int, int],
+        element_type: Union[FaceType, CellType],
+        src_vecs_accesses: List[List[Field.Access]],
+        dst_vecs_accesses: List[List[Field.Access]],
+    ) -> List[ps.astnodes.Node]:
+        tmp_symbols = sp.numbered_symbols(self.result_prefix)
+
+        # Add and store result to destination.
+        store_dst_vecs = [
+            SympyAssignment(a, a + s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
+        ]
+        return store_dst_vecs
+
+
+class AssembleDiagonal(KernelType):
+    def __init__(self):
+        self.result_prefix = "elMatDiag_"
+
+    def kernel_operation(
+        self,
+        src_vecs: List[sp.MatrixBase],
+        dst_vecs: List[sp.MatrixBase],
+        mat: sp.MatrixBase,
+        rows: int,
+    ) -> List[SympyAssignment]:
+        kernel_ops = mat.diagonal()
+
+        tmp_symbols = sp.numbered_symbols(self.result_prefix)
+
+        kernel_op_assignments = [
+            SympyAssignment(tmp, kernel_op)
+            for tmp, kernel_op in zip(tmp_symbols, kernel_ops)
+        ]
+
+        return kernel_op_assignments
+
+    def kernel_post_operation(
+        self,
+        geometry: ElementGeometry,
+        element_index: Tuple[int, int, int],
+        element_type: Union[FaceType, CellType],
+        src_vecs_accesses: List[List[Field.Access]],
+        dst_vecs_accesses: List[List[Field.Access]],
+    ) -> List[ps.astnodes.Node]:
+        tmp_symbols = sp.numbered_symbols(self.result_prefix)
+
+        # Add and store result to destination.
+        store_dst_vecs = [
+            SympyAssignment(a, a + s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
+        ]
+        return store_dst_vecs
+
+
+class Assemble(KernelType):
+    def __init__(
+        self,
+        src_space: FunctionSpace,
+        dst_space: FunctionSpace,
+    ):
+        self.result_prefix = "elMat_"
+        idx_t = HOGType("idx_t", np.int64)
+
+        self.src: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
+            src_space, "src", idx_t
+        )
+        self.dst: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
+            dst_space, "dst", idx_t
+        )
+
+    def kernel_operation(
+        self,
+        src_vecs: List[sp.MatrixBase],
+        dst_vecs: List[sp.MatrixBase],
+        mat: sp.MatrixBase,
+        rows: int,
+    ) -> List[SympyAssignment]:
+        return [
+            SympyAssignment(sp.Symbol(f"{self.result_prefix}{r}_{c}"), mat[r, c])
+            for r in range(mat.shape[0])
+            for c in range(mat.shape[1])
+        ]
+
+    def kernel_post_operation(
+        self,
+        geometry: ElementGeometry,
+        element_index: Tuple[int, int, int],
+        element_type: Union[FaceType, CellType],
+        src_vecs_accesses: List[List[Field.Access]],
+        dst_vecs_accesses: List[List[Field.Access]],
+    ) -> List[ps.astnodes.Node]:
+        src, dst = dst_vecs_accesses
+        el_mat = sp.Matrix(
+            [
+                [sp.Symbol(f"{self.result_prefix}{r}_{c}") for c in range(len(src))]
+                for r in range(len(dst))
+            ]
+        )
+
+        # apply basis/dof transformations
+        transform_src_code, transform_src_mat = self.src.dof_transformation(
+            geometry, element_index, element_type
+        )
+        transform_dst_code, transform_dst_mat = self.dst.dof_transformation(
+            geometry, element_index, element_type
+        )
+        transformed_el_mat = transform_dst_mat.T * el_mat * transform_src_mat
+
+        nr = len(dst)
+        nc = len(src)
+        mat_size = nr * nc
+
+        rowIdx, colIdx = create_generic_fields(["rowIdx", "colIdx"], dtype=np.uint64)
+        # NOTE: The type is 'hyteg_type().pystencils_type', i.e. `real_t`
+        #       (not `self._type_descriptor.pystencils_type`)
+        #       because this function is implemented manually in HyTeG with
+        #       this signature. Passing `np.float64` is not ideal (if `real_t !=
+        #       double`) but it makes sure that casts are inserted if necessary
+        #       (though some might be superfluous).
+        mat = create_generic_fields(
+            ["mat"], dtype=hyteg_type(HOGPrecision.REAL_T).pystencils_type
+        )[0]
+        rowIdxSymb = FieldPointerSymbol(rowIdx.name, rowIdx.dtype, False)
+        colIdxSymb = FieldPointerSymbol(colIdx.name, colIdx.dtype, False)
+        matSymb = FieldPointerSymbol(mat.name, mat.dtype, False)
+
+        body: List[ps.astnodes.Node] = [
+            CustomCodeNode(
+                f"std::vector< uint_t > {rowIdxSymb.name}( {nr} );\n"
+                f"std::vector< uint_t > {colIdxSymb.name}( {nc} );\n"
+                f"std::vector< {mat.dtype} > {matSymb.name}( {mat_size} );",
+                [],
+                [rowIdxSymb, colIdxSymb, matSymb],
+            ),
+            ps.astnodes.EmptyLine(),
+        ]
+        body += [
+            SympyAssignment(
+                rowIdx.absolute_access((k,), (0,)), CastFunc(dst_access, np.uint64)
+            )
+            for k, dst_access in enumerate(dst)
+        ]
+        body += [
+            SympyAssignment(
+                colIdx.absolute_access((k,), (0,)), CastFunc(src_access, np.uint64)
+            )
+            for k, src_access in enumerate(src)
+        ]
+
+        body += [
+            ps.astnodes.EmptyLine(),
+            ps.astnodes.SourceCodeComment("Apply basis transformation"),
+            *sorted({transform_src_code, transform_dst_code}, key=lambda n: n._code),
+            ps.astnodes.EmptyLine(),
+        ]
+
+        body += [
+            SympyAssignment(
+                mat.absolute_access((r * nc + c,), (0,)),
+                CastFunc(transformed_el_mat[r, c], mat.dtype),
+            )
+            for r in range(nr)
+            for c in range(nc)
+        ]
+
+        body += [
+            ps.astnodes.EmptyLine(),
+            CustomCodeNode(
+                f"mat->addValues( {rowIdxSymb.name}, {colIdxSymb.name}, {matSymb.name} );",
+                [
+                    TypedSymbol("mat", "std::shared_ptr< SparseMatrixProxy >"),
+                    rowIdxSymb,
+                    colIdxSymb,
+                    matSymb,
+                ],
+                [],
+            ),
+        ]
+
+        return body
+
+
+class KernelWrapperType(ABC):
+    name: str
+    src_fields: List[FunctionSpaceImpl]
+    dst_fields: List[FunctionSpaceImpl]
+    _template: Template
+    """
+    See documentation of class KernelType. 
+    """
+
+    @property
     @abstractmethod
-    def includes(self) -> Set[str]:
-        ...
+    def kernel_type(self) -> KernelType: ...
 
     @abstractmethod
-    def base_classes(self) -> List[str]:
-        ...
+    def includes(self) -> Set[str]: ...
 
     @abstractmethod
-    def wrapper_methods(self) -> List[CppMethod]:
-        ...
+    def base_classes(self) -> List[str]: ...
 
     @abstractmethod
-    def member_variables(self) -> List[CppMemberVariable]:
-        ...
+    def wrapper_methods(self) -> List[CppMethod]: ...
+
+    @abstractmethod
+    def member_variables(self) -> List[CppMemberVariable]: ...
 
     def substitute(self, subs: Mapping[str, object]) -> None:
         self._template = Template(self._template.safe_substitute(subs))
 
 
-class Apply(KernelType):
+class ApplyWrapper(KernelWrapperType):
     def __init__(
         self,
         src_space: FunctionSpace,
@@ -224,39 +478,9 @@ class Apply(KernelType):
             f'this->stopTiming( "{self.name}" );'
         )
 
-    def kernel_operation(
-        self,
-        src_vecs: List[sp.MatrixBase],
-        dst_vecs: List[sp.MatrixBase],
-        mat: sp.MatrixBase,
-        rows: int,
-    ) -> List[SympyAssignment]:
-        kernel_ops = mat * src_vecs[0]
-
-        tmp_symbols = sp.numbered_symbols(self.result_prefix)
-
-        kernel_op_assignments = [
-            SympyAssignment(tmp, kernel_op)
-            for tmp, kernel_op in zip(tmp_symbols, kernel_ops)
-        ]
-
-        return kernel_op_assignments
-
-    def kernel_post_operation(
-        self,
-        geometry: ElementGeometry,
-        element_index: Tuple[int, int, int],
-        element_type: Union[FaceType, CellType],
-        src_vecs_accesses: List[List[Field.Access]],
-        dst_vecs_accesses: List[List[Field.Access]],
-    ) -> List[ps.astnodes.Node]:
-        tmp_symbols = sp.numbered_symbols(self.result_prefix)
-
-        # Add and store result to destination.
-        store_dst_vecs = [
-            SympyAssignment(a, a + s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
-        ]
-        return store_dst_vecs
+    @property
+    def kernel_type(self) -> KernelType:
+        return Apply()
 
     def includes(self) -> Set[str]:
         return (
@@ -302,7 +526,7 @@ class Apply(KernelType):
         return []
 
 
-class GEMV(KernelType):
+class GEMVWrapper(KernelWrapperType):
     def __init__(
         self,
         type_descriptor: HOGType,
@@ -325,7 +549,7 @@ class GEMV(KernelType):
         raise HOGException("Not implemented")
 
 
-class AssembleDiagonal(KernelType):
+class AssembleDiagonalWrapper(KernelWrapperType):
     def __init__(
         self,
         fe_space: FunctionSpace,
@@ -340,7 +564,6 @@ class AssembleDiagonal(KernelType):
         self.src_fields = []
         self.dst_fields = [self.dst]
         self.dims = dims
-        self.result_prefix = "elMatDiag_"
 
         def macro_loop(dim: int) -> str:
             Macro = {2: "Face", 3: "Cell"}[dim]
@@ -413,39 +636,9 @@ class AssembleDiagonal(KernelType):
             f'this->stopTiming( "{self.name}" );'
         )
 
-    def kernel_operation(
-        self,
-        src_vecs: List[sp.MatrixBase],
-        dst_vecs: List[sp.MatrixBase],
-        mat: sp.MatrixBase,
-        rows: int,
-    ) -> List[SympyAssignment]:
-        kernel_ops = mat.diagonal()
-
-        tmp_symbols = sp.numbered_symbols(self.result_prefix)
-
-        kernel_op_assignments = [
-            SympyAssignment(tmp, kernel_op)
-            for tmp, kernel_op in zip(tmp_symbols, kernel_ops)
-        ]
-
-        return kernel_op_assignments
-
-    def kernel_post_operation(
-        self,
-        geometry: ElementGeometry,
-        element_index: Tuple[int, int, int],
-        element_type: Union[FaceType, CellType],
-        src_vecs_accesses: List[List[Field.Access]],
-        dst_vecs_accesses: List[List[Field.Access]],
-    ) -> List[ps.astnodes.Node]:
-        tmp_symbols = sp.numbered_symbols(self.result_prefix)
-
-        # Add and store result to destination.
-        store_dst_vecs = [
-            SympyAssignment(a, a + s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
-        ]
-        return store_dst_vecs
+    @property
+    def kernel_type(self) -> KernelType:
+        return AssembleDiagonal()
 
     def includes(self) -> Set[str]:
         return {"hyteg/solvers/Smoothables.hpp"} | self.dst.includes()
@@ -483,7 +676,7 @@ class AssembleDiagonal(KernelType):
         ]
 
 
-class Assemble(KernelType):
+class AssembleWrapper(KernelWrapperType):
     def __init__(
         self,
         src_space: FunctionSpace,
@@ -508,7 +701,6 @@ class Assemble(KernelType):
 
         self.type_descriptor = type_descriptor
         self.dims = dims
-        self.result_prefix = "elMat_"
 
         def macro_loop(dim: int) -> str:
             Macro = {2: "Face", 3: "Cell"}[dim]
@@ -563,116 +755,9 @@ class Assemble(KernelType):
             f'this->stopTiming( "{self.name}" );'
         )
 
-    def kernel_operation(
-        self,
-        src_vecs: List[sp.MatrixBase],
-        dst_vecs: List[sp.MatrixBase],
-        mat: sp.MatrixBase,
-        rows: int,
-    ) -> List[SympyAssignment]:
-        return [
-            SympyAssignment(sp.Symbol(f"{self.result_prefix}{r}_{c}"), mat[r, c])
-            for r in range(mat.shape[0])
-            for c in range(mat.shape[1])
-        ]
-
-    def kernel_post_operation(
-        self,
-        geometry: ElementGeometry,
-        element_index: Tuple[int, int, int],
-        element_type: Union[FaceType, CellType],
-        src_vecs_accesses: List[List[Field.Access]],
-        dst_vecs_accesses: List[List[Field.Access]],
-    ) -> List[ps.astnodes.Node]:
-        src, dst = dst_vecs_accesses
-        el_mat = sp.Matrix(
-            [
-                [sp.Symbol(f"{self.result_prefix}{r}_{c}") for c in range(len(src))]
-                for r in range(len(dst))
-            ]
-        )
-
-        # apply basis/dof transformations
-        transform_src_code, transform_src_mat = self.src.dof_transformation(
-            geometry, element_index, element_type
-        )
-        transform_dst_code, transform_dst_mat = self.dst.dof_transformation(
-            geometry, element_index, element_type
-        )
-        transformed_el_mat = transform_dst_mat.T * el_mat * transform_src_mat
-
-        nr = len(dst)
-        nc = len(src)
-        mat_size = nr * nc
-
-        rowIdx, colIdx = create_generic_fields(["rowIdx", "colIdx"], dtype=np.uint64)
-        # NOTE: The type is 'hyteg_type().pystencils_type', i.e. `real_t`
-        #       (not `self._type_descriptor.pystencils_type`)
-        #       because this function is implemented manually in HyTeG with
-        #       this signature. Passing `np.float64` is not ideal (if `real_t !=
-        #       double`) but it makes sure that casts are inserted if necessary
-        #       (though some might be superfluous).
-        mat = create_generic_fields(
-            ["mat"], dtype=hyteg_type(HOGPrecision.REAL_T).pystencils_type
-        )[0]
-        rowIdxSymb = FieldPointerSymbol(rowIdx.name, rowIdx.dtype, False)
-        colIdxSymb = FieldPointerSymbol(colIdx.name, colIdx.dtype, False)
-        matSymb = FieldPointerSymbol(mat.name, mat.dtype, False)
-
-        body: List[ps.astnodes.Node] = [
-            CustomCodeNode(
-                f"std::vector< uint_t > {rowIdxSymb.name}( {nr} );\n"
-                f"std::vector< uint_t > {colIdxSymb.name}( {nc} );\n"
-                f"std::vector< {mat.dtype} > {matSymb.name}( {mat_size} );",
-                [],
-                [rowIdxSymb, colIdxSymb, matSymb],
-            ),
-            ps.astnodes.EmptyLine(),
-        ]
-        body += [
-            SympyAssignment(
-                rowIdx.absolute_access((k,), (0,)), CastFunc(dst_access, np.uint64)
-            )
-            for k, dst_access in enumerate(dst)
-        ]
-        body += [
-            SympyAssignment(
-                colIdx.absolute_access((k,), (0,)), CastFunc(src_access, np.uint64)
-            )
-            for k, src_access in enumerate(src)
-        ]
-
-        body += [
-            ps.astnodes.EmptyLine(),
-            ps.astnodes.SourceCodeComment("Apply basis transformation"),
-            *sorted({transform_src_code, transform_dst_code}, key=lambda n: n._code),
-            ps.astnodes.EmptyLine(),
-        ]
-
-        body += [
-            SympyAssignment(
-                mat.absolute_access((r * nc + c,), (0,)),
-                CastFunc(transformed_el_mat[r, c], mat.dtype),
-            )
-            for r in range(nr)
-            for c in range(nc)
-        ]
-
-        body += [
-            ps.astnodes.EmptyLine(),
-            CustomCodeNode(
-                f"mat->addValues( {rowIdxSymb.name}, {colIdxSymb.name}, {matSymb.name} );",
-                [
-                    TypedSymbol("mat", "std::shared_ptr< SparseMatrixProxy >"),
-                    rowIdxSymb,
-                    colIdxSymb,
-                    matSymb,
-                ],
-                [],
-            ),
-        ]
-
-        return body
+    @property
+    def kernel_type(self) -> KernelType:
+        return Assemble(self.src.fe_space, self.dst.fe_space)
 
     def includes(self) -> Set[str]:
         return (

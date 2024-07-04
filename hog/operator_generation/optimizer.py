@@ -108,8 +108,8 @@ class Optimizer:
     def __getitem__(self, opt):
         return opt in self._opts
 
-    def check_opts_validity(self, loop_strategy: LoopStrategy) -> None:
-        """Checks if the desired optimizations are valid for the given loop strategy."""
+    def check_opts_validity(self) -> None:
+        """Checks if the desired optimizations are valid."""
 
         if Opts.VECTORIZE512 in self._opts and not Opts.VECTORIZE in self._opts:
             raise HOGException("Optimization VECTORIZE512 requires VECTORIZE.")
@@ -191,6 +191,7 @@ class Optimizer:
 
             with TimedLogger("simplifying conditionals", logging.DEBUG):
                 simplify_conditionals(loop, loop_counter_simplification=True)
+
         if self[Opts.MOVECONSTANTS]:
             with TimedLogger("moving constants out of loop", logging.DEBUG):
                 # This has to be done twice because sometimes constants are not moved completely to the surrounding block but

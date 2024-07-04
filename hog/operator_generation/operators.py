@@ -83,8 +83,8 @@ from hog.operator_generation.indexing import (
     element_vertex_coordinates,
     IndexingInfo,
 )
-from hog.operator_generation.kernel_types import Assemble, KernelType
-from hog.operator_generation.loop_strategies import LoopStrategy, SAWTOOTH
+from hog.operator_generation.kernel_types import KernelWrapperType, KernelType, Assemble
+from hog.operator_generation.loop_strategies import LoopStrategy, SAWTOOTH, CUBES
 from hog.operator_generation.optimizer import Optimizer, Opts
 from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
@@ -100,6 +100,8 @@ class MacroIntegrationDomain(Enum):
 
 @dataclass
 class IntegrationInfo:
+    """Data associated with one integral term and the corresponding loop pattern."""
+
     geometry: ElementGeometry  # geometry of the element, e.g. tetrahedron
     integration_domain: (
         MacroIntegrationDomain  # entity of geometry to integrate over, e.g. facet
@@ -111,22 +113,27 @@ class IntegrationInfo:
     quad_loop: Optional[QuadLoop]
     mat: sp.MatrixBase
 
+    loop_strategy: LoopStrategy
+
+    name: str = "unknown_integral"
     docstring: str = ""
 
     def _str_(self):
-        return f"Integration Info: {self.geometry}, {self.integration_domain}, mat shape {self.mat.shape}, quad degree {self.quad.degree}, blending {self.blending}"
+        return f"Integration Info: {self.name}, {self.geometry}, {self.integration_domain}, mat shape {self.mat.shape}, quad degree {self.quad.degree}, blending {self.blending}"
 
     def _repr_(self):
         return str(self)
 
 
 @dataclass
-class Kernel:
-    kernel_type: KernelType
-    kernel_function: KernelFunction
-    platform_dependent_funcs: Dict[str, KernelFunction]
-    operation_count: str
-    integration_info: IntegrationInfo
+class OperatorMethod:
+    """Collection of kernels and metadata required for each method of an operator."""
+
+    kernel_wrapper_type: KernelWrapperType
+    kernel_functions: List[KernelFunction]
+    platform_dependent_funcs: List[Dict[str, KernelFunction]]
+    operation_counts: List[str]
+    integration_infos: List[IntegrationInfo]
 
 
 class CppClassFiles(Enum):
@@ -163,16 +170,16 @@ class HyTeGElementwiseOperator:
         self,
         name: str,
         symbolizer: Symbolizer,
-        kernel_types: List[KernelType],
+        kernel_wrapper_types: List[KernelWrapperType],
         opts: Set[Opts],
         type_descriptor: HOGType,
     ):
         self.name = name
         self.symbolizer = symbolizer
-        self.kernel_types = kernel_types  # type of kernel: e.g. GEMV
+        self.kernel_wrapper_types = kernel_wrapper_types  # type of kernel: e.g. GEMV
 
-        # Holds one element matrix and quad scheme for each ElementGeometry.
-        self.element_matrices: Dict[int, IntegrationInfo] = {}
+        # Each IntegrationInfo object represents one integral of the weak formulation.
+        self.integration_infos: Dict[int, List[IntegrationInfo]] = {}
 
         self._optimizer = Optimizer(opts)
         self._optimizer_no_vec = Optimizer(opts - {Opts.VECTORIZE, Opts.VECTORIZE512})
@@ -183,29 +190,39 @@ class HyTeGElementwiseOperator:
         # coefficients
         self.coeffs: Dict[str, FunctionSpaceImpl] = {}
         # implementations for each kernel, generated at a later stage
-        self.kernels: List[Kernel] = []
+        self.operator_methods: List[OperatorMethod] = []
 
-    def set_element_matrix(
+    def add_integral(
         self,
+        name: str,
         dim: int,
         geometry: ElementGeometry,
         integration_domain: MacroIntegrationDomain,
         quad: Quadrature,
         blending: GeometryMap,
         form: Form,
+        loop_strategy: LoopStrategy,
     ) -> None:
         """
-        Use this method to add element matrices to the operator.
+        Use this method to add integrals to the operator.
 
+        :param name: some name for this integral (no spaces please)
         :param dim: the dimensionality of the domain, i.e. the volume - it may be that this does not match the geometry
                     of the element, e.g., when facet integrals are required, note that only one routine per dim is
                     created
         :param geometry: geometry that shall be integrated over
         :param integration_domain: where to integrate - see MacroIntegrationDomain
-        :param mat: the local element matrix
         :param quad: the employed quadrature scheme - should match what has been used to integrate the weak form
         :param blending: the same geometry map that has been passed to the form
+        :param form: the integrand
+        :param loop_strategy: loop pattern over the refined macro-volume - must somehow be compatible with the
+                              integration domain
         """
+
+        if "".join(name.split()) != name:
+            raise HOGException(
+                "Please give the integral an identifier without white space."
+            )
 
         if dim not in [2, 3]:
             raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
@@ -215,11 +232,10 @@ class HyTeGElementwiseOperator:
         if dim != geometry.dimensions:
             raise HOGException("Only volume integrals supported as of now.")
 
-        if dim in self.element_matrices:
-            raise HOGException(
-                "You are trying to overwrite an already specified integration routine by calling this method twice with "
-                "the same dim argument."
-            )
+        if integration_domain == MacroIntegrationDomain.VOLUME and not (
+            isinstance(loop_strategy, SAWTOOTH) or isinstance(loop_strategy, CUBES)
+        ):
+            raise HOGException("Invalid loop strategy for volume integrals.")
 
         tables = []
         quad_loop = None
@@ -256,15 +272,22 @@ class HyTeGElementwiseOperator:
                                 mat[row, col], self.symbolizer, blending
                             )
 
-        self.element_matrices[dim] = IntegrationInfo(
-            geometry=geometry,
-            integration_domain=integration_domain,
-            quad=quad,
-            blending=blending,
-            tables=tables,
-            quad_loop=quad_loop,
-            mat=mat,
-            docstring=form.docstring,
+        if dim not in self.integration_infos:
+            self.integration_infos[dim] = []
+
+        self.integration_infos[dim].append(
+            IntegrationInfo(
+                name=name,
+                geometry=geometry,
+                integration_domain=integration_domain,
+                quad=quad,
+                blending=blending,
+                tables=tables,
+                quad_loop=quad_loop,
+                mat=mat,
+                docstring=form.docstring,
+                loop_strategy=loop_strategy,
+            )
         )
 
     def coefficients(self) -> List[FunctionSpaceImpl]:
@@ -282,7 +305,6 @@ class HyTeGElementwiseOperator:
     def generate_class_code(
         self,
         dir_path: str,
-        loop_strategy: LoopStrategy = SAWTOOTH(),
         class_files: CppClassFiles = CppClassFiles.HEADER_AND_IMPL,
         clang_format_binary: Optional[str] = None,
     ) -> None:
@@ -297,29 +319,30 @@ class HyTeGElementwiseOperator:
         """
 
         # Asking the optimizer if optimizations are valid.
-        self._optimizer.check_opts_validity(loop_strategy)
+        self._optimizer.check_opts_validity()
         # Generate each kernel type (apply, gemv, ...).
-        self.generate_kernels(loop_strategy)
+        self.generate_kernels()
 
         # Setting up the final C++ class.
         operator_cpp_class = CppClass(
             name=self.name,
             base_classes=sorted(
-                {base for kt in self.kernel_types for base in kt.base_classes()}
+                {base for kt in self.kernel_wrapper_types for base in kt.base_classes()}
             ),
         )
 
         # Adding form docstring to C++ class
         form_docstrings = set()
-        for d, io in self.element_matrices.items():
-            form_docstrings.add(io.docstring)
+        for d, ios in self.integration_infos.items():
+            for io in ios:
+                form_docstrings.add(io.docstring)
         for form_docstring in form_docstrings:
             form_docstring_with_slashes = "/// ".join(form_docstring.splitlines(True))
             operator_cpp_class.add(CppComment(form_docstring_with_slashes, where="all"))
 
-        for kernel_type in self.kernel_types:
+        for kernel_wrapper_type in self.kernel_wrapper_types:
             # Setting up communication.
-            kernel_type.substitute(
+            kernel_wrapper_type.substitute(
                 {
                     "comm_fe_functions_2D": "\n".join(
                         coeff.pre_communication(2) for coeff in self.coefficients()
@@ -331,47 +354,78 @@ class HyTeGElementwiseOperator:
             )
 
             # Wrapper methods ("hand-crafted")
-            for kernel_wrapper_cpp_method in kernel_type.wrapper_methods():
+            for kernel_wrapper_cpp_method in kernel_wrapper_type.wrapper_methods():
                 operator_cpp_class.add(kernel_wrapper_cpp_method)
 
             # Member variables
-            for member in kernel_type.member_variables():
+            for member in kernel_wrapper_type.member_variables():
                 operator_cpp_class.add(member)
 
         # Add all kernels to the class.
-        for kernel in self.kernels:
-            kernel_op_count = "\n".join(
-                [
-                    f"Kernel type: {kernel.kernel_type.name}",
-                    f"- quadrature rule: {kernel.integration_info.quad}",
-                    f"- operations per element:",
-                    kernel.operation_count,
-                ]
-            )
+        for operator_method in self.operator_methods:
 
-            if class_files == CppClassFiles.HEADER_IMPL_AND_VARIANTS:
-                operator_cpp_class.add(
-                    CppMethodWithVariants(
-                        {
-                            platform: CppMethod.from_kernel_function(
-                                kernel,
-                                is_const=True,
-                                visibility="private",
-                                docstring=indent(kernel_op_count, "/// "),
-                            )
-                            for platform, kernel in kernel.platform_dependent_funcs.items()
-                        }
-                    )
+            num_integrals = len(operator_method.integration_infos)
+
+            if num_integrals != len(
+                operator_method.kernel_functions
+            ) or num_integrals != len(operator_method.operation_counts):
+                raise HOGException(
+                    "There should be as many IntegrationInfo (aka integrals) as KernelFunctions (aka kernels)."
                 )
-            else:
-                operator_cpp_class.add(
-                    CppMethod.from_kernel_function(
-                        kernel.kernel_function,
-                        is_const=True,
-                        visibility="private",
-                        docstring=indent(kernel_op_count, "/// "),
-                    )
+
+            for (
+                integration_info,
+                sub_kernel,
+                operation_count,
+                platform_dependent_funcs,
+            ) in zip(
+                operator_method.integration_infos,
+                operator_method.kernel_functions,
+                operator_method.operation_counts,
+                operator_method.platform_dependent_funcs,
+            ):
+                kernel_docstring = "\n".join(
+                    [
+                        f"\nIntegral: {integration_info.name}",
+                        f"- volume element:  {integration_info.geometry}",
+                        f"- kernel type:     {operator_method.kernel_wrapper_type.name}",
+                        f"- loop strategy:   {integration_info.loop_strategy}",
+                        f"- quadrature rule: {integration_info.quad}",
+                        f"- blending map:    {integration_info.blending}",
+                        f"- operations per element:",
+                        operation_count,
+                    ]
                 )
+
+                if class_files == CppClassFiles.HEADER_IMPL_AND_VARIANTS:
+                    operator_cpp_class.add(
+                        CppMethodWithVariants(
+                            {
+                                platform: CppMethod.from_kernel_function(
+                                    plat_dep_kernel,
+                                    is_const=True,
+                                    visibility="private",
+                                    docstring=indent(
+                                        kernel_docstring,
+                                        "/// ",
+                                    ),
+                                )
+                                for platform, plat_dep_kernel in platform_dependent_funcs.items()
+                            }
+                        )
+                    )
+                else:
+                    operator_cpp_class.add(
+                        CppMethod.from_kernel_function(
+                            sub_kernel,
+                            is_const=True,
+                            visibility="private",
+                            docstring=indent(
+                                kernel_docstring,
+                                "/// ",
+                            ),
+                        )
+                    )
 
         # Finally we know what fields we need and can build the constructors, member variables, and includes.
 
@@ -423,10 +477,25 @@ class HyTeGElementwiseOperator:
         func_space_includes = set().union(
             *[coeff.includes() for coeff in self.coefficients()]
         )
-        kernel_includes = set().union(*[kt.includes() for kt in self.kernel_types])
+        kernel_includes = set().union(
+            *[kt.includes() for kt in self.kernel_wrapper_types]
+        )
         blending_includes = set()
-        for dim, integration_info in self.element_matrices.items():
-            for inc in integration_info.blending.coupling_includes():
+        for dim, integration_infos in self.integration_infos.items():
+
+            if not all(
+                [
+                    integration_infos[0].blending.coupling_includes()
+                    == io.blending.coupling_includes()
+                    for io in integration_infos
+                ]
+            ):
+                raise HOGException(
+                    "Seems that there are different blending functions in one bilinear form (likely in two different "
+                    "integrals). This is not supported yet. :("
+                )
+
+            for inc in integration_infos[0].blending.coupling_includes():
                 blending_includes.add(inc)
         all_includes = (
             self.INCLUDES | func_space_includes | kernel_includes | blending_includes
@@ -665,8 +734,9 @@ class HyTeGElementwiseOperator:
         self,
         dim: int,
         integration_info: IntegrationInfo,
-        loop_strategy: LoopStrategy,
         kernel_type: KernelType,
+        src_fields: List[FunctionSpaceImpl],
+        dst_fields: List[FunctionSpaceImpl],
     ) -> Tuple[ps.astnodes.Block, str]:
         """
         This method generates an AST that represents the passed kernel type.
@@ -675,7 +745,6 @@ class HyTeGElementwiseOperator:
 
         :param integration_info: IntegrationInfo object holding the symbolic element matrix, quadrature rule,
                                  element geometry, etc.
-        :param loop_strategy:    defines the iteration pattern
         :param kernel_type:      specifies the kernel to execute - this could be e.g., a matrix-vector
                                  multiplication
         :returns: tuple (pre_loop_stmts, loop, operations_table)
@@ -708,14 +777,14 @@ class HyTeGElementwiseOperator:
             self.symbolizer.dof_symbols_as_vector(
                 src_field.fe_space.num_dofs(geometry), src_field.name
             )
-            for src_field in kernel_type.src_fields
+            for src_field in src_fields
         ]
 
         dst_vecs_symbols = [
             self.symbolizer.dof_symbols_as_vector(
                 dst_field.fe_space.num_dofs(geometry), dst_field.name
             )
-            for dst_field in kernel_type.dst_fields
+            for dst_field in dst_fields
         ]
 
         # Do the kernel operation.
@@ -785,7 +854,7 @@ class HyTeGElementwiseOperator:
         element_index = [
             LoopOverCoordinate.get_loop_counter_symbol(i) for i in range(dim)
         ]
-        loop = loop_strategy.create_loop(
+        loop = integration_info.loop_strategy.create_loop(
             dim, element_index, indexing_info.micro_edges_per_macro_edge
         )
 
@@ -802,7 +871,7 @@ class HyTeGElementwiseOperator:
                     element_type,
                     indexing_info,
                 )
-                for src_field in kernel_type.src_fields
+                for src_field in src_fields
             ]
             dst_vecs_accesses = [
                 dst_field.local_dofs(
@@ -811,7 +880,7 @@ class HyTeGElementwiseOperator:
                     element_type,
                     indexing_info,
                 )
-                for dst_field in kernel_type.dst_fields
+                for dst_field in dst_fields
             ]
 
             # Load source DoFs.
@@ -908,16 +977,14 @@ class HyTeGElementwiseOperator:
                     )
                 )
 
-                blending_assignments += (
-                    hog.code_generation.hessian_matrix_assignments(
-                        mat,
-                        integration_info.tables + quad_loop,
-                        geometry,
-                        self.symbolizer,
-                        affine_points=element_vertex_coordinates_symbols,
-                        blending=integration_info.blending,
-                        quad_info=integration_info.quad,
-                    )
+                blending_assignments += hog.code_generation.hessian_matrix_assignments(
+                    mat,
+                    integration_info.tables + quad_loop,
+                    geometry,
+                    self.symbolizer,
+                    affine_points=element_vertex_coordinates_symbols,
+                    blending=integration_info.blending,
+                    quad_info=integration_info.quad,
                 )
 
                 with TimedLogger("cse on blending operation", logging.DEBUG):
@@ -972,7 +1039,7 @@ class HyTeGElementwiseOperator:
             body = add_types(body, kernel_config)
 
             # add the created loop body of statements to the loop according to the loop strategy
-            loop_strategy.add_body_to_loop(loop, body, element_type)
+            integration_info.loop_strategy.add_body_to_loop(loop, body, element_type)
 
             # This actually replaces the abstract field access instances with
             # array accesses that contain the index computations.
@@ -1020,7 +1087,9 @@ class HyTeGElementwiseOperator:
             "renaming loop bodies and preloop stmts for element types", logging.DEBUG
         ):
             for element_type, preloop in preloop_stmts.items():
-                loop = loop_strategy.add_preloop_for_loop(loop, preloop, element_type)
+                loop = integration_info.loop_strategy.add_preloop_for_loop(
+                    loop, preloop, element_type
+                )
 
         # Add quadrature points and weights array declarations, but only those
         # which are actually needed.
@@ -1033,7 +1102,7 @@ class HyTeGElementwiseOperator:
 
         return (Block(body), ops.to_table())
 
-    def generate_kernels(self, loop_strategy: LoopStrategy) -> None:
+    def generate_kernels(self) -> None:
         """
         TODO: Split this up in a meaningful way.
               Currently does a lot of stuff and modifies the kernel_types.
@@ -1051,58 +1120,82 @@ class HyTeGElementwiseOperator:
         This information is gathered here, and written to the kernel type object,
         """
 
-        for kernel_type in self.kernel_types:
-            for dim, integration_info in self.element_matrices.items():
-                geometry = integration_info.geometry
+        for kernel_wrapper_type in self.kernel_wrapper_types:
+            for dim, integration_infos in self.integration_infos.items():
+
+                kernel_functions = []
+                kernel_op_counts = []
+                platform_dep_kernels = []
+
                 macro_type = {2: "face", 3: "cell"}
 
-                # generate AST of kernel loop
-                with TimedLogger(
-                    f"Generating kernel: {kernel_type.name} in {dim}D", logging.INFO
-                ):
-                    (
-                        function_body,
-                        kernel_op_count,
-                    ) = self._generate_kernel(
-                        dim, integration_info, loop_strategy, kernel_type
+                geometry = integration_infos[0].geometry
+                if not all([geometry == io.geometry for io in integration_infos]):
+                    raise HOGException(
+                        "All element geometries should be the same. Regardless of whether you integrate over their "
+                        "boundary or volume. Dev note: this information seems to be redundant and we should only have "
+                        "it in one place."
                     )
 
-                kernel_function = KernelFunction(
-                    function_body,
-                    Target.CPU,
-                    Backend.C,
-                    make_python_function,
-                    ghost_layers=None,
-                    function_name=f"{kernel_type.name}_macro_{geometry.dimensions}D",
-                    assignments=None,
-                )
+                for integration_info in integration_infos:
 
-                # optimizer applies optimizations
-                with TimedLogger(
-                    f"Optimizing kernel: {kernel_type.name} in {dim}D", logging.INFO
-                ):
-                    optimizer = (
-                        self._optimizer
-                        if not isinstance(kernel_type, Assemble)
-                        else self._optimizer_no_vec
-                    )
-                    platform_dep_kernels = optimizer.apply_to_kernel(
-                        kernel_function, dim, loop_strategy
-                    )
+                    # generate AST of kernel loop
+                    with TimedLogger(
+                        f"Generating kernel {integration_info.name} (wrapper: {kernel_wrapper_type.name} in {dim}D",
+                        logging.INFO,
+                    ):
 
-                kernel_parameters = kernel_function.get_parameters()
+                        (
+                            function_body,
+                            kernel_op_count,
+                        ) = self._generate_kernel(
+                            dim,
+                            integration_info,
+                            kernel_wrapper_type.kernel_type,
+                            kernel_wrapper_type.src_fields,
+                            kernel_wrapper_type.dst_fields,
+                        )
 
-                # setup kernel string and op count table
+                        kernel_function = KernelFunction(
+                            function_body,
+                            Target.CPU,
+                            Backend.C,
+                            make_python_function,
+                            ghost_layers=None,
+                            function_name=f"{kernel_wrapper_type.name}_{integration_info.name}_macro_{geometry.dimensions}D",
+                            assignments=None,
+                        )
+
+                        kernel_functions.append(kernel_function)
+                        kernel_op_counts.append(kernel_op_count)
+
+                    # optimizer applies optimizations
+                    with TimedLogger(
+                        f"Optimizing kernel: {kernel_function.function_name} in {dim}D",
+                        logging.INFO,
+                    ):
+                        optimizer = (
+                            self._optimizer
+                            if not isinstance(kernel_wrapper_type.kernel_type, Assemble)
+                            else self._optimizer_no_vec
+                        )
+                        platform_dep_kernels.append(
+                            optimizer.apply_to_kernel(
+                                kernel_function, dim, integration_info.loop_strategy
+                            )
+                        )
+
+                # Setup kernel wrapper string and op count table
                 #
-                # in the following, we insert the sub strings of the final kernel string:
+                # In the following, we insert the sub strings of the final kernel string:
                 # coefficients (retrieving pointers), setup of scalar parameters, kernel function call
                 # This is done as follows:
                 # - the kernel type has the skeleton string in which the sub string must be substituted
-                # - the function space impl knows from which function type a src/dst/coefficient field is and can return the
-                #   corresponding sub string
+                # - the function space impl knows from which function type a src/dst/coefficient field is and can return
+                #   the corresponding sub string
 
                 # Retrieve coefficient pointers
-                kernel_type.substitute(
+                kernel_wrapper_type.substitute(
                     {
                         f"pointer_retrieval_{dim}D": "\n".join(
                             coeff.pointer_retrieval(dim)
@@ -1126,32 +1219,56 @@ class HyTeGElementwiseOperator:
                     ]
                 )
 
-                scalar_parameter_setup += (
-                    integration_info.blending.parameter_coupling_code()
-                )
+                blending_parameter_coupling_code = integration_infos[
+                    0
+                ].blending.parameter_coupling_code()
+                if not all(
+                    [
+                        blending_parameter_coupling_code
+                        == io.blending.parameter_coupling_code()
+                        for io in integration_infos
+                    ]
+                ):
+                    raise HOGException(
+                        "It seems you specified different blending maps for one bilinear form. "
+                        "This may be desired, but it is certainly not supported :)."
+                    )
 
-                kernel_type.substitute(
+                scalar_parameter_setup += blending_parameter_coupling_code
+
+                kernel_wrapper_type.substitute(
                     {f"scalar_parameter_setup_{dim}D": scalar_parameter_setup}
                 )
 
-                # Kernel function call.
-                kernel_function_call_parameter_string = ",\n".join(
-                    [str(prm) for prm in kernel_parameters]
-                )
-                kernel_type.substitute(
+                # Kernel function call(s).
+                kernel_function_call_strings = []
+                for kernel_function in kernel_functions:
+                    kernel_parameters = kernel_function.get_parameters()
+
+                    kernel_function_call_parameter_string = ",\n".join(
+                        [str(prm) for prm in kernel_parameters]
+                    )
+
+                    kernel_function_call_strings.append(
+                        f"""
+                                    {kernel_function.function_name}(\n
+                                    {kernel_function_call_parameter_string});"""
+                    )
+
+                kernel_wrapper_type.substitute(
                     {
-                        f"kernel_function_call_{dim}D": f"""
-                                {kernel_function.function_name}(\n
-                                {kernel_function_call_parameter_string});"""
+                        f"kernel_function_call_{dim}D": "\n".join(
+                            kernel_function_call_strings
+                        )
                     }
                 )
 
                 # Collect all information
-                kernel = Kernel(
-                    kernel_type,
-                    kernel_function,
+                kernel = OperatorMethod(
+                    kernel_wrapper_type,
+                    kernel_functions,
                     platform_dep_kernels,
-                    kernel_op_count,
-                    integration_info,
+                    kernel_op_counts,
+                    integration_infos,
                 )
-                self.kernels.append(kernel)
+                self.operator_methods.append(kernel)
