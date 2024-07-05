@@ -16,7 +16,7 @@
 
 from abc import ABC, abstractmethod
 import re
-from typing import Type, Union
+from typing import Type, Union, Dict
 
 from pystencils import TypedSymbol
 from pystencils.astnodes import (
@@ -24,6 +24,7 @@ from pystencils.astnodes import (
     Conditional,
     ResolvedFieldAccess,
     SourceCodeComment,
+    LoopOverCoordinate,
 )
 from pystencils.sympyextensions import fast_subs
 from pystencils.typing import FieldPointerSymbol
@@ -335,7 +336,7 @@ class BOUNDARY(LoopStrategy):
         """
         super(BOUNDARY, self).__init__()
         self.facet_id = facet_id
-        self.element_loops = dict()
+        self.element_loops: Dict[Union[FaceType, CellType], LoopOverCoordinate] = dict()
 
     def create_loop(self, dim, element_index, micro_edges_per_macro_edge):
 

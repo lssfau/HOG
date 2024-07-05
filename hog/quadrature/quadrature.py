@@ -95,9 +95,7 @@ def select_quadrule(
                 warnings.simplefilter("ignore")
 
                 all_schemes = []
-                if isinstance(geometry, LineElement) or isinstance(
-                    geometry, EmbeddedLine
-                ):
+                if isinstance(geometry, LineElement):
                     # Since line integrals can be approximated with arbitrary order, registering schemes is not
                     # meaningful. I doubt that we will need quadrature with order > 20, so we simply limit it here.
                     # If we require higher orders, simply bump this number.
@@ -107,17 +105,13 @@ def select_quadrule(
                         f"gauss_legendre_{d}": quadpy.c1.gauss_legendre(d)
                         for d in range(1, line_quad_degree_limit + 1)
                     }
-                elif isinstance(geometry, TriangleElement) or isinstance(
-                    geometry, EmbeddedTriangle
-                ):
+                elif isinstance(geometry, TriangleElement):
                     schemes = quadpy.t2.schemes
                 elif isinstance(geometry, TetrahedronElement):
                     schemes = quadpy.t3.schemes
                 for key, s in schemes.items():
                     try:
-                        if isinstance(geometry, LineElement) or isinstance(
-                            geometry, EmbeddedLine
-                        ):
+                        if isinstance(geometry, LineElement):
                             # For some reason the quadpy implementation is a little different for line segments.
                             scheme = s
                         else:
@@ -128,9 +122,7 @@ def select_quadrule(
                     all_schemes.append(scheme)
 
             def select_degree(x: TnScheme) -> int:
-                if isinstance(geometry, LineElement) or isinstance(
-                    geometry, EmbeddedLine
-                ):
+                if isinstance(geometry, LineElement):
                     if x.degree >= degree:
                         return x.degree
                     else:
@@ -147,7 +139,7 @@ def select_quadrule(
     else:
         raise HOGException(f"Unexpected {scheme_info}")
 
-    if isinstance(geometry, LineElement) or isinstance(geometry, EmbeddedLine):
+    if isinstance(geometry, LineElement):
         num_points = len(scheme.points)
     else:
         num_points = scheme.points.shape[1]
@@ -318,16 +310,13 @@ class Quadrature:
         elif isinstance(geometry, TriangleElement):
             vertices = np.asarray([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
             degree = scheme.degree
-        elif isinstance(geometry, LineElement) or isinstance(geometry, EmbeddedLine):
+        elif isinstance(geometry, LineElement):
             vertices = np.asarray([[0.0], [1.0]])
-            degree = scheme.degree
-        elif isinstance(geometry, EmbeddedTriangle):
-            vertices = np.asarray([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
             degree = scheme.degree
         else:
             raise HOGException("Invalid geometry for quadrature.")
 
-        if isinstance(geometry, LineElement) or isinstance(geometry, EmbeddedLine):
+        if isinstance(geometry, LineElement):
             points = [np.array([0.5 * (p + 1)]) for p in scheme.points]
             weights = 0.5 * scheme.weights
         else:

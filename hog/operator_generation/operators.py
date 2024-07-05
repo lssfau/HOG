@@ -193,6 +193,30 @@ class CppClassFiles(Enum):
     HEADER_IMPL_AND_VARIANTS = auto()
 
 
+def shuffle_order_for_element_micro_vertices(
+    volume_geometry: ElementGeometry,
+    element_type: Union[FaceType, CellType],
+    facet_id: int,
+) -> List[int]:
+
+    if volume_geometry == TriangleElement():
+
+        if element_type == FaceType.BLUE:
+            return [0, 1, 2]
+
+        match facet_id:
+            case 0:
+                return [0, 1, 2]
+            case 1:
+                return [0, 2, 1]
+            case 2:
+                return [1, 2, 0]
+            case _:
+                raise HOGException("Invalid facet ID for triangular volume elements.")
+    else:
+        raise HOGException("Not implemented.")
+
+
 class HyTeGElementwiseOperator:
     """
     This class handles the code generation of HyTeG-type 'elementwise' operators.
@@ -805,65 +829,6 @@ class HyTeGElementwiseOperator:
 
         return el_matrix_element_index, loop_counter_custom_code_nodes
 
-    def _shuffle_affine_micro_vertices_for_boundary_integrals(
-        self,
-        geometry: ElementGeometry,
-        element_type: Union[FaceType, CellType],
-        loop_strategy: BOUNDARY,
-        el_vertex_coordinates: List[sp.Matrix],
-    ):
-        el_vertex_coordinates_shuffled = el_vertex_coordinates.copy()
-
-        if geometry.dimensions == 2:
-            if element_type != FaceType.GRAY:
-                raise HOGException("The element type should be GRAY here.")
-
-            # TODO: Move this to a dedicated function when finished.
-
-            if loop_strategy.facet_id == 0:
-                pass
-            elif loop_strategy.facet_id == 1:
-                el_vertex_coordinates_shuffled[0] = el_vertex_coordinates[0]
-                el_vertex_coordinates_shuffled[1] = el_vertex_coordinates[2]
-                el_vertex_coordinates_shuffled[2] = el_vertex_coordinates[1]
-            elif loop_strategy.facet_id == 2:
-                el_vertex_coordinates_shuffled[0] = el_vertex_coordinates[1]
-                el_vertex_coordinates_shuffled[1] = el_vertex_coordinates[2]
-                el_vertex_coordinates_shuffled[2] = el_vertex_coordinates[0]
-            else:
-                raise HOGException("Invalid boundary facet ID.")
-
-        else:
-            raise HOGException("Boundary integrals not supported for 3D.")
-
-        return el_vertex_coordinates_shuffled
-
-    def _shuffle_order_for_element_micro_vertices(
-        self,
-        volume_geometry: ElementGeometry,
-        element_type: Union[FaceType, CellType],
-        facet_id: int,
-    ) -> List[int]:
-
-        if volume_geometry == TriangleElement():
-
-            if element_type == FaceType.BLUE:
-                return [0, 1, 2]
-
-            match facet_id:
-                case 0:
-                    return [0, 1, 2]
-                case 1:
-                    return [0, 2, 1]
-                case 2:
-                    return [1, 2, 0]
-                case _:
-                    raise HOGException(
-                        "Invalid facet ID for triangular volume elements."
-                    )
-        else:
-            raise HOGException("Not implemented.")
-
     def _generate_kernel(
         self,
         dim: int,
@@ -1052,7 +1017,7 @@ class HyTeGElementwiseOperator:
                 MacroIntegrationDomain.DOMAIN_BOUNDARY_NEUMANN,
                 MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,
             ] and isinstance(integration_info.loop_strategy, BOUNDARY):
-                element_vertex_order = self._shuffle_order_for_element_micro_vertices(
+                element_vertex_order = shuffle_order_for_element_micro_vertices(
                     volume_geometry=geometry,
                     element_type=element_type,
                     facet_id=integration_info.loop_strategy.facet_id,
@@ -1094,6 +1059,7 @@ class HyTeGElementwiseOperator:
                 element_type,
                 src_vecs_accesses,
                 dst_vecs_accesses,
+                element_vertex_order,
             )
 
             # Load DoFs of coefficients. Those appear whenever a form is
