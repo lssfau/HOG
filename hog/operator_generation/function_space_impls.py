@@ -166,8 +166,15 @@ class FunctionSpaceImpl(ABC):
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
         indexing_info: IndexingInfo,
+        element_vertex_ordering: List[int],
     ) -> List[Field.Access]:
-        """Returns a list of local dof values on the current element."""
+        """
+        Returns a list of local dof values on the current element.
+
+        The element_vertex_ordering is a list that specifies the ordering of the reference vertices.
+        The ordering in which the DoFs are returned depends on this list. The "default" ordering is
+        [0, 1, ..., num_vertices - 1].
+        """
         ...
 
     @abstractmethod
@@ -186,6 +193,7 @@ class FunctionSpaceImpl(ABC):
         geometry: ElementGeometry,
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
+        element_vertex_ordering: List[int],
     ) -> Tuple[CustomCodeNode, sp.MatrixBase]:
         """Returns HyTeG code that computes the basis/DoF transformation and a symbolic expression of the result.
 
@@ -214,6 +222,10 @@ class FunctionSpaceImpl(ABC):
         assembling operators into matrices, these transformations must be
         "baked into" the matrix because vectors are assembled locally and our
         communication routine is not performed during the operator application.
+
+        The element_vertex_ordering is a list that specifies the ordering of the reference vertices.
+        The ordering in which the DoFs are returned depends on this list. The "default" ordering is
+        [0, 1, ..., num_vertices - 1].
         """
         ...
 
@@ -296,10 +308,14 @@ class P1FunctionSpaceImpl(FunctionSpaceImpl):
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
         indexing_info: IndexingInfo,
+        element_vertex_ordering: List[int],
     ) -> List[Field.Access]:
         vertex_dof_indices = micro_element_to_vertex_indices(
             geometry, element_type, element_index
         )
+
+        vertex_dof_indices = [vertex_dof_indices[i] for i in element_vertex_ordering]
+
         vertex_array_indices = [
             dof_idx.array_index(geometry, indexing_info)
             for dof_idx in vertex_dof_indices
@@ -320,6 +336,7 @@ class P1FunctionSpaceImpl(FunctionSpaceImpl):
         geometry: ElementGeometry,
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
+        element_vertex_ordering: List[int],
     ) -> Tuple[CustomCodeNode, sp.MatrixBase]:
         return (
             CustomCodeNode("", [], []),
@@ -422,10 +439,14 @@ class P2FunctionSpaceImpl(FunctionSpaceImpl):
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
         indexing_info: IndexingInfo,
+        element_vertex_ordering: List[int],
     ) -> List[Field.Access]:
         vertex_dof_indices = micro_element_to_vertex_indices(
             geometry, element_type, element_index
         )
+
+        vertex_dof_indices = [vertex_dof_indices[i] for i in element_vertex_ordering]
+
         edge_dof_indices = micro_vertex_to_edge_indices(geometry, vertex_dof_indices)
 
         vrtx_array_idcs = [
@@ -454,6 +475,7 @@ class P2FunctionSpaceImpl(FunctionSpaceImpl):
         geometry: ElementGeometry,
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
+        element_vertex_ordering: List[int],
     ) -> Tuple[CustomCodeNode, sp.MatrixBase]:
         return (
             CustomCodeNode("", [], []),
@@ -557,6 +579,7 @@ class P1VectorFunctionSpaceImpl(FunctionSpaceImpl):
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
         indexing_info: IndexingInfo,
+        element_vertex_ordering: List[int],
     ) -> List[Field.Access]:
         """
         Returns the element-local DoFs (field accesses) in a list (i.e., linearized).
@@ -606,6 +629,9 @@ class P1VectorFunctionSpaceImpl(FunctionSpaceImpl):
         vertex_dof_indices = micro_element_to_vertex_indices(
             geometry, element_type, element_index
         )
+
+        vertex_dof_indices = [vertex_dof_indices[i] for i in element_vertex_ordering]
+
         vertex_array_indices = [
             dof_idx.array_index(geometry, indexing_info)
             for dof_idx in vertex_dof_indices
@@ -628,6 +654,7 @@ class P1VectorFunctionSpaceImpl(FunctionSpaceImpl):
         geometry: ElementGeometry,
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
+        element_vertex_ordering: List[int],
     ) -> Tuple[CustomCodeNode, sp.MatrixBase]:
         return (
             CustomCodeNode("", [], []),
@@ -756,6 +783,7 @@ class P2VectorFunctionSpaceImpl(FunctionSpaceImpl):
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
         indexing_info: IndexingInfo,
+        element_vertex_ordering: List[int],
     ) -> List[Field.Access]:
         """
         Returns the element-local DoFs (field accesses) in a list (i.e., linearized).
@@ -771,6 +799,8 @@ class P2VectorFunctionSpaceImpl(FunctionSpaceImpl):
         vertex_dof_indices = micro_element_to_vertex_indices(
             geometry, element_type, element_index
         )
+
+        vertex_dof_indices = [vertex_dof_indices[i] for i in element_vertex_ordering]
 
         edge_dof_indices = micro_vertex_to_edge_indices(geometry, vertex_dof_indices)
 
@@ -801,14 +831,17 @@ class P2VectorFunctionSpaceImpl(FunctionSpaceImpl):
         return f"P2VectorFunction< {self.type_descriptor.pystencils_type} >"
 
     def includes(self) -> Set[str]:
-        return {f"hyteg/p2functionspace/P2VectorFunction.hpp",
-                f"hyteg/p2functionspace/P2Function.hpp"}
+        return {
+            f"hyteg/p2functionspace/P2VectorFunction.hpp",
+            f"hyteg/p2functionspace/P2Function.hpp",
+        }
 
     def dof_transformation(
         self,
         geometry: ElementGeometry,
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
+        element_vertex_ordering: List[int],
     ) -> Tuple[CustomCodeNode, sp.MatrixBase]:
         return (
             CustomCodeNode("", [], []),
@@ -872,10 +905,14 @@ class N1E1FunctionSpaceImpl(FunctionSpaceImpl):
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
         indexing_info: IndexingInfo,
+        element_vertex_ordering: List[int],
     ) -> List[Field.Access]:
         vertex_dof_indices = micro_element_to_vertex_indices(
             geometry, element_type, element_index
         )
+
+        vertex_dof_indices = [vertex_dof_indices[i] for i in element_vertex_ordering]
+
         edge_dof_indices = micro_vertex_to_edge_indices(geometry, vertex_dof_indices)
         edge_array_indices = [
             dof_idx.array_index(geometry, indexing_info) for dof_idx in edge_dof_indices
@@ -897,7 +934,14 @@ class N1E1FunctionSpaceImpl(FunctionSpaceImpl):
         geometry: ElementGeometry,
         element_index: Tuple[int, int, int],
         element_type: Union[FaceType, CellType],
+        element_vertex_ordering: List[int],
     ) -> Tuple[CustomCodeNode, sp.MatrixBase]:
+
+        if element_vertex_ordering != [0, 1, 2, 3]:
+            raise HOGException(
+                "Element vertex re-ordering not supported for Nédélec elements (yet)."
+            )
+
         Macro = {2: "Face", 3: "Cell"}[geometry.dimensions]
         macro = {2: "face", 3: "cell"}[geometry.dimensions]
         name = "basisTransformation"

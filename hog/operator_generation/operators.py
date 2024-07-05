@@ -76,7 +76,12 @@ from hog.blending import GeometryMap
 import hog.code_generation
 import hog.cse
 from hog.dof_symbol import DoFSymbol
-from hog.element_geometry import ElementGeometry, LineElement
+from hog.element_geometry import (
+    ElementGeometry,
+    LineElement,
+    TriangleElement,
+    TetrahedronElement,
+)
 from hog.exception import HOGException
 from hog.operator_generation.indexing import (
     all_element_types,
@@ -103,7 +108,42 @@ class MacroIntegrationDomain(Enum):
     VOLUME = "Volume"
 
     # Integration over the boundary of the domain (for forms like ∫ ... d(∂Ω)).
-    DOMAIN_BOUNDARY = "Domain boundary"
+    #
+    # Note: Having one flag for all boundaries of one "type" is not very flexible.
+    #       At some point there should be additional logic that uses HyTeG's BoundaryUIDs.
+    #       To avoid ambiguity, the operator should (at least if there are boundary integrals) have a
+    #       hyteg::BoundaryCondition constructor parameter, and for each boundary integral one hyteg::BoundaryUID
+    #       parameter. Then the BC is tested by comparing those for each facet.
+    #
+    #       Like so (application pseudocode in HyTeG):
+    #
+    #         // generating an operator with one volume and one free-slip boundary integral
+    #         //   ∫ F dx + ∫ G ds
+    #         // where ds corresponds to integrating over parts of the boundary that are marked with a specific
+    #         // BoundaryUID (you can also create BoundaryUIDs that correspond to the entire domain - it's pretty
+    #         // flexible)
+    #
+    #         // see HyTeG's documentation and/or BC tutorial
+    #         BoundaryCondition someBC( ... );
+    #
+    #         // setting up the BCs
+    #         BoundaryUID freeslipBC = someBC.createFreeslipBC( ... );
+    #
+    #         // the generated operator
+    #         MyFancyFreeSlipOperator op( storage,
+    #                                     ...,
+    #                                     someBC,    // this is what will be tested against - no ambiguity because src
+    #                                                // and dst func might have different BCs!
+    #                                     freeslipBC // this is the BCUID that will be used for the boundary integral
+    #                                                // if there are more boundary integrals there are more UIDs in the
+    #                                                // constructor (this BCUID is liked to 'ds' above)
+    #                                     );
+    #
+    #       But let's start simple and just assume that the "default" 0123 boundary is used.
+
+    DOMAIN_BOUNDARY_DIRICHLET = "Domain boundary: Dirichlet"
+    DOMAIN_BOUNDARY_NEUMANN = "Domain boundary: Neumann"
+    DOMAIN_BOUNDARY_FREESLIP = "Domain boundary: free-slip"
 
 
 @dataclass
@@ -114,6 +154,7 @@ class IntegrationInfo:
     integration_domain: (
         MacroIntegrationDomain  # entity of geometry to integrate over, e.g. facet
     )
+
     quad: Quadrature  # quadrature over integration domain of geometry, e.g. triangle
     blending: GeometryMap
 
@@ -165,6 +206,8 @@ class HyTeGElementwiseOperator:
         "hyteg/edgedofspace/EdgeDoFMacroCell.hpp",
         "hyteg/primitivestorage/PrimitiveStorage.hpp",
         "hyteg/LikwidWrapper.hpp",
+        "hyteg/boundary/BoundaryConditions.hpp",
+        "hyteg/types/types.hpp",
     }
 
     VAR_NAME_MICRO_EDGES_PER_MACRO_EDGE = "micro_edges_per_macro_edge"
@@ -433,6 +476,21 @@ class HyTeGElementwiseOperator:
                         )
                     )
 
+        # Let's now check whether we need ctor arguments and member variables for boundary integrals.
+        boundary_condition_vars = []
+        for integration_infos in self.integration_infos.values():
+            if not all(
+                ii.integration_domain == MacroIntegrationDomain.VOLUME
+                for ii in integration_infos
+            ):
+                boundary_condition_vars.append(
+                    CppVariable(name="boundaryCondition", type="BoundaryCondition")
+                )
+        boundary_condition_vars_members = [
+            CppVariable(name=bcv.name + "_", type=bcv.type)
+            for bcv in boundary_condition_vars
+        ]
+
         # Finally we know what fields we need and can build the constructors, member variables, and includes.
 
         # Constructors ...
@@ -456,9 +514,16 @@ class HyTeGElementwiseOperator:
                         is_reference=True,
                     )
                     for coeff in self.coefficients()
-                ],
+                ]
+                + boundary_condition_vars,
                 initializer_list=["Operator( storage, minLevel, maxLevel )"]
-                + [f"{coeff.name}( _{coeff.name} )" for coeff in self.coefficients()],
+                + [f"{coeff.name}( _{coeff.name} )" for coeff in self.coefficients()]
+                + [
+                    f"{bcv[0].name}( {bcv[1].name} )"
+                    for bcv in zip(
+                        boundary_condition_vars_members, boundary_condition_vars
+                    )
+                ],
             )
         )
 
@@ -474,7 +539,11 @@ class HyTeGElementwiseOperator:
                 )
             )
 
-        os.makedirs(dir_path, exist_ok=True)  # Create path if it doesn't exist
+        for bcv in boundary_condition_vars_members:
+            operator_cpp_class.add(CppMemberVariable(bcv, visibility="private"))
+
+        # Create path if it doesn't exist
+        os.makedirs(dir_path, exist_ok=True)
 
         output_path_header = os.path.join(dir_path, f"{self.name}.hpp")
         output_path_impl = os.path.join(dir_path, f"{self.name}.cpp")
@@ -769,6 +838,32 @@ class HyTeGElementwiseOperator:
 
         return el_vertex_coordinates_shuffled
 
+    def _shuffle_order_for_element_micro_vertices(
+        self,
+        volume_geometry: ElementGeometry,
+        element_type: Union[FaceType, CellType],
+        facet_id: int,
+    ) -> List[int]:
+
+        if volume_geometry == TriangleElement():
+
+            if element_type == FaceType.BLUE:
+                return [0, 1, 2]
+
+            match facet_id:
+                case 0:
+                    return [0, 1, 2]
+                case 1:
+                    return [0, 2, 1]
+                case 2:
+                    return [1, 2, 0]
+                case _:
+                    raise HOGException(
+                        "Invalid facet ID for triangular volume elements."
+                    )
+        else:
+            raise HOGException("Not implemented.")
+
     def _generate_kernel(
         self,
         dim: int,
@@ -794,6 +889,22 @@ class HyTeGElementwiseOperator:
         quadrature = integration_info.quad
 
         rows, cols = mat.shape
+
+        # Already at this point we have to handle boundary integrals.
+        #
+        # Since we will only integrate over the reference facet that lies on the x-line (2D) or xy-plane (3D) we need to
+        # set the last reference coordinate to zero since it will otherwise appear as a free, uninitialized variable.
+        #
+        # More details on boundary handling below.
+
+        if integration_info.integration_domain in [
+            MacroIntegrationDomain.DOMAIN_BOUNDARY_DIRICHLET,
+            MacroIntegrationDomain.DOMAIN_BOUNDARY_NEUMANN,
+            MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,
+        ] and isinstance(integration_info.loop_strategy, BOUNDARY):
+            mat = mat.subs(
+                self.symbolizer.ref_coords_as_list(geometry.dimensions)[-1], 0
+            )
 
         kernel_config = CreateKernelConfig(
             default_number_float=self._type_descriptor.pystencils_type,
@@ -910,6 +1021,43 @@ class HyTeGElementwiseOperator:
                 raise HOGException("Boundary integrals in 3D not supported.")
 
         for element_type in element_types:
+
+            # Re-ordering micro-element vertices for the handling of domain boundary integrals.
+            #
+            # Boundary integrals are handled by looping over all (volume-)elements that have a facet at one of the
+            # macro-element boundaries. There are three such boundaries in 2D and four in 3D. For each case, a separate
+            # kernel has to be generated. The logic that decides which of these kernels are called on which
+            # macro-volumes is handled by the HyTeG operator that is generated around these kernels.
+            #
+            # Instead of integrating over the micro-volume, we need to integrate over one of the micro-element facets.
+            # For that, the micro-element vertices are re-ordered such that the transformation from the affine element
+            # to the reference element results in the integration (boundary-)domain being mapped to the reference
+            # domain.
+            #
+            # E.g., in 2D, if the integration over the xy-boundary of the macro-volume (== macro-face) shall be
+            # generated this is signalled here by loop_strategy.facet_id == 2.
+            # In 2D all boundaries are only touched by the GRAY micro-elements (this is a little more complicated in 3D
+            # where at each macro-volume boundary, two types of elements overlap).
+            # Thus, we
+            #   a) Shuffle the affine element vertices such that the xy-boundary of the GRAY elements is mapped to the
+            #      (0, 1) line, which is the reference line for integration.
+            #   b) Only iterate over the GRAY elements (handled later below).
+
+            # Default order.
+            element_vertex_order = list(range(geometry.num_vertices))
+
+            # Shuffling vertices if a boundary integral is requested.
+            if integration_info.integration_domain in [
+                MacroIntegrationDomain.DOMAIN_BOUNDARY_DIRICHLET,
+                MacroIntegrationDomain.DOMAIN_BOUNDARY_NEUMANN,
+                MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,
+            ] and isinstance(integration_info.loop_strategy, BOUNDARY):
+                element_vertex_order = self._shuffle_order_for_element_micro_vertices(
+                    volume_geometry=geometry,
+                    element_type=element_type,
+                    facet_id=integration_info.loop_strategy.facet_id,
+                )
+
             # Create array accesses to the source and destination vector(s) for
             # the kernel.
             src_vecs_accesses = [
@@ -918,6 +1066,7 @@ class HyTeGElementwiseOperator:
                     element_index,  # type: ignore[arg-type] # list of sympy expressions also works
                     element_type,
                     indexing_info,
+                    element_vertex_order,
                 )
                 for src_field in src_fields
             ]
@@ -927,6 +1076,7 @@ class HyTeGElementwiseOperator:
                     element_index,  # type: ignore[arg-type] # list of sympy expressions also works
                     element_type,
                     indexing_info,
+                    element_vertex_order,
                 )
                 for dst_field in dst_fields
             ]
@@ -954,6 +1104,16 @@ class HyTeGElementwiseOperator:
                 for ass in kernel_op_assignments + quad_loop
                 for a in ass.atoms(DoFSymbol)
             }
+
+            if (
+                integration_info.integration_domain != MacroIntegrationDomain.VOLUME
+                and len(dof_symbols_set) > 0
+            ):
+                raise HOGException(
+                    "Boundary integrals and FE coefficients cannot be combined at the moment."
+                    "Dev note: the coefficients need to be sorted."
+                )
+
             dof_symbols = sorted(dof_symbols_set, key=lambda ds: ds.name)
             coeffs = dict(
                 (
@@ -973,7 +1133,11 @@ class HyTeGElementwiseOperator:
                     SympyAssignment(
                         sp.Symbol(dof_symbol.name),
                         coeffs[dof_symbol.function_id].local_dofs(
-                            geometry, element_index, element_type, indexing_info
+                            geometry,
+                            element_index,
+                            element_type,
+                            indexing_info,
+                            element_vertex_order,
                         )[dof_symbol.dof_id],
                     )
                 )
@@ -1001,53 +1165,12 @@ class HyTeGElementwiseOperator:
                 self.symbolizer,
             )
 
-            # Handling domain boundary integrals here.
-            #
-            # IMPORTANT: Instead of the determinant of the Jacobian, the volume change must be computed through the
-            #            surface volume of the micro-facet (edge length in 2D, triangle surface in 3D).
-            #            Also note, that the reference domain of a triangle has volume 0.5, not 1.
-            #                           --- THIS HAS TO HAPPEN IN THE FORM ALREADY ---
-            #
-            # Boundary integrals are handled by looping over all (volume-)elements that have a facet at one of the
-            # macro-element boundaries. There are three possibilities in 2D and four in 3D. For each case, a separate
-            # kernel has to be generated. Those kernels can be executed right after volume kernels (everything is
-            # additive).
-            #
-            # Instead of integrating over the volume, we need to integrate over one of the element facets.
-            # The code below shuffles the affine vertices in a way that the transformation from the affine element to
-            # the reference element results in the integration (boundary-)domain being mapped to the reference domain.
-            #
-            # E.g., in 2D, if the integration over the xy-boundary of the macro-volume (== macro-face) shall be
-            # generated this is signalled here by loop_strategy.facet_id == 2.
-            # In 2D all boundaries are only touched by the GRAY micro-elements (this is a little more complicated in 3D
-            # where at each macro-volume boundary, two types of elements overlap).
-            # Thus, we
-            #   a) Only iterate over the GRAY elements (handled above already).
-            #   b) Shuffle the affine element vertices such that the xy-boundary of the GRAY elements is mapped to the
-            #      (0, 1) line, which is the reference line for integration.
-            #
-            if (
-                integration_info.integration_domain
-                == MacroIntegrationDomain.DOMAIN_BOUNDARY
-            ):
-                if not integration_info.blending.is_affine():
-                    get_logger().warn(
-                        "You are generating an operator containing domain boundary integrals AND you are "
-                        "using a blending map. Be a aware that you need to account for the volume change "
-                        "of the facet under the blending map in the form."
-                    )
-
-                if not isinstance(loop_strategy, BOUNDARY):
-                    raise HOGException(
-                        "Since the integration domain indicates that you want to integrate over the domain boundary, "
-                        "you should also choose the BOUNDARY loop strategy."
-                    )
-
-                el_vertex_coordinates = (
-                    self._shuffle_affine_micro_vertices_for_boundary_integrals(
-                        geometry, element_type, loop_strategy, el_vertex_coordinates
-                    )
-                )
+            # Re-ordering the element vertex coordinates
+            # (for all computations but affine transformation Jacobians - those are re-ordered later).
+            # See comment on boundary integrals above.
+            el_vertex_coordinates = [
+                el_vertex_coordinates[i] for i in element_vertex_order
+            ]
 
             coords_assignments = [
                 SympyAssignment(
@@ -1156,17 +1279,11 @@ class HyTeGElementwiseOperator:
                     self.symbolizer,
                 )
 
-                # Domain boundary integral handling also for the Jacobian.
-                # See comments above.
-                if (
-                    integration_info.integration_domain
-                    == MacroIntegrationDomain.DOMAIN_BOUNDARY
-                ):
-                    el_vertex_coordinates = (
-                        self._shuffle_affine_micro_vertices_for_boundary_integrals(
-                            geometry, element_type, loop_strategy, el_vertex_coordinates
-                        )
-                    )
+                # Re-ordering the element vertex coordinates for the Jacobians.
+                # See comment on boundary integrals above.
+                el_vertex_coordinates = [
+                    el_vertex_coordinates[i] for i in element_vertex_order
+                ]
 
                 coords_assignments = [
                     SympyAssignment(
@@ -1350,7 +1467,44 @@ class HyTeGElementwiseOperator:
 
                 # Kernel function call(s).
                 kernel_function_call_strings = []
-                for kernel_function in kernel_functions:
+                for kernel_function, integration_info in zip(
+                    kernel_functions, integration_infos
+                ):
+
+                    pre_call_code = ""
+                    post_call_code = ""
+
+                    dof_types = {
+                        MacroIntegrationDomain.DOMAIN_BOUNDARY_DIRICHLET: "DirichletBoundary",
+                        MacroIntegrationDomain.DOMAIN_BOUNDARY_NEUMANN: "NeumannBoundary",
+                        MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP: "FreeslipBoundary",
+                    }
+
+                    if integration_info.integration_domain in dof_types:
+
+                        if not isinstance(integration_info.loop_strategy, BOUNDARY):
+                            raise HOGException(
+                                "The loop strategy should be BOUNDARY for boundary integrals."
+                            )
+
+                        facet_type = "Edge" if dim == 2 else "Face"
+
+                        neighbor_facet = (
+                            f"getStorage()->get{facet_type}( "
+                            f"{macro_type[dim]}.getLowerDimNeighbors()"
+                            f"[{integration_info.loop_strategy.facet_id}] )"
+                        )
+
+                        # Note: In the future we may want to use BoundaryUIDs here:
+                        #       "if ( boundaryCondition_.getBoundaryUIDFromMeshFlag(
+                        #               {macro_type[dim]}.getMeshBoundaryFlag() ) == {boundaryUID}
+                        #           )"
+                        pre_call_code = (
+                            f"if ( testFlag( boundaryCondition_.getBoundaryType( {neighbor_facet}->getMeshBoundaryFlag() ), "
+                            f"{dof_types[integration_info.integration_domain]} & flag ) ) {{"
+                        )
+                        post_call_code = "}"
+
                     kernel_parameters = kernel_function.get_parameters()
 
                     kernel_function_call_parameter_string = ",\n".join(
@@ -1359,8 +1513,10 @@ class HyTeGElementwiseOperator:
 
                     kernel_function_call_strings.append(
                         f"""
+                                    {pre_call_code}\n
                                     {kernel_function.function_name}(\n
-                                    {kernel_function_call_parameter_string});"""
+                                    {kernel_function_call_parameter_string});\n
+                                    {post_call_code}\n"""
                     )
 
                 kernel_wrapper_type.substitute(

@@ -93,8 +93,8 @@ Weak formulation
                 phi = data.trial_shape
                 psi = data.test_shape
 
-                form = sp.Matrix([phi * psi * fundamental_form_det**0.5])
-                form = form.subs(symbolizer.ref_coords_as_list(2)[1], 0)
-                mat[data.row, data.col] = form[0]
+                form = phi * psi * fundamental_form_det**0.5
+
+                mat[data.row, data.col] = form
 
     return Form(mat, tabulation, symmetric=True, docstring=docstring)

@@ -14,26 +14,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import logging
-
-import quadpy
-
-from typing import Union, Tuple
 
 from sympy.core.cache import clear_cache
 
-from hog.blending import IdentityMap, GeometryMap
+from hog.blending import IdentityMap, GeometryMap, AnnulusMap
 from hog.exception import HOGException
 from hog.fem_helpers import create_empty_element_matrix, element_matrix_iterator
-from hog.operator_generation.loop_strategies import BOUNDARY
+from hog.operator_generation.loop_strategies import BOUNDARY, SAWTOOTH
 from hog.operator_generation.optimizer import Opts
 from hog.element_geometry import (
     TetrahedronElement,
     TriangleElement,
     LineElement,
-    ElementGeometry,
     EmbeddedLine,
-    EmbeddedTriangle,
+    ElementGeometry,
 )
 from hog.function_space import LagrangianFunctionSpace, FunctionSpace
 from hog.logger import get_logger, TimedLogger
@@ -55,7 +49,7 @@ from hog.symbolizer import Symbolizer
 from hog.quadrature import Quadrature, select_quadrule, Tabulation
 from hog.forms import diffusion, Form
 import hog.operator_generation.indexing
-from hog.operator_generation.kernel_types import Apply
+from hog.operator_generation.kernel_types import ApplyWrapper
 from hog.operator_generation.indexing import (
     VolumeDoFMemoryLayout,
     num_microfaces_per_face,
@@ -71,19 +65,27 @@ def test_boundary_loop():
     symbolizer = Symbolizer()
     volume_geometry = TriangleElement()
     boundary_geometry = EmbeddedLine()
+    blending = AnnulusMap()
 
-    name = f"P1MassBoundary"
+    name = f"P2MassBoundary"
 
-    trial = LagrangianFunctionSpace(1, symbolizer)
-    test = LagrangianFunctionSpace(1, symbolizer)
-    quad = Quadrature(select_quadrule(1, boundary_geometry), boundary_geometry)
+    trial = LagrangianFunctionSpace(2, symbolizer)
+    test = LagrangianFunctionSpace(2, symbolizer)
+    quad = Quadrature(select_quadrule(5, boundary_geometry), boundary_geometry)
 
-    form = mass_boundary(trial, test, volume_geometry, boundary_geometry, symbolizer)
+    form = mass_boundary(
+        trial,
+        test,
+        volume_geometry,
+        boundary_geometry,
+        symbolizer,
+        blending=blending,
+    )
 
     type_descriptor = hyteg_type()
 
     kernel_types = [
-        Apply(
+        ApplyWrapper(
             test,
             trial,
             type_descriptor=type_descriptor,
@@ -96,23 +98,26 @@ def test_boundary_loop():
     operator = HyTeGElementwiseOperator(
         name,
         symbolizer=symbolizer,
-        kernel_types=kernel_types,
+        kernel_wrapper_types=kernel_types,
         opts=opts,
         type_descriptor=type_descriptor,
     )
 
-    operator.set_element_matrix(
-        dim=volume_geometry.dimensions,
-        geometry=volume_geometry,
-        integration_domain=MacroIntegrationDomain.DOMAIN_BOUNDARY,
-        quad=quad,
-        blending=IdentityMap(),
-        form=form,
-    )
+    for facet_id in range(3):
+
+        operator.add_integral(
+            name=f"boundarymass_{facet_id}",
+            dim=volume_geometry.dimensions,
+            geometry=volume_geometry,
+            integration_domain=MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,
+            quad=quad,
+            blending=blending,
+            form=form,
+            loop_strategy=BOUNDARY(facet_id=facet_id),
+        )
 
     operator.generate_class_code(
         ".",
-        loop_strategy=BOUNDARY(facet_id=0),
         clang_format_binary="clang-format",
     )
 

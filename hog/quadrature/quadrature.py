@@ -133,11 +133,15 @@ def select_quadrule(
                 if isinstance(geometry, LineElement) or isinstance(
                     geometry, EmbeddedLine
                 ):
-                    return x.degree
-                if x.degree >= degree:
-                    return x.points.shape[1]
+                    if x.degree >= degree:
+                        return x.degree
+                    else:
+                        return 10**10000  # just a large number
                 else:
-                    return 10**10000  # just a large number
+                    if x.degree >= degree:
+                        return x.points.shape[1]
+                    else:
+                        return 10**10000  # just a large number
 
             return min(all_schemes, key=lambda x: select_degree(x))
 
