@@ -26,7 +26,6 @@ from hog.element_geometry import (
     TetrahedronElement,
     TriangleElement,
     LineElement,
-    EmbeddedLine,
     ElementGeometry,
 )
 from hog.function_space import LagrangianFunctionSpace, FunctionSpace
@@ -64,7 +63,7 @@ def test_boundary_loop():
 
     symbolizer = Symbolizer()
     volume_geometry = TriangleElement()
-    boundary_geometry = EmbeddedLine()
+    boundary_geometry = LineElement(space_dimension=2)
     blending = AnnulusMap()
 
     name = f"P2MassBoundary"
@@ -106,7 +105,7 @@ def test_boundary_loop():
     for facet_id in range(3):
 
         operator.add_integral(
-            name=f"boundarymass_{facet_id}",
+            name=f"boundary_mass_{facet_id}",
             dim=volume_geometry.dimensions,
             geometry=volume_geometry,
             integration_domain=MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,

@@ -29,7 +29,6 @@ from hog.blending import GeometryMap, IdentityMap, ExternalMap, AnnulusMap
 from hog.element_geometry import (
     TriangleElement,
     TetrahedronElement,
-    EmbeddedTriangle,
     ElementGeometry,
 )
 from hog.function_space import FunctionSpace, LagrangianFunctionSpace, N1E1Space

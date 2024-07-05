@@ -28,8 +28,6 @@ from hog.blending import (
 from hog.element_geometry import (
     ElementGeometry,
     TriangleElement,
-    EmbeddedTriangle,
-    EmbeddedLine,
     TetrahedronElement,
     LineElement,
 )
@@ -119,12 +117,10 @@ def trafo_ref_to_affine(
                           vector symbols, useful for example if the trafo of two or more different elements is required
     """
     ref_symbols_vector = symbolizer.ref_coords_as_vector(geometry.dimensions)
-    if isinstance(geometry, EmbeddedLine) or isinstance(geometry, EmbeddedTriangle):
-        ref_symbols_vector = symbolizer.ref_coords_as_vector(geometry.dimensions - 1)
 
     if affine_points is None:
         affine_points = symbolizer.affine_vertices_as_vectors(
-            geometry.dimensions, geometry.num_vertices
+            geometry.space_dimension, geometry.num_vertices
         )
     else:
         if len(affine_points) != geometry.num_vertices:
@@ -136,12 +132,12 @@ def trafo_ref_to_affine(
                 affine_points[p][d] - affine_points[0][d]
                 for p in range(1, geometry.num_vertices)
             ]
-            for d in range(geometry.dimensions)
+            for d in range(geometry.space_dimension)
         ]
     )
     trafo = trafo * ref_symbols_vector
     trafo = trafo + sp.Matrix(
-        [[affine_points[0][d]] for d in range(geometry.dimensions)]
+        [[affine_points[0][d]] for d in range(geometry.space_dimension)]
     )
     return trafo
 
@@ -200,8 +196,6 @@ def jac_ref_to_affine(
                           vector symbols, useful for example if the trafo of two or more different elements is required
     """
     ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
-    if isinstance(geometry, EmbeddedLine) or isinstance(geometry, EmbeddedTriangle):
-        ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
 
     trafo = trafo_ref_to_affine(geometry, symbolizer, affine_points=affine_points)
     return trafo.jacobian(ref_symbols_list)
@@ -221,8 +215,8 @@ def trafo_ref_to_physical(
         blending_class: type[MultiAssignment]
         if isinstance(geometry, TriangleElement):
             blending_class = BlendingFTriangle
-        elif isinstance(geometry, EmbeddedTriangle):
-            blending_class = BlendingDFEmbeddedTriangle
+            if geometry.space_dimension == 3:
+                blending_class = BlendingDFEmbeddedTriangle
         elif isinstance(geometry, TetrahedronElement):
             blending_class = BlendingFTetrahedron
         else:
@@ -247,8 +241,8 @@ def jac_affine_to_physical(
     blending_class: type[MultiAssignment]
     if isinstance(geometry, TriangleElement):
         blending_class = BlendingDFTriangle
-    elif isinstance(geometry, EmbeddedTriangle):
-        blending_class = BlendingDFEmbeddedTriangle
+        if geometry.space_dimension == 3:
+            blending_class = BlendingDFEmbeddedTriangle
     elif isinstance(geometry, TetrahedronElement):
         blending_class = BlendingDFTetrahedron
     else:

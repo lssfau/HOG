@@ -16,31 +16,33 @@
 
 
 class ElementGeometry:
-    def __init__(self, dimensions: int, num_vertices: int):
+    def __init__(self, dimensions: int, num_vertices: int, space_dimension: int):
         self.dimensions = dimensions
         self.num_vertices = num_vertices
+        self.space_dimension = space_dimension
 
     def __str__(self):
-        return f"ElementGeometry(dim: {self.dimensions}, vertices: {self.num_vertices})"
+        return f"ElementGeometry(dim: {self.dimensions}, vertices: {self.num_vertices}), space dim: {self.space_dimension}"
 
     def __repr__(self):
         return str(self)
 
     def __hash__(self):
-        return hash((self.dimensions, self.num_vertices))
+        return hash((self.dimensions, self.num_vertices, self.space_dimension))
 
     def __eq__(self, other):
         if isinstance(other, ElementGeometry):
             return (
                 self.dimensions == other.dimensions
                 and self.num_vertices == other.num_vertices
+                and self.space_dimension == other.space_dimension
             )
         return False
 
 
 class LineElement(ElementGeometry):
-    def __init__(self):
-        super().__init__(1, 2)
+    def __init__(self, space_dimension: int = 1):
+        super().__init__(1, 2, space_dimension=space_dimension)
 
     def __str__(self):
         return f"line, dim: 1, vertices: 2"
@@ -49,20 +51,9 @@ class LineElement(ElementGeometry):
         return str(self)
 
 
-class EmbeddedLine(ElementGeometry):
-    def __init__(self):
-        super().__init__(2, 2)
-
-    def __str__(self):
-        return f"embedded line, dim: 2, vertices: 2"
-
-    def __repr__(self):
-        return str(self)
-
-
 class TriangleElement(ElementGeometry):
-    def __init__(self):
-        super().__init__(2, 3)
+    def __init__(self, space_dimension: int = 2):
+        super().__init__(2, 3, space_dimension=space_dimension)
 
     def __str__(self):
         return f"triangle, dim: 2, vertices: 3"
@@ -71,20 +62,9 @@ class TriangleElement(ElementGeometry):
         return str(self)
 
 
-class EmbeddedTriangle(ElementGeometry):
-    def __init__(self):
-        super().__init__(3, 3)
-
-    def __str__(self):
-        return f"embedded triangle, dim: 3, vertices: 3"
-
-    def __repr__(self):
-        return str(self)
-
-
 class TetrahedronElement(ElementGeometry):
-    def __init__(self):
-        super().__init__(3, 4)
+    def __init__(self, space_dimension: int = 3):
+        super().__init__(3, 4, space_dimension=space_dimension)
 
     def __str__(self):
         return f"tetrahedron, dim: 3, vertices: 4"

@@ -19,7 +19,7 @@ import sympy as sp
 
 from hog.exception import HOGException
 
-from hog.element_geometry import ElementGeometry, EmbeddedTriangle
+from hog.element_geometry import ElementGeometry, TriangleElement
 from hog.symbolizer import Symbolizer
 from hog.blending import GeometryMap, IdentityMap
 from hog.fem_helpers import jac_affine_to_physical
@@ -33,13 +33,13 @@ def embedded_normal(
 ) -> sp.Matrix:
     """Returns an unoriented unit normal vector for an embedded triangle."""
 
-    if not isinstance(geometry, EmbeddedTriangle):
+    if not (isinstance(geometry, TriangleElement) and geometry.space_dimension == 3):
         raise HOGException(
-            "Embedded normal vectors are only defined for embedded triangles."
+            "Embedded normal vectors are only defined for triangles embedded in 3D space."
         )
 
     vert_points = symbolizer.affine_vertices_as_vectors(
-        geometry.dimensions, geometry.num_vertices
+        geometry.space_dimension, geometry.num_vertices
     )
     span0 = vert_points[1] - vert_points[0]
     span1 = vert_points[2] - vert_points[0]
@@ -67,9 +67,9 @@ def face_projection(
 ) -> sp.Matrix:
     """Returns a projection matrix for an embedded triangle."""
 
-    if not isinstance(geometry, EmbeddedTriangle):
+    if not (isinstance(geometry, TriangleElement) and geometry.space_dimension == 3):
         raise HOGException(
-            "Projection matrices are only defined for embedded triangles."
+            "Projection matrices are only defined for triangles embedded in 3D space."
         )
 
     normal = embedded_normal(geometry, symbolizer, blending=blending)

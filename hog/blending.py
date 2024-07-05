@@ -148,7 +148,7 @@ class AnnulusMap(GeometryMap):
         """Evaluates the Jacobian of the geometry map at the passed point."""
 
         if sp.shape(x) != (2, 1):
-            raise HOGException("Invalid input shape for AnnulusMap.")
+            raise HOGException(f"Invalid input shape {sp.shape(x)} for AnnulusMap.")
 
         radRefVertex = self.radRefVertex
         radRayVertex = self.radRayVertex
