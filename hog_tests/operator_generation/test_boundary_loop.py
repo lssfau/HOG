@@ -13,15 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+import logging
 
 from sympy.core.cache import clear_cache
 
-from hog.blending import AnnulusMap
-from hog.element_geometry import (
-    TriangleElement,
-    LineElement,
-)
+from hog.blending import AnnulusMap, IcosahedralShellMap
+from hog.element_geometry import LineElement, TriangleElement, TetrahedronElement
 from hog.function_space import LagrangianFunctionSpace
 from hog.operator_generation.operators import (
     HyTeGElementwiseOperator,
@@ -31,30 +28,23 @@ from hog.quadrature import Quadrature, select_quadrule
 from hog.operator_generation.kernel_types import ApplyWrapper
 from hog.operator_generation.types import hyteg_type
 from hog.forms_boundary import mass_boundary
+from hog.logger import TimedLogger
 
 
 def test_boundary_loop():
+
+    # TimedLogger.set_log_level(logging.DEBUG)
+
+    dims = [2, 3]
+
     clear_cache()
 
     symbolizer = Symbolizer()
-    volume_geometry = TriangleElement()
-    boundary_geometry = LineElement(space_dimension=2)
-    blending = AnnulusMap()
 
     name = f"P2MassBoundary"
 
     trial = LagrangianFunctionSpace(2, symbolizer)
     test = LagrangianFunctionSpace(2, symbolizer)
-    quad = Quadrature(select_quadrule(5, boundary_geometry), boundary_geometry)
-
-    form = mass_boundary(
-        trial,
-        test,
-        volume_geometry,
-        boundary_geometry,
-        symbolizer,
-        blending=blending,
-    )
 
     type_descriptor = hyteg_type()
 
@@ -63,7 +53,7 @@ def test_boundary_loop():
             test,
             trial,
             type_descriptor=type_descriptor,
-            dims=[2],
+            dims=dims,
         )
     ]
 
@@ -74,13 +64,38 @@ def test_boundary_loop():
         type_descriptor=type_descriptor,
     )
 
-    operator.add_boundary_integral(
-        name=f"boundary_mass",
-        volume_geometry=volume_geometry,
-        quad=quad,
-        blending=blending,
-        form=form,
-    )
+    for dim in dims:
+
+        if dim == 2:
+
+            volume_geometry = TriangleElement()
+            boundary_geometry = LineElement(space_dimension=2)
+            blending = AnnulusMap()
+
+        else:
+
+            volume_geometry = TetrahedronElement()
+            boundary_geometry = TriangleElement(space_dimension=3)
+            blending = IcosahedralShellMap()
+
+        quad = Quadrature(select_quadrule(5, boundary_geometry), boundary_geometry)
+
+        form = mass_boundary(
+            trial,
+            test,
+            volume_geometry,
+            boundary_geometry,
+            symbolizer,
+            blending=blending,
+        )
+
+        operator.add_boundary_integral(
+            name=f"boundary_mass",
+            volume_geometry=volume_geometry,
+            quad=quad,
+            blending=blending,
+            form=form,
+        )
 
     operator.generate_class_code(
         ".",

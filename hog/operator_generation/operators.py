@@ -197,21 +197,57 @@ def shuffle_order_for_element_micro_vertices(
     element_type: Union[FaceType, CellType],
     facet_id: int,
 ) -> List[int]:
+    """
+    Provides a re-ordering of the micro-vertices such that the facet of the micro-element that coincides with the
+    macro-facet (which is given by the facet_id parameter) is spanned by the first three returned vertex positions.
+
+    The reordering can then for instance be executed by
+
+    ```python
+        element_vertex_order = shuffle_order_for_element_micro_vertices( ... )
+
+        el_vertex_coordinates = [
+            el_vertex_coordinates[i] for i in element_vertex_order
+        ]
+    ```
+
+    """
 
     if volume_geometry == TriangleElement():
 
         if element_type == FaceType.BLUE:
             return [0, 1, 2]
 
-        match facet_id:
-            case 0:
-                return [0, 1, 2]
-            case 1:
-                return [0, 2, 1]
-            case 2:
-                return [1, 2, 0]
-            case _:
-                raise HOGException("Invalid facet ID for triangular volume elements.")
+        shuffle_order_gray = {
+            0: [0, 1, 2],
+            1: [0, 2, 1],
+            2: [1, 2, 0],
+        }
+
+        return shuffle_order_gray[facet_id]
+
+    elif volume_geometry == TetrahedronElement():
+
+        if element_type == CellType.WHITE_DOWN:
+            return [0, 1, 2, 3]
+
+        # All element types but WHITE_UP only overlap with a single macro-facet.
+        # It's a different element type for each facet. WHITE_DOWN is never at the boundary.
+        shuffle_order = {
+            CellType.WHITE_UP: {
+                0: [0, 1, 2, 3],
+                1: [0, 1, 3, 2],
+                2: [0, 2, 3, 1],
+                3: [1, 2, 3, 0],
+            },
+            CellType.BLUE_UP: {0: [0, 1, 2, 3]},
+            CellType.GREEN_UP: {1: [0, 2, 3, 1]},
+            CellType.BLUE_DOWN: {2: [0, 1, 3, 2]},
+            CellType.GREEN_DOWN: {3: [1, 2, 3, 0]},
+        }
+
+        return shuffle_order[element_type][facet_id]
+
     else:
         raise HOGException("Not implemented.")
 
@@ -490,7 +526,9 @@ class HyTeGElementwiseOperator:
                                     off formatting
         """
 
-        with TimedLogger("Generating kernels", level=logging.INFO):
+        with TimedLogger(
+            f"Generating kernels for operator {self.name}", level=logging.INFO
+        ):
 
             # Generate each kernel type (apply, gemv, ...).
             self.generate_kernels()
@@ -606,17 +644,14 @@ class HyTeGElementwiseOperator:
                 ii.integration_domain == MacroIntegrationDomain.VOLUME
                 for ii in integration_infos
             ):
-                boundary_condition_vars.append(
-                    CppVariable(name="boundaryCondition", type="BoundaryCondition")
-                )
+                bc_var = CppVariable(name="boundaryCondition", type="BoundaryCondition")
+                if bc_var not in boundary_condition_vars:
+                    boundary_condition_vars.append(bc_var)
 
             for ii in integration_infos:
-                if ii.boundary_uid_name not in [
-                    cpp_var.name for cpp_var in boundary_condition_vars
-                ]:
-                    boundary_condition_vars.append(
-                        CppVariable(name=ii.boundary_uid_name, type="BoundaryUID")
-                    )
+                bcuid_var = CppVariable(name=ii.boundary_uid_name, type="BoundaryUID")
+                if bcuid_var not in boundary_condition_vars:
+                    boundary_condition_vars.append(bcuid_var)
 
         boundary_condition_vars_members = [
             CppVariable(name=bcv.name + "_", type=bcv.type)
@@ -1098,10 +1133,7 @@ class HyTeGElementwiseOperator:
         # We skip certain element types for macro-volume boundary integrals.
         element_types = all_element_types(geometry.dimensions)
         if isinstance(integration_info.loop_strategy, BOUNDARY):
-            if geometry.dimensions == 2:
-                element_types = [FaceType.GRAY]
-            else:
-                raise HOGException("Boundary integrals in 3D not supported.")
+            element_types = integration_info.loop_strategy.element_loops.keys()
 
         for element_type in element_types:
 
@@ -1315,7 +1347,8 @@ class HyTeGElementwiseOperator:
                 and isinstance(integration_info.loop_strategy, BOUNDARY)
             ):
                 with TimedLogger(
-                    "boundary integrals: setting unused reference coordinate to 0"
+                    "boundary integrals: setting unused reference coordinate to 0",
+                    logging.DEBUG,
                 ):
                     for node in body:
                         node.subs(

@@ -340,19 +340,35 @@ class BOUNDARY(LoopStrategy):
 
     def create_loop(self, dim, element_index, micro_edges_per_macro_edge):
 
-        if dim == 3:
-            raise HOGException("Boundary not implemented in 3D.")
+        if dim == 2:
+            if self.facet_id not in [0, 1, 2]:
+                raise HOGException("Invalid facet ID for BOUNDARY loop strategy in 2D.")
 
-        if dim == 2 and self.facet_id not in [0, 1, 2]:
-            raise HOGException("Invalid facet ID for BOUNDARY loop strategy.")
-        elif dim == 3 and self.facet_id not in [0, 1, 2, 3]:
-            raise HOGException("Invalid facet ID for BOUNDARY loop strategy.")
+            self.element_loops = {
+                FaceType.GRAY: loop_over_simplex_facet(
+                    dim, micro_edges_per_macro_edge, self.facet_id
+                ),
+            }
 
-        self.element_loops = {
-            FaceType.GRAY: loop_over_simplex_facet(
-                dim, micro_edges_per_macro_edge, self.facet_id
-            ),
-        }
+        elif dim == 3:
+            if self.facet_id not in [0, 1, 2, 3]:
+                raise HOGException("Invalid facet ID for BOUNDARY loop strategy in 3D.")
+
+            second_cell_type = {
+                0: CellType.BLUE_UP,
+                1: CellType.GREEN_UP,
+                2: CellType.BLUE_DOWN,
+                3: CellType.GREEN_DOWN,
+            }
+
+            self.element_loops = {
+                CellType.WHITE_UP: loop_over_simplex_facet(
+                    dim, micro_edges_per_macro_edge, self.facet_id
+                ),
+                second_cell_type[self.facet_id]: loop_over_simplex_facet(
+                    dim, micro_edges_per_macro_edge - 1, self.facet_id
+                ),
+            }
 
         return Block(
             [
