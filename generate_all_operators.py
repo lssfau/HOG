@@ -704,7 +704,6 @@ def generate_elementwise_op(
     operator = HyTeGElementwiseOperator(
         name,
         symbolizer,
-        opts=optimizations,
         kernel_wrapper_types=op_info.kernel_types,
         type_descriptor=type_descriptor,
     )
@@ -734,6 +733,7 @@ def generate_elementwise_op(
             blending=blending,
             form=form,
             loop_strategy=loop_strategy,
+            optimizations=optimizations,
         )
 
     dir_path = os.path.join(args.output, op_info.name.split("_")[0])

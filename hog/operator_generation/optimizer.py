@@ -18,7 +18,8 @@ from copy import deepcopy
 import enum
 import logging
 import sympy as sp
-from typing import Dict, Iterable, List, Set, Self
+from typing import Dict, Iterable, List, Set
+from typing_extensions import Self
 
 from pystencils import TypedSymbol
 from pystencils.astnodes import (

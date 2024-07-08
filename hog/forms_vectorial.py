@@ -159,8 +159,8 @@ def mass_n1e1(
         raise HOGException("mass_n1e1 form is only implemented for N1E1.")
 
     with TimedLogger("assembling mass matrix", level=logging.DEBUG):
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -287,7 +287,7 @@ def curl_curl(
         raise HOGException("curl-curl form is only implemented for N1E1.")
 
     with TimedLogger("assembling curl-curl matrix", level=logging.DEBUG):
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -353,8 +353,8 @@ Strong formulation
     with TimedLogger("assembling curl_curl_plus_mass matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):

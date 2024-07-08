@@ -1055,7 +1055,7 @@ def main():
         geometries = [TetrahedronElement()]
     elif args.geometry == "embedded_triangle":
         logger.info(f"- selected geometry: embedded triangle")
-        geometries = [EmbeddedTriangle()]
+        geometries = [TriangleElement(space_dimension=3)]
     else:
         logger.info(f"- selected geometries: triangle, tetrahedron")
         geometries = [TriangleElement(), TetrahedronElement()]

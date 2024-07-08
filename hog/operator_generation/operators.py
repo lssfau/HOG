@@ -233,7 +233,7 @@ def shuffle_order_for_element_micro_vertices(
 
         # All element types but WHITE_UP only overlap with a single macro-facet.
         # It's a different element type for each facet. WHITE_DOWN is never at the boundary.
-        shuffle_order = {
+        shuffle_order: Dict[Union[FaceType, CellType], Dict[int, List[int]]] = {
             CellType.WHITE_UP: {
                 0: [0, 1, 2, 3],
                 1: [0, 1, 3, 2],
@@ -410,8 +410,8 @@ class HyTeGElementwiseOperator:
         blending: GeometryMap,
         form: Form,
         loop_strategy: LoopStrategy,
-        optimizations: Set[Opts] = None,
-    ):
+        optimizations: Union[None, Set[Opts]] = None,
+    ) -> None:
         """
         Adds a volume integral to the operator. Wrapper around _add_integral() for volume integrals.
 
@@ -451,8 +451,8 @@ class HyTeGElementwiseOperator:
         quad: Quadrature,
         blending: GeometryMap,
         form: Form,
-        optimizations: Set[Opts] = None,
-    ):
+        optimizations: Union[None, Set[Opts]] = None,
+    ) -> None:
         """
         Adds a boundary integral to the operator. Wrapper around _add_integral() for boundary integrals.
 
@@ -1133,7 +1133,7 @@ class HyTeGElementwiseOperator:
         # We skip certain element types for macro-volume boundary integrals.
         element_types = all_element_types(geometry.dimensions)
         if isinstance(integration_info.loop_strategy, BOUNDARY):
-            element_types = integration_info.loop_strategy.element_loops.keys()
+            element_types = list(integration_info.loop_strategy.element_loops.keys())
 
         for element_type in element_types:
 
