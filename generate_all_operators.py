@@ -43,6 +43,7 @@ from hog.forms import (
     nonlinear_diffusion,
     nonlinear_diffusion_newton_galerkin,
     supg_diffusion,
+    grad_rho_by_rho_dot_u,
 )
 from hog.forms_vectorial import curl_curl, curl_curl_plus_mass, mass_n1e1
 from hog.function_space import (
@@ -608,6 +609,24 @@ def all_operators(
             trial_space=P2Vector,
             test_space=P2Vector,
             form=p2vec_epsilon,
+            type_descriptor=type_descriptor,
+            geometries=list(geometries),
+            opts=opts,
+            blending=blending,
+        )
+    )
+
+    p2vec_grad_rho = partial(
+        grad_rho_by_rho_dot_u,
+        density_function_space=P2,
+    )
+    ops.append(
+        OperatorInfo(
+            mapping=f"P2VectorToP1",
+            name=f"GradRhoByRhoDotU",
+            trial_space=P1,
+            test_space=P2Vector,
+            form=p2vec_grad_rho,
             type_descriptor=type_descriptor,
             geometries=list(geometries),
             opts=opts,
