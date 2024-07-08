@@ -14,9 +14,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from hog.exception import HOGException
+
 
 class ElementGeometry:
     def __init__(self, dimensions: int, num_vertices: int, space_dimension: int):
+
+        if space_dimension < dimensions:
+            raise HOGException(
+                "The space dimension should be larger or equal to the dimension of the geometry."
+            )
+
         self.dimensions = dimensions
         self.num_vertices = num_vertices
         self.space_dimension = space_dimension
