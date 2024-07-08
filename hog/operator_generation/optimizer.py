@@ -18,7 +18,7 @@ from copy import deepcopy
 import enum
 import logging
 import sympy as sp
-from typing import Dict, Iterable, List, Set
+from typing import Dict, Iterable, List, Set, Self
 
 from pystencils import TypedSymbol
 from pystencils.astnodes import (
@@ -107,6 +107,9 @@ class Optimizer:
 
     def __getitem__(self, opt):
         return opt in self._opts
+
+    def copy_without_vectorization(self) -> Self:
+        return Optimizer(self._opts - {Opts.VECTORIZE, Opts.VECTORIZE512})
 
     def check_opts_validity(self) -> None:
         """Checks if the desired optimizations are valid."""

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import auto, Enum
 import logging
 from typing import Dict, List, Optional, Set, Tuple, Union
@@ -160,9 +160,10 @@ class IntegrationInfo:
 
     loop_strategy: LoopStrategy
 
+    optimizations: Set[Opts]
+
     name: str = "unknown_integral"
     docstring: str = ""
-
     boundary_uid_name: str = ""
 
     def _str_(self):
@@ -244,7 +245,6 @@ class HyTeGElementwiseOperator:
         name: str,
         symbolizer: Symbolizer,
         kernel_wrapper_types: List[KernelWrapperType],
-        opts: Set[Opts],
         type_descriptor: HOGType,
     ):
         self.name = name
@@ -253,9 +253,6 @@ class HyTeGElementwiseOperator:
 
         # Each IntegrationInfo object represents one integral of the weak formulation.
         self.integration_infos: Dict[int, List[IntegrationInfo]] = {}
-
-        self._optimizer = Optimizer(opts)
-        self._optimizer_no_vec = Optimizer(opts - {Opts.VECTORIZE, Opts.VECTORIZE512})
 
         # set the precision in which the operations are to be performed
         self._type_descriptor = type_descriptor
@@ -275,6 +272,7 @@ class HyTeGElementwiseOperator:
         form: Form,
         loop_strategy: LoopStrategy,
         boundary_uid_name: str,
+        optimizations: Set[Opts],
     ) -> None:
         """
         Use this method to add integrals to the operator if you know what you are doing. There are helper methods for
@@ -290,12 +288,20 @@ class HyTeGElementwiseOperator:
                               integration domain
         :param boundary_uid_name: string that defines the name of the boundary UID if this is a boundary integral
                                   the parameter is ignored for volume integrals
+        :param optimizations: optimizations that shall be applied to this integral
         """
 
         if "".join(name.split()) != name:
             raise HOGException(
                 "Please give the integral an identifier without white space."
             )
+
+        if volume_geometry.space_dimension in self.integration_infos:
+            if name in [
+                ii.name
+                for ii in self.integration_infos[volume_geometry.space_dimension]
+            ]:
+                raise HOGException(f"Integral with name {name} already added!")
 
         if volume_geometry.space_dimension not in [2, 3]:
             raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
@@ -309,14 +315,14 @@ class HyTeGElementwiseOperator:
         quad_loop = None
         mat = form.integrand
 
-        if self._optimizer[Opts.TABULATE]:
+        if Opts.TABULATE in optimizations:
             mat = form.tabulation.resolve_table_accesses(mat, self._type_descriptor)
             with TimedLogger(f"constructing tables", level=logging.DEBUG):
                 tables = form.tabulation.construct_tables(quad, self._type_descriptor)
         else:
             mat = form.tabulation.inline_tables(mat)
 
-        if self._optimizer[Opts.QUADLOOPS]:
+        if Opts.QUADLOOPS in optimizations:
             quad_loop = QuadLoop(
                 self.symbolizer,
                 quad,
@@ -356,6 +362,7 @@ class HyTeGElementwiseOperator:
                 docstring=form.docstring,
                 loop_strategy=loop_strategy,
                 boundary_uid_name=boundary_uid_name,
+                optimizations=optimizations,
             )
         )
 
@@ -367,6 +374,7 @@ class HyTeGElementwiseOperator:
         blending: GeometryMap,
         form: Form,
         loop_strategy: LoopStrategy,
+        optimizations: Set[Opts] = None,
     ):
         """
         Adds a volume integral to the operator. Wrapper around _add_integral() for volume integrals.
@@ -378,7 +386,11 @@ class HyTeGElementwiseOperator:
         :param form: the integrand
         :param loop_strategy: loop pattern over the refined macro-volume - must somehow be compatible with the
                               integration domain
+        :param optimizations: optimization applied to this integral
         """
+        if optimizations is None:
+            optimizations = set()
+
         if volume_geometry.dimensions != quad.geometry.dimensions:
             raise HOGException(
                 "The quadrature geometry does not match the volume geometry."
@@ -393,6 +405,7 @@ class HyTeGElementwiseOperator:
             form,
             loop_strategy,
             "",
+            optimizations,
         )
 
     def add_boundary_integral(
@@ -402,6 +415,7 @@ class HyTeGElementwiseOperator:
         quad: Quadrature,
         blending: GeometryMap,
         form: Form,
+        optimizations: Set[Opts] = None,
     ):
         """
         Adds a boundary integral to the operator. Wrapper around _add_integral() for boundary integrals.
@@ -413,7 +427,19 @@ class HyTeGElementwiseOperator:
                      in 2D, this should use a LineElement(space_dimension=2))
         :param blending: the same map that has been passed to the form
         :param form: the integrand
+        :param optimizations: optimization applied to this integral
         """
+
+        if optimizations is None:
+            optimizations = set()
+
+        allowed_boundary_optimizations = {Opts.MOVECONSTANTS}
+        if optimizations - allowed_boundary_optimizations != set():
+            raise HOGException(
+                f"Only allowed (aka tested and working) optimizations for boundary integrals are "
+                f"{allowed_boundary_optimizations}."
+            )
+
         if volume_geometry not in [TriangleElement(), TetrahedronElement()]:
             raise HOGException(
                 "Boundary integrals only implemented for triangle and tetrahedral elements."
@@ -434,6 +460,7 @@ class HyTeGElementwiseOperator:
                 form,
                 BOUNDARY(facet_id=facet_id),
                 name + "_boundary_uid",
+                optimizations,
             )
 
     def coefficients(self) -> List[FunctionSpaceImpl]:
@@ -442,8 +469,8 @@ class HyTeGElementwiseOperator:
         During generation coefficents are detected in the element matrix and
         stored in the `coeffs` field. Being a Python dictionary, iterating over
         it yields the coefficients in an arbitrary order. Whenever generating
-        code for all coefficents it is a good idea to access them in a well
-        defined order. Most importantly, the order of constructor arguments must
+        code for all coefficents it is a good idea to access them in a well-defined
+        order. Most importantly, the order of constructor arguments must
         be deterministic.
         """
         return sorted(self.coeffs.values(), key=lambda c: c.name)
@@ -463,8 +490,6 @@ class HyTeGElementwiseOperator:
                                     off formatting
         """
 
-        # Asking the optimizer if optimizations are valid.
-        self._optimizer.check_opts_validity()
         # Generate each kernel type (apply, gemv, ...).
         self.generate_kernels()
 
@@ -805,7 +830,10 @@ class HyTeGElementwiseOperator:
         # This list is only filled if we want to vectorize.
         loop_counter_custom_code_nodes = []
 
-        if not (self._optimizer[Opts.VECTORIZE] or self._optimizer[Opts.VECTORIZE512]):
+        if (
+            Opts.VECTORIZE not in integration_info.optimizations
+            and Opts.VECTORIZE512 not in integration_info.optimizations
+        ):
             # The Jacobians are loop-counter dependent, and we do not care about vectorization.
             # So we just use the indices. pystencils will handle casting them to float.
             el_matrix_element_index = element_index.copy()
@@ -869,7 +897,9 @@ class HyTeGElementwiseOperator:
             ]
 
             # Let's fill the array.
-            float_ctr_array_size = 8 if self._optimizer[Opts.VECTORIZE512] else 4
+            float_ctr_array_size = (
+                8 if Opts.VECTORIZE512 in integration_info.optimizations else 4
+            )
 
             custom_code = ""
             custom_code += f"const int64_t phantom_ctr_0 = ctr_0;\n"
@@ -936,6 +966,9 @@ class HyTeGElementwiseOperator:
 
         rows, cols = mat.shape
 
+        optimizer = Optimizer(integration_info.optimizations)
+        optimizer.check_opts_validity()
+
         # Already at this point we have to handle boundary integrals.
         #
         # Since we will only integrate over the reference facet that lies on the x-line (2D) or xy-plane (3D) we need to
@@ -990,7 +1023,7 @@ class HyTeGElementwiseOperator:
 
         # Common subexpression elimination.
         with TimedLogger("cse on kernel operation", logging.DEBUG):
-            cse_impl = self._optimizer.cse_impl()
+            cse_impl = optimizer.cse_impl()
             kernel_op_assignments = hog.cse.cse(
                 kernel_op_assignments,
                 cse_impl,
@@ -1006,7 +1039,7 @@ class HyTeGElementwiseOperator:
 
             with TimedLogger("constructing quadrature loops"):
                 quad_loop = integration_info.quad_loop.construct_quad_loop(
-                    accessed_mat_entries, self._optimizer.cse_impl()
+                    accessed_mat_entries, optimizer.cse_impl()
                 )
         else:
             quad_loop = []
@@ -1228,7 +1261,7 @@ class HyTeGElementwiseOperator:
                 for component in range(geometry.dimensions)
             ]
 
-            if integration_info.blending.is_affine() or self._optimizer[Opts.QUADLOOPS]:
+            if integration_info.blending.is_affine() or optimizer[Opts.QUADLOOPS]:
                 blending_assignments = []
             else:
                 blending_assignments = (
@@ -1254,7 +1287,7 @@ class HyTeGElementwiseOperator:
                 )
 
                 with TimedLogger("cse on blending operation", logging.DEBUG):
-                    cse_impl = self._optimizer.cse_impl()
+                    cse_impl = optimizer.cse_impl()
                     blending_assignments = hog.cse.cse(
                         blending_assignments,
                         cse_impl,
@@ -1272,7 +1305,7 @@ class HyTeGElementwiseOperator:
                 + kernel_op_post_assignments
             )
 
-            if not self._optimizer[Opts.QUADLOOPS]:
+            if not optimizer[Opts.QUADLOOPS]:
                 # Only now we replace the quadrature points and weights - if there are any.
                 # We also setup sympy assignments in body
                 with TimedLogger(
@@ -1344,7 +1377,7 @@ class HyTeGElementwiseOperator:
                 elem_dependent_stmts = (
                     hog.cse.cse(
                         coords_assignments + jacobi_assignments,
-                        self._optimizer.cse_impl(),
+                        optimizer.cse_impl(),
                         "tmp_coords_jac",
                         return_type=SympyAssignment,
                     )
@@ -1446,11 +1479,12 @@ class HyTeGElementwiseOperator:
                         f"Optimizing kernel: {kernel_function.function_name} in {dim}D",
                         logging.INFO,
                     ):
-                        optimizer = (
-                            self._optimizer
-                            if not isinstance(kernel_wrapper_type.kernel_type, Assemble)
-                            else self._optimizer_no_vec
-                        )
+                        optimizer = Optimizer(integration_info.optimizations)
+                        optimizer.check_opts_validity()
+
+                        if isinstance(kernel_wrapper_type.kernel_type, Assemble):
+                            optimizer = optimizer.copy_without_vectorization()
+
                         platform_dep_kernels.append(
                             optimizer.apply_to_kernel(
                                 kernel_function, dim, integration_info.loop_strategy

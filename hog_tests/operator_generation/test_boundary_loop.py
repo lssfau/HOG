@@ -17,43 +17,18 @@
 
 from sympy.core.cache import clear_cache
 
-from hog.blending import IdentityMap, GeometryMap, AnnulusMap
-from hog.exception import HOGException
-from hog.fem_helpers import create_empty_element_matrix, element_matrix_iterator
-from hog.operator_generation.loop_strategies import BOUNDARY, SAWTOOTH
-from hog.operator_generation.optimizer import Opts
+from hog.blending import AnnulusMap
 from hog.element_geometry import (
-    TetrahedronElement,
     TriangleElement,
     LineElement,
-    ElementGeometry,
 )
-from hog.function_space import LagrangianFunctionSpace, FunctionSpace
-from hog.logger import get_logger, TimedLogger
-from hog.operator_generation import indexing
-from hog.operator_generation.indexing import (
-    CellType,
-    DoFIndex,
-    DoFType,
-    EdgeType,
-    FaceType,
-    IndexingInfo,
-)
+from hog.function_space import LagrangianFunctionSpace
 from hog.operator_generation.operators import (
     HyTeGElementwiseOperator,
-    MacroIntegrationDomain,
 )
-import sympy as sp
 from hog.symbolizer import Symbolizer
-from hog.quadrature import Quadrature, select_quadrule, Tabulation
-from hog.forms import diffusion, Form
-import hog.operator_generation.indexing
+from hog.quadrature import Quadrature, select_quadrule
 from hog.operator_generation.kernel_types import ApplyWrapper
-from hog.operator_generation.indexing import (
-    VolumeDoFMemoryLayout,
-    num_microfaces_per_face,
-    num_microcells_per_cell,
-)
 from hog.operator_generation.types import hyteg_type
 from hog.forms_boundary import mass_boundary
 
@@ -92,13 +67,10 @@ def test_boundary_loop():
         )
     ]
 
-    opts = set()
-
     operator = HyTeGElementwiseOperator(
         name,
         symbolizer=symbolizer,
         kernel_wrapper_types=kernel_types,
-        opts=opts,
         type_descriptor=type_descriptor,
     )
 
