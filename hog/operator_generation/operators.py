@@ -490,8 +490,10 @@ class HyTeGElementwiseOperator:
                                     off formatting
         """
 
-        # Generate each kernel type (apply, gemv, ...).
-        self.generate_kernels()
+        with TimedLogger("Generating kernels", level=logging.INFO):
+
+            # Generate each kernel type (apply, gemv, ...).
+            self.generate_kernels()
 
         # Setting up the final C++ class.
         operator_cpp_class = CppClass(
@@ -974,6 +976,8 @@ class HyTeGElementwiseOperator:
         # Since we will only integrate over the reference facet that lies on the x-line (2D) or xy-plane (3D) we need to
         # set the last reference coordinate to zero since it will otherwise appear as a free, uninitialized variable.
         #
+        # This has to be repeated later before the qudrature is applied in case we are working with symbols.
+        #
         # More details on boundary handling below.
 
         if (
@@ -1305,6 +1309,23 @@ class HyTeGElementwiseOperator:
                 + kernel_op_post_assignments
             )
 
+            if (
+                integration_info.integration_domain
+                == MacroIntegrationDomain.DOMAIN_BOUNDARY
+                and isinstance(integration_info.loop_strategy, BOUNDARY)
+            ):
+                with TimedLogger(
+                    "boundary integrals: setting unused reference coordinate to 0"
+                ):
+                    for node in body:
+                        node.subs(
+                            {
+                                self.symbolizer.ref_coords_as_list(geometry.dimensions)[
+                                    -1
+                                ]: 0
+                            }
+                        )
+
             if not optimizer[Opts.QUADLOOPS]:
                 # Only now we replace the quadrature points and weights - if there are any.
                 # We also setup sympy assignments in body
@@ -1446,7 +1467,7 @@ class HyTeGElementwiseOperator:
 
                     # generate AST of kernel loop
                     with TimedLogger(
-                        f"Generating kernel {integration_info.name} (wrapper: {kernel_wrapper_type.name} in {dim}D",
+                        f"Generating kernel {integration_info.name} ({kernel_wrapper_type.name}, {dim}D)",
                         logging.INFO,
                     ):
 

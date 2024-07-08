@@ -79,10 +79,8 @@ Weak formulation
     with TimedLogger("assembling mass matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = jac_ref_to_affine(boundary_geometry, symbolizer)
-        jac_blending = blending.jacobian(
-            trafo_ref_to_affine(boundary_geometry, symbolizer)
-        )
+        jac_affine = symbolizer.jac_ref_to_affine(boundary_geometry)
+        jac_blending = symbolizer.jac_affine_to_blending(volume_geometry.dimensions)
 
         fundamental_form_det = abs(
             det(jac_affine.T * jac_blending.T * jac_blending * jac_affine)

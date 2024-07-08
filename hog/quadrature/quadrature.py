@@ -50,7 +50,6 @@ def select_quadrule(
     """Checks for availability of a specified quadrature rule and chooses a rule with minimal points
     if only a degree is given."""
 
-    # TODO for now, leave out line elements as we have no use for them without DG
     logger = get_logger()
 
     # quadrule given by name, just check if it exists and return it
@@ -143,9 +142,7 @@ def select_quadrule(
         num_points = len(scheme.points)
     else:
         num_points = scheme.points.shape[1]
-    logger.info(
-        f"Integrating over {geometry} with rule: {scheme.name} (degree: {scheme.degree}, #points: {num_points})."
-    )
+
     return scheme
 
 
@@ -270,7 +267,7 @@ class Quadrature:
                     spat_coord_subs[symbol] = point[idx]
                 if not blending.is_affine():
                     for symbol in symbolizer.quadpoint_dependent_free_symbols(
-                        self._geometry.dimensions
+                        self._geometry.space_dimension
                     ):
                         spat_coord_subs[symbol] = sp.Symbol(symbol.name + f"_q_{i}")
                 f_sub = fast_subs(f, spat_coord_subs)

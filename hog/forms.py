@@ -97,7 +97,7 @@ Weak formulation
     with TimedLogger("assembling diffusion matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -250,8 +250,8 @@ Weak formulation
     with TimedLogger("assembling div-k-grad matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -361,8 +361,8 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
     with TimedLogger("assembling non-linear diffusion matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -445,8 +445,8 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
     ):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -572,8 +572,8 @@ where
     with TimedLogger("assembling epsilon matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -1012,8 +1012,8 @@ Weak formulation
         f"assembling divergence {'transpose' if transpose else ''} matrix",
         level=logging.DEBUG,
     ):
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -1123,8 +1123,8 @@ where
     with TimedLogger("assembling full stokes matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -1354,8 +1354,8 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
     with TimedLogger("assembling shear heating matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -1523,7 +1523,6 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
     )
 
 
-
 def divdiv(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -1669,8 +1668,8 @@ Weak formulation
     with TimedLogger("assembling second derivative matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        jac_affine = symbolizer.jac_ref_to_affine(geometry.dimensions)
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine = symbolizer.jac_ref_to_affine(geometry)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
 
         if isinstance(blending, ExternalMap):
@@ -1684,7 +1683,9 @@ Weak formulation
             jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
             if not isinstance(blending, IdentityMap):
                 # hessian_blending_map = blending.hessian(affine_coords)
-                hessian_blending_map = symbolizer.hessian_blending_map(geometry.dimensions)
+                hessian_blending_map = symbolizer.hessian_blending_map(
+                    geometry.dimensions
+                )
 
         # jac_blending_det = abs(det(jac_blending))
         # with TimedLogger("inverting blending Jacobian", level=logging.DEBUG):
