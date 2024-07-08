@@ -238,9 +238,15 @@ def jacobi_matrix_assignments(
 
     assignments = []
 
+    # If the reference space dimension (geometry.dimension) is not equal to the space dimension
+    # the Jacobian of the affine map is not square. Processing its inverse and determinant is
+    # thus not meaningful.
+    is_affine_jac_square = geometry.dimensions == geometry.space_dimension
+
     jac_aff_symbol = symbolizer.jac_ref_to_affine(geometry)
-    jac_aff_inv_symbol = symbolizer.jac_ref_to_affine_inv(geometry)
-    jac_aff_det_symbol = symbolizer.abs_det_jac_ref_to_affine()
+    if is_affine_jac_square:
+        jac_aff_inv_symbol = symbolizer.jac_ref_to_affine_inv(geometry)
+        jac_aff_det_symbol = symbolizer.abs_det_jac_ref_to_affine()
 
     free_symbols = element_matrix.free_symbols | {
         free_symbol
@@ -250,22 +256,25 @@ def jacobi_matrix_assignments(
     }
 
     # Steps 1 and 2.
-    jac_affine_inv_in_expr = set(jac_aff_inv_symbol).intersection(free_symbols)
-    abs_det_jac_affine_in_expr = jac_aff_det_symbol in free_symbols
+    if is_affine_jac_square:
+        jac_affine_inv_in_expr = set(jac_aff_inv_symbol).intersection(free_symbols)
+        abs_det_jac_affine_in_expr = jac_aff_det_symbol in free_symbols
 
-    if jac_affine_inv_in_expr:
-        jac_aff_inv_expr = jac_aff_symbol.inv()
-        for s_ij, e_ij in zip(jac_aff_inv_symbol, jac_aff_inv_expr):
-            if s_ij in jac_affine_inv_in_expr:
-                assignments.append(SympyAssignment(s_ij, e_ij))
+        if jac_affine_inv_in_expr:
+            jac_aff_inv_expr = jac_aff_symbol.inv()
+            for s_ij, e_ij in zip(jac_aff_inv_symbol, jac_aff_inv_expr):
+                if s_ij in jac_affine_inv_in_expr:
+                    assignments.append(SympyAssignment(s_ij, e_ij))
 
-    if abs_det_jac_affine_in_expr:
-        assignments.append(
-            SympyAssignment(jac_aff_det_symbol, sp.Abs(jac_aff_symbol.det()))
-        )
+        if abs_det_jac_affine_in_expr:
+            assignments.append(
+                SympyAssignment(jac_aff_det_symbol, sp.Abs(jac_aff_symbol.det()))
+            )
 
-    # Collecting all expressions to parse for step 3.
-    free_symbols |= {free_symbol for a in assignments for free_symbol in a.rhs.atoms()}
+        # Collecting all expressions to parse for step 3.
+        free_symbols |= {
+            free_symbol for a in assignments for free_symbol in a.rhs.atoms()
+        }
 
     jac_affine_in_expr = set(jac_aff_symbol).intersection(free_symbols)
 

@@ -249,7 +249,7 @@ def jac_affine_to_physical(
         raise HOGException("Blending not implemented for the passed element geometry.")
 
     t = trafo_ref_to_affine(geometry, symbolizer)
-    jac = sp.zeros(geometry.dimensions, geometry.dimensions)
+    jac = sp.zeros(geometry.space_dimension, geometry.space_dimension)
     rows, cols = jac.shape
     for row in range(rows):
         for col in range(cols):
