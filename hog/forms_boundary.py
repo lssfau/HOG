@@ -70,6 +70,12 @@ Weak formulation
             "Trial space must be equal to test space to assemble mass matrix."
         )
 
+    if boundary_geometry.dimensions != boundary_geometry.space_dimension - 1:
+        raise HOGException(
+            "Since you are integrating over a boundary, the boundary element's space dimension should be larger than "
+            "its dimension."
+        )
+
     with TimedLogger("assembling mass matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 

@@ -102,18 +102,13 @@ def test_boundary_loop():
         type_descriptor=type_descriptor,
     )
 
-    for facet_id in range(3):
-
-        operator.add_integral(
-            name=f"boundary_mass_{facet_id}",
-            dim=volume_geometry.dimensions,
-            geometry=volume_geometry,
-            integration_domain=MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,
-            quad=quad,
-            blending=blending,
-            form=form,
-            loop_strategy=BOUNDARY(facet_id=facet_id),
-        )
+    operator.add_boundary_integral(
+        name=f"boundary_mass",
+        volume_geometry=volume_geometry,
+        quad=quad,
+        blending=blending,
+        form=form,
+    )
 
     operator.generate_class_code(
         ".",

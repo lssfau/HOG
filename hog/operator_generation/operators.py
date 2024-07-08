@@ -120,8 +120,7 @@ class MacroIntegrationDomain(Enum):
     #         // generating an operator with one volume and one free-slip boundary integral
     #         //   ∫ F dx + ∫ G ds
     #         // where ds corresponds to integrating over parts of the boundary that are marked with a specific
-    #         // BoundaryUID (you can also create BoundaryUIDs that correspond to the entire domain - it's pretty
-    #         // flexible)
+    #         // BoundaryUID
     #
     #         // see HyTeG's documentation and/or BC tutorial
     #         BoundaryCondition someBC( ... );
@@ -139,11 +138,8 @@ class MacroIntegrationDomain(Enum):
     #                                                // constructor (this BCUID is liked to 'ds' above)
     #                                     );
     #
-    #       But let's start simple and just assume that the "default" 0123 boundary is used.
 
-    DOMAIN_BOUNDARY_DIRICHLET = "Domain boundary: Dirichlet"
-    DOMAIN_BOUNDARY_NEUMANN = "Domain boundary: Neumann"
-    DOMAIN_BOUNDARY_FREESLIP = "Domain boundary: free-slip"
+    DOMAIN_BOUNDARY = "Domain boundary"
 
 
 @dataclass
@@ -166,6 +162,8 @@ class IntegrationInfo:
 
     name: str = "unknown_integral"
     docstring: str = ""
+
+    boundary_uid_name: str = ""
 
     def _str_(self):
         return f"Integration Info: {self.name}, {self.geometry}, {self.integration_domain}, mat shape {self.mat.shape}, quad degree {self.quad.degree}, blending {self.blending}"
@@ -267,31 +265,31 @@ class HyTeGElementwiseOperator:
         # implementations for each kernel, generated at a later stage
         self.operator_methods: List[OperatorMethod] = []
 
-    def add_integral(
+    def _add_integral(
         self,
         name: str,
-        dim: int,
-        geometry: ElementGeometry,
+        volume_geometry: ElementGeometry,
         integration_domain: MacroIntegrationDomain,
         quad: Quadrature,
         blending: GeometryMap,
         form: Form,
         loop_strategy: LoopStrategy,
+        boundary_uid_name: str,
     ) -> None:
         """
-        Use this method to add integrals to the operator.
+        Use this method to add integrals to the operator if you know what you are doing. There are helper methods for
+        adding integrals that are a little simpler to use.
 
         :param name: some name for this integral (no spaces please)
-        :param dim: the dimensionality of the domain, i.e. the volume - it may be that this does not match the geometry
-                    of the element, e.g., when facet integrals are required, note that only one routine per dim is
-                    created
-        :param geometry: geometry that shall be integrated over
+        :param volume_geometry: the volume element (even for boundary integrals pass the element with dim == space_dim)
         :param integration_domain: where to integrate - see MacroIntegrationDomain
-        :param quad: the employed quadrature scheme - should match what has been used to integrate the weak form
+        :param quad: the employed quadrature scheme
         :param blending: the same geometry map that has been passed to the form
         :param form: the integrand
         :param loop_strategy: loop pattern over the refined macro-volume - must somehow be compatible with the
                               integration domain
+        :param boundary_uid_name: string that defines the name of the boundary UID if this is a boundary integral
+                                  the parameter is ignored for volume integrals
         """
 
         if "".join(name.split()) != name:
@@ -299,11 +297,8 @@ class HyTeGElementwiseOperator:
                 "Please give the integral an identifier without white space."
             )
 
-        if dim not in [2, 3]:
+        if volume_geometry.space_dimension not in [2, 3]:
             raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
-
-        if dim != geometry.dimensions:
-            raise HOGException("Only volume integrals supported as of now.")
 
         if integration_domain == MacroIntegrationDomain.VOLUME and not (
             isinstance(loop_strategy, SAWTOOTH) or isinstance(loop_strategy, CUBES)
@@ -345,13 +340,13 @@ class HyTeGElementwiseOperator:
                                 mat[row, col], self.symbolizer, blending
                             )
 
-        if dim not in self.integration_infos:
-            self.integration_infos[dim] = []
+        if volume_geometry.space_dimension not in self.integration_infos:
+            self.integration_infos[volume_geometry.space_dimension] = []
 
-        self.integration_infos[dim].append(
+        self.integration_infos[volume_geometry.space_dimension].append(
             IntegrationInfo(
                 name=name,
-                geometry=geometry,
+                geometry=volume_geometry,
                 integration_domain=integration_domain,
                 quad=quad,
                 blending=blending,
@@ -360,8 +355,86 @@ class HyTeGElementwiseOperator:
                 mat=mat,
                 docstring=form.docstring,
                 loop_strategy=loop_strategy,
+                boundary_uid_name=boundary_uid_name,
             )
         )
+
+    def add_volume_integral(
+        self,
+        name: str,
+        volume_geometry: ElementGeometry,
+        quad: Quadrature,
+        blending: GeometryMap,
+        form: Form,
+        loop_strategy: LoopStrategy,
+    ):
+        """
+        Adds a volume integral to the operator. Wrapper around _add_integral() for volume integrals.
+
+        :param name: some name for this integral (no spaces please)
+        :param volume_geometry: the volume element
+        :param quad: the employed quadrature scheme
+        :param blending: the same geometry map that has been passed to the form
+        :param form: the integrand
+        :param loop_strategy: loop pattern over the refined macro-volume - must somehow be compatible with the
+                              integration domain
+        """
+        if volume_geometry.dimensions != quad.geometry.dimensions:
+            raise HOGException(
+                "The quadrature geometry does not match the volume geometry."
+            )
+
+        self._add_integral(
+            name,
+            volume_geometry,
+            MacroIntegrationDomain.VOLUME,
+            quad,
+            blending,
+            form,
+            loop_strategy,
+            "",
+        )
+
+    def add_boundary_integral(
+        self,
+        name: str,
+        volume_geometry: ElementGeometry,
+        quad: Quadrature,
+        blending: GeometryMap,
+        form: Form,
+    ):
+        """
+        Adds a boundary integral to the operator. Wrapper around _add_integral() for boundary integrals.
+
+        :param name: some name for this integral (no spaces please)
+        :param volume_geometry: the volume element (not the geometry of the boundary, also no embedded elements, just
+                                the volume element geometry)
+        :param quad: the employed quadrature scheme - this must use the embedded geometry (e.g., for boundary integrals
+                     in 2D, this should use a LineElement(space_dimension=2))
+        :param blending: the same map that has been passed to the form
+        :param form: the integrand
+        """
+        if volume_geometry not in [TriangleElement(), TetrahedronElement()]:
+            raise HOGException(
+                "Boundary integrals only implemented for triangle and tetrahedral elements."
+            )
+
+        if volume_geometry.dimensions - 1 != quad.geometry.dimensions:
+            raise HOGException(
+                "The quadrature geometry does not match the boundary geometry."
+            )
+
+        for facet_id in range(volume_geometry.num_vertices):
+            self._add_integral(
+                name + f"_facet_id_{facet_id}",
+                volume_geometry,
+                MacroIntegrationDomain.DOMAIN_BOUNDARY,
+                quad,
+                blending,
+                form,
+                BOUNDARY(facet_id=facet_id),
+                name + "_boundary_uid",
+            )
 
     def coefficients(self) -> List[FunctionSpaceImpl]:
         """Returns all coefficients sorted by name.
@@ -384,11 +457,10 @@ class HyTeGElementwiseOperator:
         """
         Invokes the code generation process, writing the full operator C++ code to file.
 
-        :param dir_path:      directory where to write the files - the file names are built automatically
-        :param loop_strategy: iteration pattern
-        :param header_only:   if True, the entire class (incl. implementation) is written into a single file
-        :clang_format_binary: path and/or name of binary for clang-format, defaults to None, which turns
-                              off formatting
+        :param dir_path:            directory where to write the files - the file names are built automatically
+        :param class_files:         determines whether header and or impl files are generated
+        :param clang_format_binary: path and/or name of binary for clang-format, defaults to None, which turns
+                                    off formatting
         """
 
         # Asking the optimizer if optimizations are valid.
@@ -510,6 +582,15 @@ class HyTeGElementwiseOperator:
                 boundary_condition_vars.append(
                     CppVariable(name="boundaryCondition", type="BoundaryCondition")
                 )
+
+            for ii in integration_infos:
+                if ii.boundary_uid_name not in [
+                    cpp_var.name for cpp_var in boundary_condition_vars
+                ]:
+                    boundary_condition_vars.append(
+                        CppVariable(name=ii.boundary_uid_name, type="BoundaryUID")
+                    )
+
         boundary_condition_vars_members = [
             CppVariable(name=bcv.name + "_", type=bcv.type)
             for bcv in boundary_condition_vars
@@ -862,11 +943,11 @@ class HyTeGElementwiseOperator:
         #
         # More details on boundary handling below.
 
-        if integration_info.integration_domain in [
-            MacroIntegrationDomain.DOMAIN_BOUNDARY_DIRICHLET,
-            MacroIntegrationDomain.DOMAIN_BOUNDARY_NEUMANN,
-            MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,
-        ] and isinstance(integration_info.loop_strategy, BOUNDARY):
+        if (
+            integration_info.integration_domain
+            == MacroIntegrationDomain.DOMAIN_BOUNDARY
+            and isinstance(integration_info.loop_strategy, BOUNDARY)
+        ):
             mat = mat.subs(
                 self.symbolizer.ref_coords_as_list(geometry.dimensions)[-1], 0
             )
@@ -1012,11 +1093,11 @@ class HyTeGElementwiseOperator:
             element_vertex_order = list(range(geometry.num_vertices))
 
             # Shuffling vertices if a boundary integral is requested.
-            if integration_info.integration_domain in [
-                MacroIntegrationDomain.DOMAIN_BOUNDARY_DIRICHLET,
-                MacroIntegrationDomain.DOMAIN_BOUNDARY_NEUMANN,
-                MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP,
-            ] and isinstance(integration_info.loop_strategy, BOUNDARY):
+            if (
+                integration_info.integration_domain
+                == MacroIntegrationDomain.DOMAIN_BOUNDARY
+                and isinstance(integration_info.loop_strategy, BOUNDARY)
+            ):
                 element_vertex_order = shuffle_order_for_element_micro_vertices(
                     volume_geometry=geometry,
                     element_type=element_type,
@@ -1440,13 +1521,10 @@ class HyTeGElementwiseOperator:
                     pre_call_code = ""
                     post_call_code = ""
 
-                    dof_types = {
-                        MacroIntegrationDomain.DOMAIN_BOUNDARY_DIRICHLET: "DirichletBoundary",
-                        MacroIntegrationDomain.DOMAIN_BOUNDARY_NEUMANN: "NeumannBoundary",
-                        MacroIntegrationDomain.DOMAIN_BOUNDARY_FREESLIP: "FreeslipBoundary",
-                    }
-
-                    if integration_info.integration_domain in dof_types:
+                    if (
+                        integration_info.integration_domain
+                        == MacroIntegrationDomain.DOMAIN_BOUNDARY
+                    ):
 
                         if not isinstance(integration_info.loop_strategy, BOUNDARY):
                             raise HOGException(
@@ -1461,13 +1539,9 @@ class HyTeGElementwiseOperator:
                             f"[{integration_info.loop_strategy.facet_id}] )"
                         )
 
-                        # Note: In the future we may want to use BoundaryUIDs here:
-                        #       "if ( boundaryCondition_.getBoundaryUIDFromMeshFlag(
-                        #               {macro_type[dim]}.getMeshBoundaryFlag() ) == {boundaryUID}
-                        #           )"
                         pre_call_code = (
-                            f"if ( testFlag( boundaryCondition_.getBoundaryType( {neighbor_facet}->getMeshBoundaryFlag() ), "
-                            f"{dof_types[integration_info.integration_domain]} & flag ) ) {{"
+                            f"if ( boundaryCondition_.getBoundaryUIDFromMeshFlag( "
+                            f"{neighbor_facet}->getMeshBoundaryFlag() ) == {integration_info.boundary_uid_name}_ ) {{"
                         )
                         post_call_code = "}"
 
