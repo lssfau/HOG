@@ -649,9 +649,12 @@ class HyTeGElementwiseOperator:
                     boundary_condition_vars.append(bc_var)
 
             for ii in integration_infos:
-                bcuid_var = CppVariable(name=ii.boundary_uid_name, type="BoundaryUID")
-                if bcuid_var not in boundary_condition_vars:
-                    boundary_condition_vars.append(bcuid_var)
+                if ii.integration_domain == MacroIntegrationDomain.DOMAIN_BOUNDARY:
+                    bcuid_var = CppVariable(
+                        name=ii.boundary_uid_name, type="BoundaryUID"
+                    )
+                    if bcuid_var not in boundary_condition_vars:
+                        boundary_condition_vars.append(bcuid_var)
 
         boundary_condition_vars_members = [
             CppVariable(name=bcv.name + "_", type=bcv.type)
