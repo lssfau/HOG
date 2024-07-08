@@ -1131,7 +1131,9 @@ class HyTeGElementwiseOperator:
 
         # Deciding on which element types we want to iterate over.
         # We skip certain element types for macro-volume boundary integrals.
-        element_types = all_element_types(geometry.dimensions)
+        element_types: List[Union[FaceType, CellType]] = all_element_types(
+            geometry.dimensions
+        )
         if isinstance(integration_info.loop_strategy, BOUNDARY):
             element_types = list(integration_info.loop_strategy.element_loops.keys())
 

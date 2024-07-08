@@ -334,7 +334,7 @@ class IndexingInfo:
         )
 
 
-def all_element_types(dimensions: int) -> Union[List[FaceType], List[CellType]]:
+def all_element_types(dimensions: int) -> List[Union[FaceType, CellType]]:
     if dimensions == 2:
         return [FaceType.GRAY, FaceType.BLUE]
     if dimensions == 3:
