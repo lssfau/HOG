@@ -53,7 +53,7 @@ class LineElement(ElementGeometry):
         super().__init__(1, 2, space_dimension=space_dimension)
 
     def __str__(self):
-        return f"line, dim: 1, vertices: 2"
+        return f"line, dim: 1, vertices: 2, spacedim: {self.space_dimension}"
 
     def __repr__(self):
         return str(self)
@@ -64,7 +64,7 @@ class TriangleElement(ElementGeometry):
         super().__init__(2, 3, space_dimension=space_dimension)
 
     def __str__(self):
-        return f"triangle, dim: 2, vertices: 3"
+        return f"triangle, dim: 2, vertices: 3, spacedim: {self.space_dimension}"
 
     def __repr__(self):
         return str(self)
@@ -75,7 +75,7 @@ class TetrahedronElement(ElementGeometry):
         super().__init__(3, 4, space_dimension=space_dimension)
 
     def __str__(self):
-        return f"tetrahedron, dim: 3, vertices: 4"
+        return f"tetrahedron, dim: 3, vertices: 4, spacedim: {self.space_dimension}"
 
     def __repr__(self):
         return str(self)

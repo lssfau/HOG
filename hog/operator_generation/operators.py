@@ -44,7 +44,7 @@ from hog.hyteg_code_generation import (
     PRAGMA_ONCE,
     GCC_WARNING_WORKAROUND,
 )
-from hog.logger import TimedLogger, get_logger
+from hog.logger import TimedLogger
 from hog.operator_generation.function_space_impls import FunctionSpaceImpl
 from hog.operator_generation.pystencils_extensions import create_generic_fields
 
@@ -78,7 +78,6 @@ import hog.cse
 from hog.dof_symbol import DoFSymbol
 from hog.element_geometry import (
     ElementGeometry,
-    LineElement,
     TriangleElement,
     TetrahedronElement,
 )
@@ -90,11 +89,14 @@ from hog.operator_generation.indexing import (
     FaceType,
     CellType,
 )
-from hog.operator_generation.kernel_types import KernelWrapperType, KernelType, Assemble
-from hog.operator_generation.loop_strategies import LoopStrategy, SAWTOOTH, CUBES
-from hog.operator_generation.loop_strategies import LoopStrategy
+from hog.operator_generation.kernel_types import KernelWrapperType
 from hog.operator_generation.kernel_types import Assemble, KernelType
-from hog.operator_generation.loop_strategies import LoopStrategy, SAWTOOTH, BOUNDARY
+from hog.operator_generation.loop_strategies import (
+    LoopStrategy,
+    SAWTOOTH,
+    BOUNDARY,
+    CUBES,
+)
 from hog.operator_generation.optimizer import Optimizer, Opts
 from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
@@ -135,7 +137,7 @@ class MacroIntegrationDomain(Enum):
     #                                                // and dst func might have different BCs!
     #                                     freeslipBC // this is the BCUID that will be used for the boundary integral
     #                                                // if there are more boundary integrals there are more UIDs in the
-    #                                                // constructor (this BCUID is liked to 'ds' above)
+    #                                                // constructor (this BCUID is linked to 'ds' above)
     #                                     );
     #
 
@@ -192,7 +194,7 @@ class CppClassFiles(Enum):
     HEADER_IMPL_AND_VARIANTS = auto()
 
 
-def shuffle_order_for_element_micro_vertices(
+def micro_vertex_permutation_for_facet(
     volume_geometry: ElementGeometry,
     element_type: Union[FaceType, CellType],
     facet_id: int,
@@ -485,6 +487,15 @@ class HyTeGElementwiseOperator:
             raise HOGException(
                 "The quadrature geometry does not match the boundary geometry."
             )
+
+        # Since we will only integrate over the reference facet that lies on the x-line (2D) or xy-plane (3D) we need to
+        # set the last reference coordinate to zero since it will otherwise appear as a free, uninitialized variable.
+        #
+        # This has to be repeated later before the qudrature is applied in case we are working with symbols.
+        #
+        form.integrand = form.integrand.subs(
+            self.symbolizer.ref_coords_as_list(volume_geometry.dimensions)[-1], 0
+        )
 
         for facet_id in range(volume_geometry.num_vertices):
             self._add_integral(
@@ -1009,24 +1020,6 @@ class HyTeGElementwiseOperator:
         optimizer = Optimizer(integration_info.optimizations)
         optimizer.check_opts_validity()
 
-        # Already at this point we have to handle boundary integrals.
-        #
-        # Since we will only integrate over the reference facet that lies on the x-line (2D) or xy-plane (3D) we need to
-        # set the last reference coordinate to zero since it will otherwise appear as a free, uninitialized variable.
-        #
-        # This has to be repeated later before the qudrature is applied in case we are working with symbols.
-        #
-        # More details on boundary handling below.
-
-        if (
-            integration_info.integration_domain
-            == MacroIntegrationDomain.DOMAIN_BOUNDARY
-            and isinstance(integration_info.loop_strategy, BOUNDARY)
-        ):
-            mat = mat.subs(
-                self.symbolizer.ref_coords_as_list(geometry.dimensions)[-1], 0
-            )
-
         kernel_config = CreateKernelConfig(
             default_number_float=self._type_descriptor.pystencils_type,
             data_type=self._type_descriptor.pystencils_type,
@@ -1172,7 +1165,7 @@ class HyTeGElementwiseOperator:
                 == MacroIntegrationDomain.DOMAIN_BOUNDARY
                 and isinstance(integration_info.loop_strategy, BOUNDARY)
             ):
-                element_vertex_order = shuffle_order_for_element_micro_vertices(
+                element_vertex_order = micro_vertex_permutation_for_facet(
                     volume_geometry=geometry,
                     element_type=element_type,
                     facet_id=integration_info.loop_strategy.facet_id,
