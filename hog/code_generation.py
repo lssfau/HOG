@@ -160,9 +160,9 @@ def replace_multi_assignments(
         # Actually filling the dict.
         for ma in multi_assignments:
             replacement_symbol = replacement_symbols[ma.output_arg()]
-            multi_assignments_replacement_symbols[
-                ma.unique_identifier
-            ] = replacement_symbol
+            multi_assignments_replacement_symbols[ma.unique_identifier] = (
+                replacement_symbol
+            )
 
     if multi_assignments_replacement_symbols:
         with TimedLogger(
@@ -238,9 +238,15 @@ def jacobi_matrix_assignments(
 
     assignments = []
 
-    jac_aff_symbol = symbolizer.jac_ref_to_affine(geometry.dimensions)
-    jac_aff_inv_symbol = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
-    jac_aff_det_symbol = symbolizer.abs_det_jac_ref_to_affine()
+    # If the reference space dimension (geometry.dimension) is not equal to the space dimension
+    # the Jacobian of the affine map is not square. Processing its inverse and determinant is
+    # thus not meaningful.
+    is_affine_jac_square = geometry.dimensions == geometry.space_dimension
+
+    jac_aff_symbol = symbolizer.jac_ref_to_affine(geometry)
+    if is_affine_jac_square:
+        jac_aff_inv_symbol = symbolizer.jac_ref_to_affine_inv(geometry)
+        jac_aff_det_symbol = symbolizer.abs_det_jac_ref_to_affine()
 
     free_symbols = element_matrix.free_symbols | {
         free_symbol
@@ -250,27 +256,28 @@ def jacobi_matrix_assignments(
     }
 
     # Steps 1 and 2.
-    jac_affine_inv_in_expr = set(jac_aff_inv_symbol).intersection(free_symbols)
-    abs_det_jac_affine_in_expr = jac_aff_det_symbol in free_symbols
+    if is_affine_jac_square:
+        jac_affine_inv_in_expr = set(jac_aff_inv_symbol).intersection(free_symbols)
+        abs_det_jac_affine_in_expr = jac_aff_det_symbol in free_symbols
 
-    # Just an early exit. Not strictly required, but might accelerate this process in some cases.
-    if jac_affine_inv_in_expr:
-        jac_aff_inv_expr = jac_aff_symbol.inv()
-        for s_ij, e_ij in zip(jac_aff_inv_symbol, jac_aff_inv_expr):
-            if s_ij in jac_affine_inv_in_expr:
-                assignments.append(SympyAssignment(s_ij, e_ij))
+        if jac_affine_inv_in_expr:
+            jac_aff_inv_expr = jac_aff_symbol.inv()
+            for s_ij, e_ij in zip(jac_aff_inv_symbol, jac_aff_inv_expr):
+                if s_ij in jac_affine_inv_in_expr:
+                    assignments.append(SympyAssignment(s_ij, e_ij))
 
-    if abs_det_jac_affine_in_expr:
-        assignments.append(
-            SympyAssignment(jac_aff_det_symbol, sp.Abs(jac_aff_symbol.det()))
-        )
+        if abs_det_jac_affine_in_expr:
+            assignments.append(
+                SympyAssignment(jac_aff_det_symbol, sp.Abs(jac_aff_symbol.det()))
+            )
 
-    # Collecting all expressions to parse for step 3.
-    free_symbols |= {free_symbol for a in assignments for free_symbol in a.rhs.atoms()}
+        # Collecting all expressions to parse for step 3.
+        free_symbols |= {
+            free_symbol for a in assignments for free_symbol in a.rhs.atoms()
+        }
 
     jac_affine_in_expr = set(jac_aff_symbol).intersection(free_symbols)
 
-    # Just an early exit. Not strictly required, but might accelerate this process in some cases.
     if jac_affine_in_expr:
         jac_aff_expr = jac_ref_to_affine(geometry, symbolizer, affine_points)
         for s_ij, e_ij in zip(jac_aff_symbol, jac_aff_expr):
@@ -335,7 +342,6 @@ def blending_jacobi_matrix_assignments(
 
         jac_blending_in_expr = set(jac_blend_symbol).intersection(free_symbols)
 
-        # Just an early exit. Not strictly required, but might accelerate this process in some cases.
         if jac_blending_in_expr:
             if isinstance(blending, ExternalMap):
                 HOGException("Not implemented or cannot be?")
@@ -344,7 +350,7 @@ def blending_jacobi_matrix_assignments(
             # Collecting all expressions to parse for step 3.
             spat_coord_subs = {}
             for idx, symbol in enumerate(
-                symbolizer.ref_coords_as_list(geometry.dimensions)
+                symbolizer.ref_coords_as_list(quad_info.geometry.dimensions)
             ):
                 spat_coord_subs[symbol] = point[idx]
             jac_blend_expr_sub = jac_blend_expr.subs(spat_coord_subs)

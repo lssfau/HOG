@@ -18,6 +18,7 @@ from typing import List
 import sympy as sp
 import string
 from hog.exception import HOGException
+from hog.element_geometry import ElementGeometry
 
 
 class Symbolizer:
@@ -167,25 +168,27 @@ class Symbolizer:
     def tmp_prefix(self) -> str:
         return self._tmp_prefix
 
-    def jac_ref_to_affine(self, dimensions: int) -> sp.Matrix:
+    def jac_ref_to_affine(self, geometry: ElementGeometry) -> sp.Matrix:
         return sp.Matrix(
             [
                 [
                     sp.Symbol(f"{self._symbol_jac_affine}_{i}_{j}")
-                    for j in range(dimensions)
+                    for j in range(geometry.dimensions)
                 ]
-                for i in range(dimensions)
+                for i in range(geometry.space_dimension)
             ]
         )
 
-    def jac_ref_to_affine_inv(self, dimensions: int) -> sp.Matrix:
+    def jac_ref_to_affine_inv(self, geometry: ElementGeometry) -> sp.Matrix:
+        if geometry.dimensions != geometry.space_dimension:
+            raise HOGException("Cannot invert Jacobian for embedded elements.")
         return sp.Matrix(
             [
                 [
                     sp.Symbol(f"{self._symbol_jac_affine_inv}_{i}_{j}")
-                    for j in range(dimensions)
+                    for j in range(geometry.dimensions)
                 ]
-                for i in range(dimensions)
+                for i in range(geometry.dimensions)
             ]
         )
 
@@ -216,7 +219,7 @@ class Symbolizer:
 
     def abs_det_jac_affine_to_blending(self, q_pt: str = "") -> sp.Symbol:
         return sp.Symbol(f"{self._symbol_abs_det_jac_blending}{q_pt}")
-    
+
     def hessian_blending_map(self, dimensions: int, q_pt: str = "") -> List[sp.Matrix]:
         return [
             sp.Matrix(
@@ -227,7 +230,8 @@ class Symbolizer:
                     ]
                     for i in range(dimensions)
                 ]
-            ) for k in range(dimensions)
+            )
+            for k in range(dimensions)
         ]
 
     def blending_parameter_symbols(self, num_symbols: int) -> List[sp.Symbol]:

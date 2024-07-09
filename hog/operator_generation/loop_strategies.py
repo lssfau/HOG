@@ -16,7 +16,7 @@
 
 from abc import ABC, abstractmethod
 import re
-from typing import Type, Union
+from typing import Type, Union, Dict
 
 from pystencils import TypedSymbol
 from pystencils.astnodes import (
@@ -24,6 +24,7 @@ from pystencils.astnodes import (
     Conditional,
     ResolvedFieldAccess,
     SourceCodeComment,
+    LoopOverCoordinate,
 )
 from pystencils.sympyextensions import fast_subs
 from pystencils.typing import FieldPointerSymbol
@@ -33,6 +34,7 @@ import sympy as sp
 from hog.exception import HOGException
 from hog.operator_generation.pystencils_extensions import (
     loop_over_simplex,
+    loop_over_simplex_facet,
     get_innermost_loop,
     create_field_access,
     create_micro_element_loops,
@@ -96,12 +98,14 @@ class LoopStrategy(ABC):
 
 
 class CUBES(LoopStrategy):
-    """For the "cubes" loop strategy, we want to update all micro-elements in the current "cube", i.e. loop over all
-    # element types for the current micro-element index before incrementing.
-    # This way we only have one loop, but need to insert conditionals that take care of those element types that
-    # are not existing at the loop boundary.
-    # The hope is that this strategy induces better cache locality, and that the conditionals can be automatically
-    # transformed by the loop cutting features of pystencils."""
+    """
+    For the "cubes" loop strategy, we want to update all micro-elements in the current "cube", i.e. loop over all
+    element types for the current micro-element index before incrementing.
+    This way we only have one loop, but need to insert conditionals that take care of those element types that
+    are not existing at the loop boundary.
+    The hope is that this strategy induces better cache locality, and that the conditionals can be automatically
+    transformed by the loop cutting features of pystencils.
+    """
 
     def __init__(self):
         super(CUBES, self).__init__()
@@ -310,3 +314,120 @@ class FUSEDROWS(LoopStrategy):
 
     def __str__(self):
         return "FUSEDROWS"
+
+
+class BOUNDARY(LoopStrategy):
+    """
+    Special loop strategy that only loops over elements of a specified boundary.
+
+    Concretely, this means that it iterates over all elements with facets (edges in 2D, faces in 3D) that fully overlap
+    with the specified boundary (one of 3 macro-edges in 2D, one of 4 macro-faces in 3D).
+
+    To loop over multiple boundaries, just construct multiple loops.
+
+    The loop is constructed using conditionals, see the CUBES loop strategy.
+    """
+
+    def __init__(self, facet_id: int):
+        """
+        Constructs and initializes the BOUNDARY loop strategy.
+
+        :param facet_id: in [0, 2] for 2D, in [0, 3] for 3D
+        """
+        super(BOUNDARY, self).__init__()
+        self.facet_id = facet_id
+        self.element_loops: Dict[Union[FaceType, CellType], LoopOverCoordinate] = dict()
+
+    def create_loop(self, dim, element_index, micro_edges_per_macro_edge):
+
+        if dim == 2:
+            if self.facet_id not in [0, 1, 2]:
+                raise HOGException("Invalid facet ID for BOUNDARY loop strategy in 2D.")
+
+            self.element_loops = {
+                FaceType.GRAY: loop_over_simplex_facet(
+                    dim, micro_edges_per_macro_edge, self.facet_id
+                ),
+            }
+
+        elif dim == 3:
+            if self.facet_id not in [0, 1, 2, 3]:
+                raise HOGException("Invalid facet ID for BOUNDARY loop strategy in 3D.")
+
+            second_cell_type = {
+                0: CellType.BLUE_UP,
+                1: CellType.GREEN_UP,
+                2: CellType.BLUE_DOWN,
+                3: CellType.GREEN_DOWN,
+            }
+
+            self.element_loops = {
+                CellType.WHITE_UP: loop_over_simplex_facet(
+                    dim, micro_edges_per_macro_edge, self.facet_id
+                ),
+                second_cell_type[self.facet_id]: loop_over_simplex_facet(
+                    dim, micro_edges_per_macro_edge - 1, self.facet_id
+                ),
+            }
+
+        return Block(
+            [
+                Block([SourceCodeComment(str(element_type)), loop])
+                for element_type, loop in self.element_loops.items()
+            ]
+        )
+
+    def add_body_to_loop(self, loop, body, element_type):
+        """Register a given loop body to innermost loop of the outer loop corresponding to element_type"""
+        if element_type not in self.element_loops:
+            return
+        innermost_loop = get_innermost_loop(self.element_loops[element_type])
+        body = Block(body)
+        innermost_loop[0].body = body
+        body.parent = innermost_loop[0]
+
+    def get_inner_bodies(self, loop_body):
+        return [
+            inner_loop.body
+            for inner_loop in get_innermost_loop(loop_body, return_all_inner=True)
+        ]
+
+    def add_preloop_for_loop(self, loops, preloop_stmts, element_type):
+        """add given list of statements directly in front of the loop corresponding to element_type."""
+
+        if element_type not in self.element_loops:
+            return loops
+
+        preloop_stmts_lhs_subs = {
+            stmt.lhs: get_element_replacement(stmt.lhs, element_type)
+            for stmt in preloop_stmts
+        }
+
+        if not isinstance(loops, Block):
+            loops = Block(loops)
+
+        blocks = loops.take_child_nodes()
+        new_blocks = []
+        for block in blocks:
+            idx_to_slice_at = -1
+            for idx, stmt in enumerate(block.args):
+                if stmt == self.element_loops[element_type]:
+                    idx_to_slice_at = idx
+                    break
+
+            if idx_to_slice_at == -1:
+                new_blocks.append(block)
+            else:
+                new_stmts = (
+                    block.args[0:idx_to_slice_at]
+                    + preloop_stmts
+                    + block.args[idx_to_slice_at:]
+                )
+                new_block = Block(new_stmts)
+                new_block.fast_subs(preloop_stmts_lhs_subs)
+                new_blocks.append(new_block)
+
+        return new_blocks
+
+    def __str__(self):
+        return "BOUNDARY"

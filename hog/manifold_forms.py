@@ -17,8 +17,7 @@
 import logging
 import sympy as sp
 
-from hog.element_geometry import ElementGeometry
-from hog.element_geometry import EmbeddedTriangle
+from hog.element_geometry import ElementGeometry, TriangleElement
 from hog.exception import HOGException
 from hog.fem_helpers import (
     trafo_ref_to_affine,
@@ -65,8 +64,10 @@ Weak formulation
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
 
-    if not isinstance(geometry, EmbeddedTriangle):
-        raise HOGException("Laplace Beltrami only works for embedded triangles")
+    if not (isinstance(geometry, TriangleElement) and geometry.space_dimension == 3):
+        raise HOGException(
+            "Laplace Beltrami only works for triangles embedded in 3D space."
+        )
 
     with TimedLogger("assembling laplace beltrami matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
@@ -139,8 +140,10 @@ Weak formulation
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
 
-    if not isinstance(geometry, EmbeddedTriangle):
-        raise HOGException("Manifold forms only work for embedded triangles.")
+    if not (isinstance(geometry, TriangleElement) and geometry.space_dimension == 3):
+        raise HOGException(
+            "Laplace Beltrami only works for triangles embedded in 3D space."
+        )
 
     with TimedLogger("assembling laplace beltrami matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
@@ -210,8 +213,12 @@ Weak formulation
     with TimedLogger("assembling manifold vector mass matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        if not isinstance(geometry, EmbeddedTriangle):
-            raise HOGException("Manifold forms only work for embedded triangles.")
+        if not (
+            isinstance(geometry, TriangleElement) and geometry.space_dimension == 3
+        ):
+            raise HOGException(
+                "Laplace Beltrami only works for triangles embedded in 3D space."
+            )
 
         projection = face_projection(geometry, symbolizer, blending=blending)
 
@@ -281,8 +288,12 @@ Weak formulation
     with TimedLogger("assembling manifold normal penalty matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        if not isinstance(geometry, EmbeddedTriangle):
-            raise HOGException("Manifold forms only work for embedded triangles.")
+        if not (
+            isinstance(geometry, TriangleElement) and geometry.space_dimension == 3
+        ):
+            raise HOGException(
+                "Laplace Beltrami only works for triangles embedded in 3D space."
+            )
 
         normal = embedded_normal(geometry, symbolizer, blending)
 
@@ -351,8 +362,12 @@ Weak formulation
     with TimedLogger("assembling manifold div matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        if not isinstance(geometry, EmbeddedTriangle):
-            raise HOGException("Manifold forms only work for embedded triangles.")
+        if not (
+            isinstance(geometry, TriangleElement) and geometry.space_dimension == 3
+        ):
+            raise HOGException(
+                "Laplace Beltrami only works for triangles embedded in 3D space."
+            )
 
         jac_affine = jac_ref_to_affine(geometry, symbolizer)
 
@@ -425,8 +440,12 @@ Weak formulation
             f"WARNING: Manifold vector divergence does NOT compute derivative of matrix P yet. Generated form might not work as intended."
         )
 
-        if not isinstance(geometry, EmbeddedTriangle):
-            raise HOGException("Manifold forms only work for embedded triangles.")
+        if not (
+            isinstance(geometry, TriangleElement) and geometry.space_dimension == 3
+        ):
+            raise HOGException(
+                "Laplace Beltrami only works for triangles embedded in 3D space."
+            )
 
         projection_mat = face_projection(geometry, symbolizer, blending=blending)
 
@@ -509,8 +528,12 @@ Weak formulation
     with TimedLogger("assembling manifold epsilon matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        if not isinstance(geometry, EmbeddedTriangle):
-            raise HOGException("Manifold forms only work for embedded triangles.")
+        if not (
+            isinstance(geometry, TriangleElement) and geometry.space_dimension == 3
+        ):
+            raise HOGException(
+                "Laplace Beltrami only works for triangles embedded in 3D space."
+            )
 
         projection_mat = face_projection(geometry, symbolizer, blending=blending)
 
@@ -601,8 +624,12 @@ Weak formulation
     with TimedLogger("assembling vector laplace beltrami matrix", level=logging.DEBUG):
         tabulation = Tabulation(symbolizer)
 
-        if not isinstance(geometry, EmbeddedTriangle):
-            raise HOGException("Manifold forms only work for embedded triangles.")
+        if not (
+            isinstance(geometry, TriangleElement) and geometry.space_dimension == 3
+        ):
+            raise HOGException(
+                "Laplace Beltrami only works for triangles embedded in 3D space."
+            )
 
         projection_mat = face_projection(geometry, symbolizer, blending=blending)
 

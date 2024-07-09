@@ -14,10 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import auto, Enum
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 import os
 from textwrap import indent
 
@@ -76,15 +76,27 @@ from hog.blending import GeometryMap
 import hog.code_generation
 import hog.cse
 from hog.dof_symbol import DoFSymbol
-from hog.element_geometry import ElementGeometry
+from hog.element_geometry import (
+    ElementGeometry,
+    TriangleElement,
+    TetrahedronElement,
+)
 from hog.exception import HOGException
 from hog.operator_generation.indexing import (
     all_element_types,
     element_vertex_coordinates,
     IndexingInfo,
+    FaceType,
+    CellType,
 )
-from hog.operator_generation.kernel_types import KernelWrapperType, KernelType, Assemble
-from hog.operator_generation.loop_strategies import LoopStrategy, SAWTOOTH, CUBES
+from hog.operator_generation.kernel_types import KernelWrapperType
+from hog.operator_generation.kernel_types import Assemble, KernelType
+from hog.operator_generation.loop_strategies import (
+    LoopStrategy,
+    SAWTOOTH,
+    BOUNDARY,
+    CUBES,
+)
 from hog.operator_generation.optimizer import Optimizer, Opts
 from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
@@ -94,8 +106,42 @@ from hog.operator_generation.types import HOGType
 class MacroIntegrationDomain(Enum):
     """Enum type to specify where to integrate."""
 
-    # Integration over the volume element
+    # Integration over the volume element.
     VOLUME = "Volume"
+
+    # Integration over the boundary of the domain (for forms like ∫ ... d(∂Ω)).
+    #
+    # Note: Having one flag for all boundaries of one "type" is not very flexible.
+    #       At some point there should be additional logic that uses HyTeG's BoundaryUIDs.
+    #       To avoid ambiguity, the operator should (at least if there are boundary integrals) have a
+    #       hyteg::BoundaryCondition constructor parameter, and for each boundary integral one hyteg::BoundaryUID
+    #       parameter. Then the BC is tested by comparing those for each facet.
+    #
+    #       Like so (application pseudocode in HyTeG):
+    #
+    #         // generating an operator with one volume and one free-slip boundary integral
+    #         //   ∫ F dx + ∫ G ds
+    #         // where ds corresponds to integrating over parts of the boundary that are marked with a specific
+    #         // BoundaryUID
+    #
+    #         // see HyTeG's documentation and/or BC tutorial
+    #         BoundaryCondition someBC( ... );
+    #
+    #         // setting up the BCs
+    #         BoundaryUID freeslipBC = someBC.createFreeslipBC( ... );
+    #
+    #         // the generated operator
+    #         MyFancyFreeSlipOperator op( storage,
+    #                                     ...,
+    #                                     someBC,    // this is what will be tested against - no ambiguity because src
+    #                                                // and dst func might have different BCs!
+    #                                     freeslipBC // this is the BCUID that will be used for the boundary integral
+    #                                                // if there are more boundary integrals there are more UIDs in the
+    #                                                // constructor (this BCUID is linked to 'ds' above)
+    #                                     );
+    #
+
+    DOMAIN_BOUNDARY = "Domain boundary"
 
 
 @dataclass
@@ -106,6 +152,7 @@ class IntegrationInfo:
     integration_domain: (
         MacroIntegrationDomain  # entity of geometry to integrate over, e.g. facet
     )
+
     quad: Quadrature  # quadrature over integration domain of geometry, e.g. triangle
     blending: GeometryMap
 
@@ -115,8 +162,11 @@ class IntegrationInfo:
 
     loop_strategy: LoopStrategy
 
+    optimizations: Set[Opts]
+
     name: str = "unknown_integral"
     docstring: str = ""
+    boundary_uid_name: str = ""
 
     def _str_(self):
         return f"Integration Info: {self.name}, {self.geometry}, {self.integration_domain}, mat shape {self.mat.shape}, quad degree {self.quad.degree}, blending {self.blending}"
@@ -144,6 +194,66 @@ class CppClassFiles(Enum):
     HEADER_IMPL_AND_VARIANTS = auto()
 
 
+def micro_vertex_permutation_for_facet(
+    volume_geometry: ElementGeometry,
+    element_type: Union[FaceType, CellType],
+    facet_id: int,
+) -> List[int]:
+    """
+    Provides a re-ordering of the micro-vertices such that the facet of the micro-element that coincides with the
+    macro-facet (which is given by the facet_id parameter) is spanned by the first three returned vertex positions.
+
+    The reordering can then for instance be executed by
+
+    ```python
+        element_vertex_order = shuffle_order_for_element_micro_vertices( ... )
+
+        el_vertex_coordinates = [
+            el_vertex_coordinates[i] for i in element_vertex_order
+        ]
+    ```
+
+    """
+
+    if volume_geometry == TriangleElement():
+
+        if element_type == FaceType.BLUE:
+            return [0, 1, 2]
+
+        shuffle_order_gray = {
+            0: [0, 1, 2],
+            1: [0, 2, 1],
+            2: [1, 2, 0],
+        }
+
+        return shuffle_order_gray[facet_id]
+
+    elif volume_geometry == TetrahedronElement():
+
+        if element_type == CellType.WHITE_DOWN:
+            return [0, 1, 2, 3]
+
+        # All element types but WHITE_UP only overlap with a single macro-facet.
+        # It's a different element type for each facet. WHITE_DOWN is never at the boundary.
+        shuffle_order: Dict[Union[FaceType, CellType], Dict[int, List[int]]] = {
+            CellType.WHITE_UP: {
+                0: [0, 1, 2, 3],
+                1: [0, 1, 3, 2],
+                2: [0, 2, 3, 1],
+                3: [1, 2, 3, 0],
+            },
+            CellType.BLUE_UP: {0: [0, 1, 2, 3]},
+            CellType.GREEN_UP: {1: [0, 2, 3, 1]},
+            CellType.BLUE_DOWN: {2: [0, 1, 3, 2]},
+            CellType.GREEN_DOWN: {3: [1, 2, 3, 0]},
+        }
+
+        return shuffle_order[element_type][facet_id]
+
+    else:
+        raise HOGException("Not implemented.")
+
+
 class HyTeGElementwiseOperator:
     """
     This class handles the code generation of HyTeG-type 'elementwise' operators.
@@ -157,6 +267,8 @@ class HyTeGElementwiseOperator:
         "hyteg/edgedofspace/EdgeDoFMacroCell.hpp",
         "hyteg/primitivestorage/PrimitiveStorage.hpp",
         "hyteg/LikwidWrapper.hpp",
+        "hyteg/boundary/BoundaryConditions.hpp",
+        "hyteg/types/types.hpp",
     }
 
     VAR_NAME_MICRO_EDGES_PER_MACRO_EDGE = "micro_edges_per_macro_edge"
@@ -171,7 +283,6 @@ class HyTeGElementwiseOperator:
         name: str,
         symbolizer: Symbolizer,
         kernel_wrapper_types: List[KernelWrapperType],
-        opts: Set[Opts],
         type_descriptor: HOGType,
     ):
         self.name = name
@@ -181,9 +292,6 @@ class HyTeGElementwiseOperator:
         # Each IntegrationInfo object represents one integral of the weak formulation.
         self.integration_infos: Dict[int, List[IntegrationInfo]] = {}
 
-        self._optimizer = Optimizer(opts)
-        self._optimizer_no_vec = Optimizer(opts - {Opts.VECTORIZE, Opts.VECTORIZE512})
-
         # set the precision in which the operations are to be performed
         self._type_descriptor = type_descriptor
 
@@ -192,31 +300,33 @@ class HyTeGElementwiseOperator:
         # implementations for each kernel, generated at a later stage
         self.operator_methods: List[OperatorMethod] = []
 
-    def add_integral(
+    def _add_integral(
         self,
         name: str,
-        dim: int,
-        geometry: ElementGeometry,
+        volume_geometry: ElementGeometry,
         integration_domain: MacroIntegrationDomain,
         quad: Quadrature,
         blending: GeometryMap,
         form: Form,
         loop_strategy: LoopStrategy,
+        boundary_uid_name: str,
+        optimizations: Set[Opts],
     ) -> None:
         """
-        Use this method to add integrals to the operator.
+        Use this method to add integrals to the operator if you know what you are doing. There are helper methods for
+        adding integrals that are a little simpler to use.
 
         :param name: some name for this integral (no spaces please)
-        :param dim: the dimensionality of the domain, i.e. the volume - it may be that this does not match the geometry
-                    of the element, e.g., when facet integrals are required, note that only one routine per dim is
-                    created
-        :param geometry: geometry that shall be integrated over
+        :param volume_geometry: the volume element (even for boundary integrals pass the element with dim == space_dim)
         :param integration_domain: where to integrate - see MacroIntegrationDomain
-        :param quad: the employed quadrature scheme - should match what has been used to integrate the weak form
+        :param quad: the employed quadrature scheme
         :param blending: the same geometry map that has been passed to the form
         :param form: the integrand
         :param loop_strategy: loop pattern over the refined macro-volume - must somehow be compatible with the
                               integration domain
+        :param boundary_uid_name: string that defines the name of the boundary UID if this is a boundary integral
+                                  the parameter is ignored for volume integrals
+        :param optimizations: optimizations that shall be applied to this integral
         """
 
         if "".join(name.split()) != name:
@@ -224,13 +334,15 @@ class HyTeGElementwiseOperator:
                 "Please give the integral an identifier without white space."
             )
 
-        if dim not in [2, 3]:
-            raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
+        if volume_geometry.space_dimension in self.integration_infos:
+            if name in [
+                ii.name
+                for ii in self.integration_infos[volume_geometry.space_dimension]
+            ]:
+                raise HOGException(f"Integral with name {name} already added!")
 
-        if integration_domain != MacroIntegrationDomain.VOLUME:
-            raise HOGException("Only volume integrals supported as of now.")
-        if dim != geometry.dimensions:
-            raise HOGException("Only volume integrals supported as of now.")
+        if volume_geometry.space_dimension not in [2, 3]:
+            raise HOGException("Only supporting 2D and 3D. Dim should be in [2, 3]")
 
         if integration_domain == MacroIntegrationDomain.VOLUME and not (
             isinstance(loop_strategy, SAWTOOTH) or isinstance(loop_strategy, CUBES)
@@ -241,14 +353,14 @@ class HyTeGElementwiseOperator:
         quad_loop = None
         mat = form.integrand
 
-        if self._optimizer[Opts.TABULATE]:
+        if Opts.TABULATE in optimizations:
             mat = form.tabulation.resolve_table_accesses(mat, self._type_descriptor)
             with TimedLogger(f"constructing tables", level=logging.DEBUG):
                 tables = form.tabulation.construct_tables(quad, self._type_descriptor)
         else:
             mat = form.tabulation.inline_tables(mat)
 
-        if self._optimizer[Opts.QUADLOOPS]:
+        if Opts.QUADLOOPS in optimizations:
             quad_loop = QuadLoop(
                 self.symbolizer,
                 quad,
@@ -272,13 +384,13 @@ class HyTeGElementwiseOperator:
                                 mat[row, col], self.symbolizer, blending
                             )
 
-        if dim not in self.integration_infos:
-            self.integration_infos[dim] = []
+        if volume_geometry.space_dimension not in self.integration_infos:
+            self.integration_infos[volume_geometry.space_dimension] = []
 
-        self.integration_infos[dim].append(
+        self.integration_infos[volume_geometry.space_dimension].append(
             IntegrationInfo(
                 name=name,
-                geometry=geometry,
+                geometry=volume_geometry,
                 integration_domain=integration_domain,
                 quad=quad,
                 blending=blending,
@@ -287,8 +399,116 @@ class HyTeGElementwiseOperator:
                 mat=mat,
                 docstring=form.docstring,
                 loop_strategy=loop_strategy,
+                boundary_uid_name=boundary_uid_name,
+                optimizations=optimizations,
             )
         )
+
+    def add_volume_integral(
+        self,
+        name: str,
+        volume_geometry: ElementGeometry,
+        quad: Quadrature,
+        blending: GeometryMap,
+        form: Form,
+        loop_strategy: LoopStrategy,
+        optimizations: Union[None, Set[Opts]] = None,
+    ) -> None:
+        """
+        Adds a volume integral to the operator. Wrapper around _add_integral() for volume integrals.
+
+        :param name: some name for this integral (no spaces please)
+        :param volume_geometry: the volume element
+        :param quad: the employed quadrature scheme
+        :param blending: the same geometry map that has been passed to the form
+        :param form: the integrand
+        :param loop_strategy: loop pattern over the refined macro-volume - must somehow be compatible with the
+                              integration domain
+        :param optimizations: optimization applied to this integral
+        """
+        if optimizations is None:
+            optimizations = set()
+
+        if volume_geometry.dimensions != quad.geometry.dimensions:
+            raise HOGException(
+                "The quadrature geometry does not match the volume geometry."
+            )
+
+        self._add_integral(
+            name,
+            volume_geometry,
+            MacroIntegrationDomain.VOLUME,
+            quad,
+            blending,
+            form,
+            loop_strategy,
+            "",
+            optimizations,
+        )
+
+    def add_boundary_integral(
+        self,
+        name: str,
+        volume_geometry: ElementGeometry,
+        quad: Quadrature,
+        blending: GeometryMap,
+        form: Form,
+        optimizations: Union[None, Set[Opts]] = None,
+    ) -> None:
+        """
+        Adds a boundary integral to the operator. Wrapper around _add_integral() for boundary integrals.
+
+        :param name: some name for this integral (no spaces please)
+        :param volume_geometry: the volume element (not the geometry of the boundary, also no embedded elements, just
+                                the volume element geometry)
+        :param quad: the employed quadrature scheme - this must use the embedded geometry (e.g., for boundary integrals
+                     in 2D, this should use a LineElement(space_dimension=2))
+        :param blending: the same map that has been passed to the form
+        :param form: the integrand
+        :param optimizations: optimization applied to this integral
+        """
+
+        if optimizations is None:
+            optimizations = set()
+
+        allowed_boundary_optimizations = {Opts.MOVECONSTANTS}
+        if optimizations - allowed_boundary_optimizations != set():
+            raise HOGException(
+                f"Only allowed (aka tested and working) optimizations for boundary integrals are "
+                f"{allowed_boundary_optimizations}."
+            )
+
+        if volume_geometry not in [TriangleElement(), TetrahedronElement()]:
+            raise HOGException(
+                "Boundary integrals only implemented for triangle and tetrahedral elements."
+            )
+
+        if volume_geometry.dimensions - 1 != quad.geometry.dimensions:
+            raise HOGException(
+                "The quadrature geometry does not match the boundary geometry."
+            )
+
+        # Since we will only integrate over the reference facet that lies on the x-line (2D) or xy-plane (3D) we need to
+        # set the last reference coordinate to zero since it will otherwise appear as a free, uninitialized variable.
+        #
+        # This has to be repeated later before the qudrature is applied in case we are working with symbols.
+        #
+        form.integrand = form.integrand.subs(
+            self.symbolizer.ref_coords_as_list(volume_geometry.dimensions)[-1], 0
+        )
+
+        for facet_id in range(volume_geometry.num_vertices):
+            self._add_integral(
+                name + f"_facet_id_{facet_id}",
+                volume_geometry,
+                MacroIntegrationDomain.DOMAIN_BOUNDARY,
+                quad,
+                blending,
+                form,
+                BOUNDARY(facet_id=facet_id),
+                name + "_boundary_uid",
+                optimizations,
+            )
 
     def coefficients(self) -> List[FunctionSpaceImpl]:
         """Returns all coefficients sorted by name.
@@ -296,8 +516,8 @@ class HyTeGElementwiseOperator:
         During generation coefficents are detected in the element matrix and
         stored in the `coeffs` field. Being a Python dictionary, iterating over
         it yields the coefficients in an arbitrary order. Whenever generating
-        code for all coefficents it is a good idea to access them in a well
-        defined order. Most importantly, the order of constructor arguments must
+        code for all coefficents it is a good idea to access them in a well-defined
+        order. Most importantly, the order of constructor arguments must
         be deterministic.
         """
         return sorted(self.coeffs.values(), key=lambda c: c.name)
@@ -311,17 +531,18 @@ class HyTeGElementwiseOperator:
         """
         Invokes the code generation process, writing the full operator C++ code to file.
 
-        :param dir_path:      directory where to write the files - the file names are built automatically
-        :param loop_strategy: iteration pattern
-        :param header_only:   if True, the entire class (incl. implementation) is written into a single file
-        :clang_format_binary: path and/or name of binary for clang-format, defaults to None, which turns
-                              off formatting
+        :param dir_path:            directory where to write the files - the file names are built automatically
+        :param class_files:         determines whether header and or impl files are generated
+        :param clang_format_binary: path and/or name of binary for clang-format, defaults to None, which turns
+                                    off formatting
         """
 
-        # Asking the optimizer if optimizations are valid.
-        self._optimizer.check_opts_validity()
-        # Generate each kernel type (apply, gemv, ...).
-        self.generate_kernels()
+        with TimedLogger(
+            f"Generating kernels for operator {self.name}", level=logging.INFO
+        ):
+
+            # Generate each kernel type (apply, gemv, ...).
+            self.generate_kernels()
 
         # Setting up the final C++ class.
         operator_cpp_class = CppClass(
@@ -427,6 +648,30 @@ class HyTeGElementwiseOperator:
                         )
                     )
 
+        # Let's now check whether we need ctor arguments and member variables for boundary integrals.
+        boundary_condition_vars = []
+        for integration_infos in self.integration_infos.values():
+            if not all(
+                ii.integration_domain == MacroIntegrationDomain.VOLUME
+                for ii in integration_infos
+            ):
+                bc_var = CppVariable(name="boundaryCondition", type="BoundaryCondition")
+                if bc_var not in boundary_condition_vars:
+                    boundary_condition_vars.append(bc_var)
+
+            for ii in integration_infos:
+                if ii.integration_domain == MacroIntegrationDomain.DOMAIN_BOUNDARY:
+                    bcuid_var = CppVariable(
+                        name=ii.boundary_uid_name, type="BoundaryUID"
+                    )
+                    if bcuid_var not in boundary_condition_vars:
+                        boundary_condition_vars.append(bcuid_var)
+
+        boundary_condition_vars_members = [
+            CppVariable(name=bcv.name + "_", type=bcv.type)
+            for bcv in boundary_condition_vars
+        ]
+
         # Finally we know what fields we need and can build the constructors, member variables, and includes.
 
         # Constructors ...
@@ -450,9 +695,16 @@ class HyTeGElementwiseOperator:
                         is_reference=True,
                     )
                     for coeff in self.coefficients()
-                ],
+                ]
+                + boundary_condition_vars,
                 initializer_list=["Operator( storage, minLevel, maxLevel )"]
-                + [f"{coeff.name}( _{coeff.name} )" for coeff in self.coefficients()],
+                + [f"{coeff.name}( _{coeff.name} )" for coeff in self.coefficients()]
+                + [
+                    f"{bcv[0].name}( {bcv[1].name} )"
+                    for bcv in zip(
+                        boundary_condition_vars_members, boundary_condition_vars
+                    )
+                ],
             )
         )
 
@@ -468,7 +720,11 @@ class HyTeGElementwiseOperator:
                 )
             )
 
-        os.makedirs(dir_path, exist_ok=True)  # Create path if it doesn't exist
+        for bcv in boundary_condition_vars_members:
+            operator_cpp_class.add(CppMemberVariable(bcv, visibility="private"))
+
+        # Create path if it doesn't exist
+        os.makedirs(dir_path, exist_ok=True)
 
         output_path_header = os.path.join(dir_path, f"{self.name}.hpp")
         output_path_impl = os.path.join(dir_path, f"{self.name}.cpp")
@@ -625,7 +881,10 @@ class HyTeGElementwiseOperator:
         # This list is only filled if we want to vectorize.
         loop_counter_custom_code_nodes = []
 
-        if not (self._optimizer[Opts.VECTORIZE] or self._optimizer[Opts.VECTORIZE512]):
+        if (
+            Opts.VECTORIZE not in integration_info.optimizations
+            and Opts.VECTORIZE512 not in integration_info.optimizations
+        ):
             # The Jacobians are loop-counter dependent, and we do not care about vectorization.
             # So we just use the indices. pystencils will handle casting them to float.
             el_matrix_element_index = element_index.copy()
@@ -689,7 +948,9 @@ class HyTeGElementwiseOperator:
             ]
 
             # Let's fill the array.
-            float_ctr_array_size = 8 if self._optimizer[Opts.VECTORIZE512] else 4
+            float_ctr_array_size = (
+                8 if Opts.VECTORIZE512 in integration_info.optimizations else 4
+            )
 
             custom_code = ""
             custom_code += f"const int64_t phantom_ctr_0 = ctr_0;\n"
@@ -756,6 +1017,9 @@ class HyTeGElementwiseOperator:
 
         rows, cols = mat.shape
 
+        optimizer = Optimizer(integration_info.optimizations)
+        optimizer.check_opts_validity()
+
         kernel_config = CreateKernelConfig(
             default_number_float=self._type_descriptor.pystencils_type,
             data_type=self._type_descriptor.pystencils_type,
@@ -794,7 +1058,7 @@ class HyTeGElementwiseOperator:
 
         # Common subexpression elimination.
         with TimedLogger("cse on kernel operation", logging.DEBUG):
-            cse_impl = self._optimizer.cse_impl()
+            cse_impl = optimizer.cse_impl()
             kernel_op_assignments = hog.cse.cse(
                 kernel_op_assignments,
                 cse_impl,
@@ -810,7 +1074,7 @@ class HyTeGElementwiseOperator:
 
             with TimedLogger("constructing quadrature loops"):
                 quad_loop = integration_info.quad_loop.construct_quad_loop(
-                    accessed_mat_entries, self._optimizer.cse_impl()
+                    accessed_mat_entries, optimizer.cse_impl()
                 )
         else:
             quad_loop = []
@@ -861,7 +1125,52 @@ class HyTeGElementwiseOperator:
         # element coordinates, jacobi matrix, tabulations, etc.
         preloop_stmts = {}
 
-        for element_type in all_element_types(geometry.dimensions):
+        # Deciding on which element types we want to iterate over.
+        # We skip certain element types for macro-volume boundary integrals.
+        element_types: List[Union[FaceType, CellType]] = all_element_types(
+            geometry.dimensions
+        )
+        if isinstance(integration_info.loop_strategy, BOUNDARY):
+            element_types = list(integration_info.loop_strategy.element_loops.keys())
+
+        for element_type in element_types:
+
+            # Re-ordering micro-element vertices for the handling of domain boundary integrals.
+            #
+            # Boundary integrals are handled by looping over all (volume-)elements that have a facet at one of the
+            # macro-element boundaries. There are three such boundaries in 2D and four in 3D. For each case, a separate
+            # kernel has to be generated. The logic that decides which of these kernels are called on which
+            # macro-volumes is handled by the HyTeG operator that is generated around these kernels.
+            #
+            # Instead of integrating over the micro-volume, we need to integrate over one of the micro-element facets.
+            # For that, the micro-element vertices are re-ordered such that the transformation from the affine element
+            # to the reference element results in the integration (boundary-)domain being mapped to the reference
+            # domain.
+            #
+            # E.g., in 2D, if the integration over the xy-boundary of the macro-volume (== macro-face) shall be
+            # generated this is signalled here by loop_strategy.facet_id == 2.
+            # In 2D all boundaries are only touched by the GRAY micro-elements (this is a little more complicated in 3D
+            # where at each macro-volume boundary, two types of elements overlap).
+            # Thus, we
+            #   a) Shuffle the affine element vertices such that the xy-boundary of the GRAY elements is mapped to the
+            #      (0, 1) line, which is the reference line for integration.
+            #   b) Only iterate over the GRAY elements (handled later below).
+
+            # Default order.
+            element_vertex_order = list(range(geometry.num_vertices))
+
+            # Shuffling vertices if a boundary integral is requested.
+            if (
+                integration_info.integration_domain
+                == MacroIntegrationDomain.DOMAIN_BOUNDARY
+                and isinstance(integration_info.loop_strategy, BOUNDARY)
+            ):
+                element_vertex_order = micro_vertex_permutation_for_facet(
+                    volume_geometry=geometry,
+                    element_type=element_type,
+                    facet_id=integration_info.loop_strategy.facet_id,
+                )
+
             # Create array accesses to the source and destination vector(s) for
             # the kernel.
             src_vecs_accesses = [
@@ -870,6 +1179,7 @@ class HyTeGElementwiseOperator:
                     element_index,  # type: ignore[arg-type] # list of sympy expressions also works
                     element_type,
                     indexing_info,
+                    element_vertex_order,
                 )
                 for src_field in src_fields
             ]
@@ -879,6 +1189,7 @@ class HyTeGElementwiseOperator:
                     element_index,  # type: ignore[arg-type] # list of sympy expressions also works
                     element_type,
                     indexing_info,
+                    element_vertex_order,
                 )
                 for dst_field in dst_fields
             ]
@@ -896,6 +1207,7 @@ class HyTeGElementwiseOperator:
                 element_type,
                 src_vecs_accesses,
                 dst_vecs_accesses,
+                element_vertex_order,
             )
 
             # Load DoFs of coefficients. Those appear whenever a form is
@@ -906,6 +1218,16 @@ class HyTeGElementwiseOperator:
                 for ass in kernel_op_assignments + quad_loop
                 for a in ass.atoms(DoFSymbol)
             }
+
+            if (
+                integration_info.integration_domain != MacroIntegrationDomain.VOLUME
+                and len(dof_symbols_set) > 0
+            ):
+                raise HOGException(
+                    "Boundary integrals and FE coefficients cannot be combined at the moment."
+                    "Dev note: the coefficients need to be sorted."
+                )
+
             dof_symbols = sorted(dof_symbols_set, key=lambda ds: ds.name)
             coeffs = dict(
                 (
@@ -925,7 +1247,11 @@ class HyTeGElementwiseOperator:
                     SympyAssignment(
                         sp.Symbol(dof_symbol.name),
                         coeffs[dof_symbol.function_id].local_dofs(
-                            geometry, element_index, element_type, indexing_info
+                            geometry,
+                            element_index,
+                            element_type,
+                            indexing_info,
+                            element_vertex_order,
                         )[dof_symbol.dof_id],
                     )
                 )
@@ -953,6 +1279,13 @@ class HyTeGElementwiseOperator:
                 self.symbolizer,
             )
 
+            # Re-ordering the element vertex coordinates
+            # (for all computations but affine transformation Jacobians - those are re-ordered later).
+            # See comment on boundary integrals above.
+            el_vertex_coordinates = [
+                el_vertex_coordinates[i] for i in element_vertex_order
+            ]
+
             coords_assignments = [
                 SympyAssignment(
                     element_vertex_coordinates_symbols[vertex][component],
@@ -962,7 +1295,7 @@ class HyTeGElementwiseOperator:
                 for component in range(geometry.dimensions)
             ]
 
-            if integration_info.blending.is_affine() or self._optimizer[Opts.QUADLOOPS]:
+            if integration_info.blending.is_affine() or optimizer[Opts.QUADLOOPS]:
                 blending_assignments = []
             else:
                 blending_assignments = (
@@ -988,7 +1321,7 @@ class HyTeGElementwiseOperator:
                 )
 
                 with TimedLogger("cse on blending operation", logging.DEBUG):
-                    cse_impl = self._optimizer.cse_impl()
+                    cse_impl = optimizer.cse_impl()
                     blending_assignments = hog.cse.cse(
                         blending_assignments,
                         cse_impl,
@@ -1006,7 +1339,25 @@ class HyTeGElementwiseOperator:
                 + kernel_op_post_assignments
             )
 
-            if not self._optimizer[Opts.QUADLOOPS]:
+            if (
+                integration_info.integration_domain
+                == MacroIntegrationDomain.DOMAIN_BOUNDARY
+                and isinstance(integration_info.loop_strategy, BOUNDARY)
+            ):
+                with TimedLogger(
+                    "boundary integrals: setting unused reference coordinate to 0",
+                    logging.DEBUG,
+                ):
+                    for node in body:
+                        node.subs(
+                            {
+                                self.symbolizer.ref_coords_as_list(geometry.dimensions)[
+                                    -1
+                                ]: 0
+                            }
+                        )
+
+            if not optimizer[Opts.QUADLOOPS]:
                 # Only now we replace the quadrature points and weights - if there are any.
                 # We also setup sympy assignments in body
                 with TimedLogger(
@@ -1060,6 +1411,12 @@ class HyTeGElementwiseOperator:
                     self.symbolizer,
                 )
 
+                # Re-ordering the element vertex coordinates for the Jacobians.
+                # See comment on boundary integrals above.
+                el_vertex_coordinates = [
+                    el_vertex_coordinates[i] for i in element_vertex_order
+                ]
+
                 coords_assignments = [
                     SympyAssignment(
                         coord_symbols_for_jac_affine[vertex][component],
@@ -1072,7 +1429,7 @@ class HyTeGElementwiseOperator:
                 elem_dependent_stmts = (
                     hog.cse.cse(
                         coords_assignments + jacobi_assignments,
-                        self._optimizer.cse_impl(),
+                        optimizer.cse_impl(),
                         "tmp_coords_jac",
                         return_type=SympyAssignment,
                     )
@@ -1141,7 +1498,7 @@ class HyTeGElementwiseOperator:
 
                     # generate AST of kernel loop
                     with TimedLogger(
-                        f"Generating kernel {integration_info.name} (wrapper: {kernel_wrapper_type.name} in {dim}D",
+                        f"Generating kernel {integration_info.name} ({kernel_wrapper_type.name}, {dim}D)",
                         logging.INFO,
                     ):
 
@@ -1174,11 +1531,12 @@ class HyTeGElementwiseOperator:
                         f"Optimizing kernel: {kernel_function.function_name} in {dim}D",
                         logging.INFO,
                     ):
-                        optimizer = (
-                            self._optimizer
-                            if not isinstance(kernel_wrapper_type.kernel_type, Assemble)
-                            else self._optimizer_no_vec
-                        )
+                        optimizer = Optimizer(integration_info.optimizations)
+                        optimizer.check_opts_validity()
+
+                        if isinstance(kernel_wrapper_type.kernel_type, Assemble):
+                            optimizer = optimizer.copy_without_vectorization()
+
                         platform_dep_kernels.append(
                             optimizer.apply_to_kernel(
                                 kernel_function, dim, integration_info.loop_strategy
@@ -1242,7 +1600,37 @@ class HyTeGElementwiseOperator:
 
                 # Kernel function call(s).
                 kernel_function_call_strings = []
-                for kernel_function in kernel_functions:
+                for kernel_function, integration_info in zip(
+                    kernel_functions, integration_infos
+                ):
+
+                    pre_call_code = ""
+                    post_call_code = ""
+
+                    if (
+                        integration_info.integration_domain
+                        == MacroIntegrationDomain.DOMAIN_BOUNDARY
+                    ):
+
+                        if not isinstance(integration_info.loop_strategy, BOUNDARY):
+                            raise HOGException(
+                                "The loop strategy should be BOUNDARY for boundary integrals."
+                            )
+
+                        facet_type = "Edge" if dim == 2 else "Face"
+
+                        neighbor_facet = (
+                            f"getStorage()->get{facet_type}( "
+                            f"{macro_type[dim]}.getLowerDimNeighbors()"
+                            f"[{integration_info.loop_strategy.facet_id}] )"
+                        )
+
+                        pre_call_code = (
+                            f"if ( boundaryCondition_.getBoundaryUIDFromMeshFlag( "
+                            f"{neighbor_facet}->getMeshBoundaryFlag() ) == {integration_info.boundary_uid_name}_ ) {{"
+                        )
+                        post_call_code = "}"
+
                     kernel_parameters = kernel_function.get_parameters()
 
                     kernel_function_call_parameter_string = ",\n".join(
@@ -1251,8 +1639,10 @@ class HyTeGElementwiseOperator:
 
                     kernel_function_call_strings.append(
                         f"""
+                                    {pre_call_code}\n
                                     {kernel_function.function_name}(\n
-                                    {kernel_function_call_parameter_string});"""
+                                    {kernel_function_call_parameter_string});\n
+                                    {post_call_code}\n"""
                     )
 
                 kernel_wrapper_type.substitute(

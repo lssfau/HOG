@@ -704,7 +704,6 @@ def generate_elementwise_op(
     operator = HyTeGElementwiseOperator(
         name,
         symbolizer,
-        opts=optimizations,
         kernel_wrapper_types=op_info.kernel_types,
         type_descriptor=type_descriptor,
     )
@@ -727,15 +726,14 @@ def generate_elementwise_op(
             blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
         )
 
-        operator.add_integral(
+        operator.add_volume_integral(
             name="".join(name.split()),
-            dim=geometry.dimensions,
-            geometry=geometry,
-            integration_domain=MacroIntegrationDomain.VOLUME,
+            volume_geometry=geometry,
             quad=quad,
             blending=blending,
             form=form,
             loop_strategy=loop_strategy,
+            optimizations=optimizations,
         )
 
     dir_path = os.path.join(args.output, op_info.name.split("_")[0])

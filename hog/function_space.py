@@ -21,7 +21,6 @@ import sympy as sp
 from hog.element_geometry import (
     ElementGeometry,
     TriangleElement,
-    EmbeddedTriangle,
     TetrahedronElement,
 )
 from hog.exception import HOGException
@@ -89,8 +88,6 @@ class FunctionSpace(Protocol):
         """
         if domain in ["ref", "reference"]:
             symbols = self.symbolizer.ref_coords_as_list(geometry.dimensions)
-            if isinstance(geometry, EmbeddedTriangle):
-                symbols = self.symbolizer.ref_coords_as_list(geometry.dimensions - 1)
             basis_functions_gradients = [
                 grad(f, symbols)
                 for f in self.shape(geometry, domain=domain, dof_map=dof_map)
@@ -201,6 +198,7 @@ class LagrangianFunctionSpace(FunctionSpace):
 
             elif (
                 isinstance(geometry, TriangleElement)
+                and geometry.dimensions == geometry.space_dimension
                 and self.family in ["Lagrange"]
                 and self._degree == 2
             ):
@@ -216,14 +214,16 @@ class LagrangianFunctionSpace(FunctionSpace):
                 ]
 
             elif (
-                isinstance(geometry, EmbeddedTriangle)
+                isinstance(geometry, TriangleElement)
+                and geometry.dimensions == geometry.space_dimension - 1
                 and self.family in ["Lagrange"]
                 and self._degree == 0
             ):
                 basis_functions = [sp.sympify(1)]
 
             elif (
-                isinstance(geometry, EmbeddedTriangle)
+                isinstance(geometry, TriangleElement)
+                and geometry.dimensions == geometry.space_dimension - 1
                 and self.family in ["Lagrange"]
                 and self._degree == 1
             ):
@@ -234,7 +234,8 @@ class LagrangianFunctionSpace(FunctionSpace):
                 ]
 
             elif (
-                isinstance(geometry, EmbeddedTriangle)
+                isinstance(geometry, TriangleElement)
+                and geometry.dimensions == geometry.space_dimension - 1
                 and self.family in ["Lagrange"]
                 and self._degree == 2
             ):

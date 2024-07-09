@@ -22,7 +22,9 @@ T = TypeVar("T")
 
 
 def fast_subs(
-    expression: T, substitutions: Dict[sp.Expr, sp.Expr], skip: Optional[Callable[[sp.Expr], bool]] = None
+    expression: T,
+    substitutions: Dict[sp.Expr, sp.Expr],
+    skip: Optional[Callable[[sp.Expr], bool]] = None,
 ) -> T:
     """Similar to sympy subs function.
 

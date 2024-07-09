@@ -16,21 +16,18 @@
 
 from sympy.core.cache import clear_cache
 
-from hog.blending import IdentityMap
 from hog.operator_generation.loop_strategies import CUBES
 from hog.operator_generation.optimizer import Opts
-from hog.element_geometry import TriangleElement
+from hog.element_geometry import LineElement, TriangleElement, TetrahedronElement
 from hog.function_space import LagrangianFunctionSpace
-from hog.operator_generation.operators import (
-    HyTeGElementwiseOperator,
-    MacroIntegrationDomain,
-)
+from hog.operator_generation.operators import HyTeGElementwiseOperator
 from hog.symbolizer import Symbolizer
 from hog.quadrature import Quadrature, select_quadrule
-from hog.forms import div_k_grad, mass
-from hog.operator_generation.kernel_types import ApplyWrapper
+from hog.forms import div_k_grad
+from hog.forms_boundary import mass_boundary
+from hog.operator_generation.kernel_types import ApplyWrapper, AssembleWrapper
 from hog.operator_generation.types import hyteg_type
-from hog.blending import AnnulusMap
+from hog.blending import AnnulusMap, IcosahedralShellMap
 
 
 def test_opgen_smoke():
@@ -41,26 +38,24 @@ def test_opgen_smoke():
 
     We are generating a matvec method here for
 
-        ∫ k ∇u · ∇v dx + ∫ uv dx
+        ∫ k ∇u · ∇v dx + ∫ uv ds
 
     with either integral being evaluated in their own kernel.
 
     That may not be reasonable but tests some features.
     """
+
     clear_cache()
 
     symbolizer = Symbolizer()
-    volume_geometry = TriangleElement()
 
-    name = f"P2DivKGradBlendingPlusMass"
+    name = f"P2DivKGradBlendingPlusBoundaryMass"
+
+    dims = [2, 3]
 
     trial = LagrangianFunctionSpace(2, symbolizer)
     test = LagrangianFunctionSpace(2, symbolizer)
     coeff = LagrangianFunctionSpace(2, symbolizer)
-    quad = Quadrature(select_quadrule(2, volume_geometry), volume_geometry)
-
-    divkgrad = div_k_grad(trial, test, volume_geometry, symbolizer, AnnulusMap(), coeff)
-    m = mass(trial, test, volume_geometry, symbolizer, AnnulusMap())
 
     type_descriptor = hyteg_type()
 
@@ -69,41 +64,72 @@ def test_opgen_smoke():
             test,
             trial,
             type_descriptor=type_descriptor,
-            dims=[2],
-        )
+            dims=dims,
+        ),
+        AssembleWrapper(
+            test,
+            trial,
+            type_descriptor=type_descriptor,
+            dims=dims,
+        ),
     ]
-
-    opts = {Opts.MOVECONSTANTS, Opts.VECTORIZE, Opts.TABULATE, Opts.QUADLOOPS}
 
     operator = HyTeGElementwiseOperator(
         name,
         symbolizer=symbolizer,
         kernel_wrapper_types=kernel_types,
-        opts=opts,
         type_descriptor=type_descriptor,
     )
 
-    operator.add_integral(
-        name="div_k_grad",
-        dim=volume_geometry.dimensions,
-        geometry=volume_geometry,
-        integration_domain=MacroIntegrationDomain.VOLUME,
-        quad=quad,
-        blending=AnnulusMap(),
-        form=divkgrad,
-        loop_strategy=CUBES(),
-    )
+    opts_volume = {Opts.MOVECONSTANTS, Opts.VECTORIZE, Opts.TABULATE, Opts.QUADLOOPS}
+    opts_boundary = {Opts.MOVECONSTANTS}
 
-    operator.add_integral(
-        name="mass",
-        dim=volume_geometry.dimensions,
-        geometry=volume_geometry,
-        integration_domain=MacroIntegrationDomain.VOLUME,
-        quad=quad,
-        blending=AnnulusMap(),
-        form=m,
-        loop_strategy=CUBES(),
-    )
+    for d in dims:
+
+        if d == 2:
+            volume_geometry = TriangleElement()
+            boundary_geometry = LineElement(space_dimension=2)
+            blending_map = AnnulusMap()
+        else:
+            volume_geometry = TetrahedronElement()
+            boundary_geometry = TriangleElement(space_dimension=3)
+            blending_map = IcosahedralShellMap()
+
+        quad_volume = Quadrature(select_quadrule(2, volume_geometry), volume_geometry)
+        quad_boundary = Quadrature(
+            select_quadrule(5, boundary_geometry), boundary_geometry
+        )
+
+        divkgrad = div_k_grad(
+            trial, test, volume_geometry, symbolizer, blending_map, coeff
+        )
+        mass_b = mass_boundary(
+            trial,
+            test,
+            volume_geometry,
+            boundary_geometry,
+            symbolizer,
+            blending_map,
+        )
+
+        operator.add_volume_integral(
+            name="div_k_grad",
+            volume_geometry=volume_geometry,
+            quad=quad_volume,
+            blending=blending_map,
+            form=divkgrad,
+            loop_strategy=CUBES(),
+            optimizations=opts_volume,
+        )
+
+        operator.add_boundary_integral(
+            name="mass_boundary",
+            volume_geometry=volume_geometry,
+            quad=quad_boundary,
+            blending=blending_map,
+            form=mass_b,
+            optimizations=opts_boundary,
+        )
 
     operator.generate_class_code(
         ".",

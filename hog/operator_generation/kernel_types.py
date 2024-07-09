@@ -114,6 +114,7 @@ class KernelType(ABC):
         element_type: Union[FaceType, CellType],
         src_vecs_accesses: List[List[Field.Access]],
         dst_vecs_accesses: List[List[Field.Access]],
+        element_vertex_ordering: List[int],
     ) -> List[ps.astnodes.Node]:
         """
         Operations to be executed after the access resolution and common subexpression elimination on the symbols
@@ -158,6 +159,7 @@ class Apply(KernelType):
         element_type: Union[FaceType, CellType],
         src_vecs_accesses: List[List[Field.Access]],
         dst_vecs_accesses: List[List[Field.Access]],
+        element_vertex_ordering: List[int],
     ) -> List[ps.astnodes.Node]:
         tmp_symbols = sp.numbered_symbols(self.result_prefix)
 
@@ -197,6 +199,7 @@ class AssembleDiagonal(KernelType):
         element_type: Union[FaceType, CellType],
         src_vecs_accesses: List[List[Field.Access]],
         dst_vecs_accesses: List[List[Field.Access]],
+        element_vertex_ordering: List[int],
     ) -> List[ps.astnodes.Node]:
         tmp_symbols = sp.numbered_symbols(self.result_prefix)
 
@@ -243,6 +246,7 @@ class Assemble(KernelType):
         element_type: Union[FaceType, CellType],
         src_vecs_accesses: List[List[Field.Access]],
         dst_vecs_accesses: List[List[Field.Access]],
+        element_vertex_ordering: List[int],
     ) -> List[ps.astnodes.Node]:
         src, dst = dst_vecs_accesses
         el_mat = sp.Matrix(
@@ -254,10 +258,10 @@ class Assemble(KernelType):
 
         # apply basis/dof transformations
         transform_src_code, transform_src_mat = self.src.dof_transformation(
-            geometry, element_index, element_type
+            geometry, element_index, element_type, element_vertex_ordering
         )
         transform_dst_code, transform_dst_mat = self.dst.dof_transformation(
-            geometry, element_index, element_type
+            geometry, element_index, element_type, element_vertex_ordering
         )
         transformed_el_mat = transform_dst_mat.T * el_mat * transform_src_mat
 

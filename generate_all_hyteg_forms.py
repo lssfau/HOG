@@ -29,7 +29,6 @@ from hog.blending import GeometryMap, IdentityMap, ExternalMap, AnnulusMap
 from hog.element_geometry import (
     TriangleElement,
     TetrahedronElement,
-    EmbeddedTriangle,
     ElementGeometry,
 )
 from hog.function_space import FunctionSpace, LagrangianFunctionSpace, N1E1Space
@@ -463,12 +462,12 @@ form_infos = [
         quad_schemes={3: 3},
         blending=ExternalMap(),
     ),
-    FormInfo("manifold_mass", trial_degree=1, test_degree=1, quad_schemes={3: 1}),
+    FormInfo("manifold_mass", trial_degree=1, test_degree=1, quad_schemes={2: 1}),
     FormInfo(
         "manifold_mass",
         trial_degree=1,
         test_degree=1,
-        quad_schemes={3: 3},
+        quad_schemes={2: 3},
         blending=ExternalMap(),
     ),
 ]
@@ -609,7 +608,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_vector_mass",
             trial_degree=2,
             test_degree=2,
-            quad_schemes={3: 3},
+            quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
             is_implemented=is_implemented_for_vector_to_vector,
@@ -622,7 +621,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_normal_penalty",
             trial_degree=2,
             test_degree=2,
-            quad_schemes={3: 3},
+            quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
             is_implemented=is_implemented_for_vector_to_vector,
@@ -635,7 +634,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_epsilon",
             trial_degree=2,
             test_degree=2,
-            quad_schemes={3: 3},
+            quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
             is_implemented=is_implemented_for_vector_to_vector,
@@ -648,7 +647,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_epsilon",
             trial_degree=2,
             test_degree=2,
-            quad_schemes={3: 6},
+            quad_schemes={2: 6},
             row_dim=3,
             col_dim=3,
             is_implemented=is_implemented_for_vector_to_vector,
@@ -661,7 +660,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "vector_laplace_beltrami",
             trial_degree=2,
             test_degree=2,
-            quad_schemes={3: 3},
+            quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
             is_implemented=is_implemented_for_vector_to_vector,
@@ -677,7 +676,7 @@ for trial_deg, test_deg, transpose in [(1, 2, True), (2, 1, False)]:
                     "manifold_div",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
-                    quad_schemes={3: 3},
+                    quad_schemes={2: 3},
                     row_dim=1,
                     col_dim=3,
                     is_implemented=is_implemented_for_vector_to_scalar,
@@ -690,7 +689,7 @@ for trial_deg, test_deg, transpose in [(1, 2, True), (2, 1, False)]:
                     "manifold_divt",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
-                    quad_schemes={3: 3},
+                    quad_schemes={2: 3},
                     row_dim=3,
                     col_dim=1,
                     is_implemented=is_implemented_for_scalar_to_vector,
@@ -711,7 +710,7 @@ for trial_deg, test_deg, transpose in [
                     "manifold_vector_div",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
-                    quad_schemes={3: 3},
+                    quad_schemes={2: 3},
                     row_dim=1,
                     col_dim=3,
                     is_implemented=is_implemented_for_vector_to_scalar,
@@ -724,7 +723,7 @@ for trial_deg, test_deg, transpose in [
                     "manifold_vector_divt",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
-                    quad_schemes={3: 3},
+                    quad_schemes={2: 3},
                     row_dim=3,
                     col_dim=1,
                     is_implemented=is_implemented_for_scalar_to_vector,
@@ -1056,7 +1055,7 @@ def main():
         geometries = [TetrahedronElement()]
     elif args.geometry == "embedded_triangle":
         logger.info(f"- selected geometry: embedded triangle")
-        geometries = [EmbeddedTriangle()]
+        geometries = [TriangleElement(space_dimension=3)]
     else:
         logger.info(f"- selected geometries: triangle, tetrahedron")
         geometries = [TriangleElement(), TetrahedronElement()]
