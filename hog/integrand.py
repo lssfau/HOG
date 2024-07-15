@@ -160,10 +160,10 @@ class IntegrandSymbols:
 
     # A callback to tabulate (aka precompute) terms that are identical on all elements of the same type.
     # Use at your own risk, you may get wrong code if used on terms that are not element-invariant!
-    tabulate: Union[Callable, None] = None
+    tabulate: Union[Callable[..., Any], None] = None
     # You can also give the tabulated variable a name. That has no effect other than the generated code to be more
     # readable. So not encouraged. But nice for debugging.
-    _tabulate_named: Union[Callable, None] = None
+    _tabulate_named: Union[Callable[..., Any], None] = None
 
 
 def process_integrand(

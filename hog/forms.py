@@ -300,7 +300,7 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
         else:
             return diffusion_term + newton_galerkin_term
 
-    process_integrand(
+    return process_integrand(
         integrand,
         trial,
         test,

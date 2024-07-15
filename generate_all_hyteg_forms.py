@@ -41,6 +41,7 @@ from hog.forms import (
     pspg,
     linear_form,
     divergence,
+    gradient,
     full_stokes,
     divdiv,
     supg_diffusion,
@@ -813,13 +814,12 @@ def form_func(
     elif name.startswith("divt"):
         if row not in [0, 1, 2] or col != 0:
             raise HOGException("Invalid call to divt form.")
-        return divergence(
+        return gradient(
             trial,
             test,
             geometry,
             symbolizer,
             component_index=row,
-            transpose=True,
             blending=blending,
         ).integrate(quad, symbolizer)
     elif name.startswith("divdiv"):
@@ -835,7 +835,6 @@ def form_func(
             geometry,
             symbolizer,
             component_index=col,
-            transpose=False,
             blending=blending,
         ).integrate(quad, symbolizer)
     elif name.startswith("supg_d"):
