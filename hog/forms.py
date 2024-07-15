@@ -1808,6 +1808,85 @@ Weak formulation
 
     return Form(mat, tabulation, symmetric=False, docstring=docstring)
 
+def grad_rho_by_rho_dot_u(
+    trial: FunctionSpace,
+    test: FunctionSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
+    density_function_space: Optional[FunctionSpace] = None,
+) -> Form:
+    docstring = f"""
+RHS operator for the frozen velocity approach.
+
+Geometry map: {blending}
+
+Weak formulation
+
+    u: trial function (vectorial space: {trial})
+    v: test function  (space: {test})
+    rho: coefficient    (space: {density_function_space})
+
+    ∫ ((∇ρ / ρ) · u) v
+"""
+
+    with TimedLogger("assembling grad_rho_by_rho_dot_u-mass matrix", level=logging.DEBUG):
+        tabulation = Tabulation(symbolizer)
+
+        jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+
+        if isinstance(blending, ExternalMap):
+            jac_blending = jac_affine_to_physical(geometry, symbolizer)
+        else:
+            affine_coords = trafo_ref_to_affine(geometry, symbolizer)
+            # jac_blending = blending.jacobian(affine_coords)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(geometry.dimensions)
+            jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
+
+        # jac_blending_det = abs(det(jac_blending))
+
+        mat = create_empty_element_matrix(trial, test, geometry)
+
+        it = element_matrix_iterator(trial, test, geometry)
+
+        if density_function_space:
+            rho, dof_symbols = fem_function_on_element(
+                density_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="rho",
+            )
+
+            grad_rho, _ = fem_function_gradient_on_element(
+                density_function_space,
+                geometry,
+                symbolizer,
+                domain="reference",
+                function_id="grad_rho",
+                dof_symbols=dof_symbols,
+            )
+
+        with TimedLogger(
+            f"integrating {mat.shape[0] * mat.shape[1]} expressions",
+            level=logging.DEBUG,
+        ):
+            for data in it:
+                phi = data.trial_shape
+                psi = data.test_shape
+                # print("phi = ", psi.shape)
+                # phi_psi_jac_affine_det = tabulation.register_factor(
+                #     "phi_psi_jac_affine_det",
+                #     sp.Matrix([phi * psi * jac_affine_det]),
+                # )[0]
+                if blending == IdentityMap():
+                    form = dot(((jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det
+                else:
+                    form = dot(((jac_blending_inv.T * jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det * jac_blending_det
+                mat[data.row, data.col] = form
+
+    return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)
 
 def zero_form(
     trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
