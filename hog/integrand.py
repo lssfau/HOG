@@ -190,9 +190,13 @@ def process_integrand(
 
     .. code-block:: python
 
-        # The arguments of the function must begin with an asterisk (*), followed by keyword arguments, followed by the
-        # unused keyword arguments (**_). All keyword arguments must be members of the IntegrandSymbols class.
-        # The function must return the integrand. You can use functions from the module hog.math_helpers module.
+        # The arguments of the function must begin with an asterisk (*), followed by
+        # keyword arguments, followed by the unused keyword arguments (**_). All
+        # keyword arguments must be members of the IntegrandSymbols class.
+        #
+        # The function must return the integrand. You can use functions from the
+        # module hog.math_helpers module.
+        #
         # Many integrands are already implemented under hog/recipes/integrands/.
 
         def my_diffusion_integrand(
@@ -215,7 +219,12 @@ def process_integrand(
                 * jac_b_abs_det
             )
 
-    The callable (here `my_diffusion_integrand`, not `my_diffusion_integrand()`) is then passed to this function.
+    The callable (here `my_diffusion_integrand`, not `my_diffusion_integrand()`) is then passed to this function:
+
+    .. code-block:: python
+
+        form = process_integrand( my_diffusion_integrand, trial, test, ... )
+
 
     :param integrand: an integrand callable
     :param trial: the finite-element trial function space
