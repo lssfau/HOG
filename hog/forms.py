@@ -1891,9 +1891,9 @@ Weak formulation
                 #     sp.Matrix([phi * psi * jac_affine_det]),
                 # )[0]
                 if blending == IdentityMap():
-                    form = dot(((jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi
+                    form = dot(((jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det
                 else:
-                    form = dot(((jac_blending_inv.T * jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi 
+                    form = dot(((jac_blending_inv.T * jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det * jac_blending_det
                 mat[data.row, data.col] = form
 
     return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)
