@@ -46,3 +46,6 @@ class DoFSymbol(sp.Symbol):
         obj.dof_id = dof_id
         obj.function_id = function_id
         return obj
+
+    def __deepcopy__(self, memo):
+        return DoFSymbol(self.name, self.function_space, self.dof_id, self.function_id)
