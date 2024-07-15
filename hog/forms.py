@@ -1834,7 +1834,7 @@ Weak formulation
         tabulation = Tabulation(symbolizer)
 
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
-        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry.dimensions)
+        jac_affine_inv = symbolizer.jac_ref_to_affine_inv(geometry)
 
         if isinstance(blending, ExternalMap):
             jac_blending = jac_affine_to_physical(geometry, symbolizer)
