@@ -1833,10 +1833,11 @@ Geometry map: {blending}
 
 Weak formulation
 
-    u: trial function (space: {trial})
+    u: trial function (vectorial space: {trial})
     v: test function  (space: {test})
     rho: coefficient    (space: {density_function_space})
 
+    ∫ ((∇ρ / ρ) · u) v
 """
 
     with TimedLogger("assembling grad_rho_by_rho_dot_u-mass matrix", level=logging.DEBUG):
