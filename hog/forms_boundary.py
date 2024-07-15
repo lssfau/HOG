@@ -14,35 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dataclasses import dataclass
-import logging
-import sympy as sp
-from typing import List, Optional, Tuple
 
-from hog.ast import Operations, count_operations
-from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
-from hog.exception import HOGException
-from hog.fem_helpers import (
-    trafo_ref_to_affine,
-    trafo_ref_to_physical,
-    jac_ref_to_affine,
-    jac_affine_to_physical,
-    hessian_ref_to_affine,
-    hessian_affine_to_blending,
-    create_empty_element_matrix,
-    element_matrix_iterator,
-    scalar_space_dependent_coefficient,
-    vector_space_dependent_coefficient,
-    fem_function_on_element,
-    fem_function_gradient_on_element,
-)
-from hog.function_space import FunctionSpace, EnrichedGalerkinFunctionSpace, N1E1Space
-from hog.math_helpers import dot, grad, inv, abs, det, double_contraction, e_vec
-from hog.quadrature import Quadrature, Tabulation
+from hog.element_geometry import ElementGeometry
+from hog.function_space import FunctionSpace
 from hog.symbolizer import Symbolizer
-from hog.logger import TimedLogger, get_logger
-from hog.blending import GeometryMap, ExternalMap, IdentityMap
-from hog.forms import Form
+from hog.blending import GeometryMap, IdentityMap
+from hog.integrand import process_integrand, Form
 
 
 def mass_boundary(
@@ -65,40 +42,17 @@ Weak formulation
 
     ∫ uv ds
 """
-    if trial != test:
-        raise HOGException(
-            "Trial space must be equal to test space to assemble mass matrix."
-        )
 
-    if boundary_geometry.dimensions != boundary_geometry.space_dimension - 1:
-        raise HOGException(
-            "Since you are integrating over a boundary, the boundary element's space dimension should be larger than "
-            "its dimension."
-        )
+    from hog.recipes.integrands.boundary.mass import integrand as integrand
 
-    with TimedLogger("assembling mass matrix", level=logging.DEBUG):
-        tabulation = Tabulation(symbolizer)
-
-        jac_affine = symbolizer.jac_ref_to_affine(boundary_geometry)
-        jac_blending = symbolizer.jac_affine_to_blending(volume_geometry.dimensions)
-
-        fundamental_form_det = abs(
-            det(jac_affine.T * jac_blending.T * jac_blending * jac_affine)
-        )
-
-        mat = create_empty_element_matrix(trial, test, volume_geometry)
-        it = element_matrix_iterator(trial, test, volume_geometry)
-
-        with TimedLogger(
-            f"integrating {mat.shape[0] * mat.shape[1]} expressions",
-            level=logging.DEBUG,
-        ):
-            for data in it:
-                phi = data.trial_shape
-                psi = data.test_shape
-
-                form = phi * psi * fundamental_form_det**0.5
-
-                mat[data.row, data.col] = form
-
-    return Form(mat, tabulation, symmetric=True, docstring=docstring)
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        volume_geometry,
+        symbolizer,
+        blending=blending,
+        boundary_geometry=boundary_geometry,
+        is_symmetric=trial == test,
+        docstring=docstring,
+    )

@@ -36,6 +36,7 @@ from hog.exception import HOGException
 from hog.forms import (
     diffusion,
     divergence,
+    gradient,
     div_k_grad,
     shear_heating,
     epsilon,
@@ -508,8 +509,8 @@ class OperatorInfo:
             dims = [g.dimensions for g in self.geometries]
             self.kernel_types = [
                 ApplyWrapper(
-                    self.test_space,
                     self.trial_space,
+                    self.test_space,
                     type_descriptor=self.type_descriptor,
                     dims=dims,
                 )
@@ -519,8 +520,8 @@ class OperatorInfo:
             if not ({Opts.VECTORIZE, Opts.VECTORIZE512}.intersection(all_opts)):
                 self.kernel_types.append(
                     AssembleWrapper(
-                        self.test_space,
                         self.trial_space,
+                        self.test_space,
                         type_descriptor=self.type_descriptor,
                         dims=dims,
                     )
@@ -529,7 +530,7 @@ class OperatorInfo:
             if self.test_space == self.trial_space:
                 self.kernel_types.append(
                     AssembleDiagonalWrapper(
-                        self.test_space,
+                        self.trial_space,
                         type_descriptor=self.type_descriptor,
                         dims=dims,
                     )
@@ -621,12 +622,14 @@ def all_operators(
             div_geometries = three_d
         else:
             div_geometries = list(geometries)
-        ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}", trial_space=P1, test_space=P2,
-                                form=partial(divergence, transpose=False, component_index=c),
+        ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}",
+                                trial_space=TensorialVectorFunctionSpace(P2, single_component=c), test_space=P1,
+                                form=partial(divergence, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
                                 blending=blending))
-        ops.append(OperatorInfo(mapping=f"P1ToP2", name=f"DivT_{c}", trial_space=P2, test_space=P1,
-                                form=partial(divergence, transpose=True, component_index=c),
+        ops.append(OperatorInfo(mapping=f"P1ToP2", name=f"DivT_{c}", trial_space=P1,
+                                test_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                                form=partial(gradient, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
                                 blending=blending))
         # fmt: on
@@ -650,11 +653,16 @@ def all_operators(
             )
             # fmt: off
             ops.append(
-                OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=P2, test_space=P2, form=p2_epsilon,
-                              type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
-            ops.append(OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=P2, test_space=P2,
-                                    form=p2_full_stokes, type_descriptor=type_descriptor, geometries=list(geometries), opts=opts,
-                                    blending=blending))
+                OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}",
+                             trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                             test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_epsilon,
+                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts,
+                             blending=blending))
+            ops.append(OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}",
+                                    trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                                    test_space=TensorialVectorFunctionSpace(P2, single_component=r),
+                                    form=p2_full_stokes, type_descriptor=type_descriptor, geometries=list(geometries),
+                                    opts=opts, blending=blending))
             # fmt: on
     for c, r in [(0, 2), (1, 2), (2, 2), (2, 1), (2, 0)]:
         p2_epsilon = partial(
@@ -674,11 +682,13 @@ def all_operators(
         )
         # fmt: off
         ops.append(
-            OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=P2, test_space=P2, form=p2_epsilon,
+            OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                         test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_epsilon,
                          type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
         ops.append(
-            OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=P2, test_space=P2, form=p2_full_stokes,
-                          type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
+            OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                         test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_full_stokes,
+                         type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
         # fmt: on
 
     # Removing all operators without viable element types (e.g.: some ops only support 2D, but a blending map maybe only
@@ -719,8 +729,8 @@ def generate_elementwise_op(
         )
 
         form = op_info.form(
-            op_info.test_space,
             op_info.trial_space,
+            op_info.test_space,
             geometry,
             symbolizer,
             blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable

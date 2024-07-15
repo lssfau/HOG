@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from pyclbr import Function
-from typing import Any, List, Optional, Protocol
+from typing import Any, List, Optional, Protocol, Union
 import sympy as sp
 
 from hog.element_geometry import (
@@ -360,15 +360,25 @@ class TensorialVectorFunctionSpace(FunctionSpace):
       (0, 0, N_1),
       ...
       (0, 0, N_n).
+
+    This class also enables specifying only a single component to get the shape functions, e.g. only for component 1
+    (starting to count components at 0)
+
+      (0, N_1, 0),
+      ...
+      (0, N_n, 0),
+
     """
 
-    def __init__(self, function_space: FunctionSpace):
+    def __init__(self, function_space: FunctionSpace, single_component: int = None):
         """
         Initializes a tensorial vector function space from a scalar function space.
 
         :param function_space: the (scalar) component function space
+        :param single_component: set to the component that shall be non-zero - None if all components shall be present
         """
         self._component_function_space = function_space
+        self._single_component = single_component
 
     @property
     def is_vectorial(self) -> bool:
@@ -394,6 +404,10 @@ class TensorialVectorFunctionSpace(FunctionSpace):
     def component_function_space(self) -> FunctionSpace:
         return self._component_function_space
 
+    @property
+    def single_component(self) -> Union[int, None]:
+        return self._single_component
+
     def _to_vector(
         self, phi: sp.MatrixBase, component: int, dimensions: int
     ) -> sp.MatrixBase:
@@ -416,19 +430,37 @@ class TensorialVectorFunctionSpace(FunctionSpace):
             geometry, domain, dof_map
         )
 
-        return [
-            self._to_vector(phi, c, dim) for c in range(dim) for phi in shape_functions
-        ]
+        if self._single_component is None:
+            return [
+                self._to_vector(phi, c, dim)
+                for c in range(dim)
+                for phi in shape_functions
+            ]
+        else:
+            return [
+                self._to_vector(phi, self._single_component, dim)
+                for phi in shape_functions
+            ]
 
     def __eq__(self, other: Any) -> bool:
         if type(self) != type(other):
             return False
         if not hasattr(other, "_component_function_space"):
             return False
-        return self._component_function_space == other._component_function_space
+        if not hasattr(other, "single_component"):
+            return False
+        return (
+            self.component_function_space == other.component_function_space
+            and self.single_component == other.single_component
+        )
 
     def __str__(self):
-        return f"TensorialVectorSpace({self._component_function_space})"
+        component = (
+            ""
+            if self.single_component is None
+            else f", component {self.single_component}"
+        )
+        return f"TensorialVectorSpace({self._component_function_space}{component})"
 
     def __repr__(self):
         return str(self)
