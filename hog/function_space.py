@@ -370,7 +370,9 @@ class TensorialVectorFunctionSpace(FunctionSpace):
 
     """
 
-    def __init__(self, function_space: FunctionSpace, single_component: int = None):
+    def __init__(
+        self, function_space: FunctionSpace, single_component: Union[None, int] = None
+    ):
         """
         Initializes a tensorial vector function space from a scalar function space.
 

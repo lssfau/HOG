@@ -70,7 +70,7 @@ from pystencils.typing.transformations import add_types
 from pystencils.backends.cbackend import CustomCodeNode
 from pystencils.typing.typed_sympy import FieldPointerSymbol
 
-from hog.forms import Form
+from hog.integrand import Form
 from hog.ast import Operations, count_operations
 from hog.blending import GeometryMap
 import hog.code_generation

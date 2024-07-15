@@ -46,7 +46,7 @@ This module contains various functions and data structures to formulate the inte
 The actual integration and code generation is handled somewhere else.
 """
 
-from typing import Callable, List, Union, Tuple
+from typing import Callable, List, Union, Tuple, Any
 from dataclasses import dataclass, asdict, fields
 
 import sympy as sp
@@ -114,66 +114,68 @@ class IntegrandSymbols:
         return [f.name for f in fields(IntegrandSymbols) if not f.name.startswith("_")]
 
     # Jacobian from reference to affine space.
-    jac_a: sp.Matrix = None
+    jac_a: sp.Matrix | None = None
     # Its inverse.
-    jac_a_inv: sp.Matrix = None
+    jac_a_inv: sp.Matrix | None = None
     # The absolute of its determinant.
-    jac_a_abs_det: sp.Symbol = None
+    jac_a_abs_det: sp.Symbol | None = None
 
     # Jacobian from affine to physical space.
-    jac_b: sp.Matrix = None
+    jac_b: sp.Matrix | None = None
     # Its inverse.
-    jac_b_inv: sp.Matrix = None
+    jac_b_inv: sp.Matrix | None = None
     # The absolute of its determinant.
-    jac_b_abs_det: sp.Symbol = None
+    jac_b_abs_det: sp.Symbol | None = None
 
     # The trial shape function (reference space!).
-    u: sp.Expr = None
+    u: sp.Expr | None = None
     # The gradient of the trial shape function (reference space!).
-    grad_u: sp.Matrix = None
+    grad_u: sp.Matrix | None = None
 
     # The test shape function (reference space!).
-    v: sp.Expr = None
+    v: sp.Expr | None = None
     # The gradient of the test shape function (reference space!).
-    grad_v: sp.Matrix = None
+    grad_v: sp.Matrix | None = None
 
     # A list of scalar constants.
-    c: List[sp.Symbol] = None
+    c: List[sp.Symbol] | None = None
 
     # A list of finite element functions that can be used as function parameters.
-    k: List[sp.Symbol] = None
+    k: List[sp.Symbol] | None = None
+    # A list of the gradients of the parameter finite element functions.
+    grad_k: List[sp.Matrix] | None = None
 
     # The geometry of the volume element.
-    volume_geometry: ElementGeometry = None
+    volume_geometry: ElementGeometry | None = None
 
     # The geometry of the boundary element.
-    boundary_geometry: ElementGeometry = None
+    boundary_geometry: ElementGeometry | None = None
 
     # If a boundary geometry is available, this is populated with the Jacobian of the affine mapping from the reference
     # space of the boundary element to the computational (affine) space.
     # The reference space has the dimensions of the boundary element.
     # The affine space has the space dimension (aka the dimension of the space it is embedded in) of the boundary
     # element.
-    jac_a_boundary: sp.Matrix = None
+    jac_a_boundary: sp.Matrix | None = None
 
     # A callback to tabulate (aka precompute) terms that are identical on all elements of the same type.
     # Use at your own risk, you may get wrong code if used on terms that are not element-invariant!
-    tabulate: Callable = None
+    tabulate: Union[Callable, None] = None
     # You can also give the tabulated variable a name. That has no effect other than the generated code to be more
     # readable. So not encouraged. But nice for debugging.
-    _tabulate_named: Callable = None
+    _tabulate_named: Union[Callable, None] = None
 
 
 def process_integrand(
-    integrand: Callable,
+    integrand: Callable[..., Any],
     trial: FunctionSpace,
     test: FunctionSpace,
     volume_geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
-    boundary_geometry: ElementGeometry = None,
-    scalar_coefficients: List[str] = None,
-    fe_coefficients: List[Tuple[str, Union[FunctionSpace, None]]] = None,
+    boundary_geometry: ElementGeometry | None = None,
+    scalar_coefficients: List[str] | None = None,
+    fe_coefficients: List[Tuple[str, Union[FunctionSpace, None]]] | None = None,
     is_symmetric: bool = False,
     docstring: str = "",
 ) -> Form:
@@ -186,32 +188,32 @@ def process_integrand(
 
     Integrands are passed in as a callable (aka function). For instance:
 
-    ```python
-    # The arguments of the function must begin with an asterisk (*), followed by keyword arguments, followed by the
-    # unused keyword arguments (**_). All keyword arguments must be members of the IntegrandSymbols class.
-    # The function must return the integrand. You can use functions from the module hog.math_helpers module.
-    # Many integrands are already implemented under hog/recipes/integrands/.
+    .. code-block:: python
 
-    def my_diffusion_integrand(
-        *,
-        jac_a_inv,
-        jac_a_abs_det,
-        jac_b_inv,
-        jac_b_abs_det,
-        grad_u,
-        grad_v,
-        tabulate,
-        **_,
-    ):
-        return (
-            double_contraction(
-                jac_b_inv.T * tabulate(jac_a_inv.T * grad_u),
-                jac_b_inv.T * tabulate(jac_a_inv.T * grad_v),
+        # The arguments of the function must begin with an asterisk (*), followed by keyword arguments, followed by the
+        # unused keyword arguments (**_). All keyword arguments must be members of the IntegrandSymbols class.
+        # The function must return the integrand. You can use functions from the module hog.math_helpers module.
+        # Many integrands are already implemented under hog/recipes/integrands/.
+
+        def my_diffusion_integrand(
+            *,
+            jac_a_inv,
+            jac_a_abs_det,
+            jac_b_inv,
+            jac_b_abs_det,
+            grad_u,
+            grad_v,
+            tabulate,
+            **_,
+        ):
+            return (
+                double_contraction(
+                    jac_b_inv.T * tabulate(jac_a_inv.T * grad_u),
+                    jac_b_inv.T * tabulate(jac_a_inv.T * grad_v),
+                )
+                * tabulate(jac_a_abs_det)
+                * jac_b_abs_det
             )
-            * tabulate(jac_a_abs_det)
-            * jac_b_abs_det
-        )
-    ```
 
     The callable (here `my_diffusion_integrand`, not `my_diffusion_integrand()`) is then passed to this function.
 
@@ -242,7 +244,7 @@ def process_integrand(
 
     tabulation = Tabulation(symbolizer)
 
-    def _tabulate(factor: Union[sp.Expr, sp.Matrix]):
+    def _tabulate(factor: Union[sp.Expr, sp.Matrix]) -> sp.Matrix:
         if isinstance(factor, sp.Expr):
             factor = sp.Matrix([factor])
 
@@ -250,7 +252,7 @@ def process_integrand(
             f"tabulated_factor_{symbolizer.get_next_running_integer()}", factor
         )
 
-    def _tabulate_named(factor_name: str, factor: sp.Matrix):
+    def _tabulate_named(factor_name: str, factor: sp.Matrix) -> sp.Matrix:
         return tabulation.register_factor(factor_name, factor)
 
     s.tabulate = _tabulate
