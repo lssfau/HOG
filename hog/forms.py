@@ -16,7 +16,7 @@
 
 import logging
 import sympy as sp
-from typing import Optional
+from typing import Optional, Callable, Any
 
 from hog.element_geometry import ElementGeometry, TetrahedronElement
 from hog.exception import HOGException
@@ -74,9 +74,9 @@ Weak formulation
     # mypy type checking supposedly cannot figure out ternaries.
     # https://stackoverflow.com/a/70832391
     if blending == IdentityMap():
-        integr = integrand_affine
+        integr: Callable[..., Any] = integrand_affine
     else:
-        integr = integrand
+        integr: Callable[..., Any] = integrand
 
     return process_integrand(
         integr,
@@ -154,9 +154,9 @@ Weak formulation
     # mypy type checking supposedly cannot figure out ternaries.
     # https://stackoverflow.com/a/70832391
     if blending == IdentityMap():
-        integr = integrand_affine
+        integr: Callable[..., Any] = integrand_affine
     else:
-        integr = integrand
+        integr: Callable[..., Any] = integrand
 
     return process_integrand(
         integr,
@@ -353,9 +353,9 @@ where
     # mypy type checking supposedly cannot figure out ternaries.
     # https://stackoverflow.com/a/70832391
     if blending == IdentityMap():
-        integr = integrand_affine
+        integr: Callable[..., Any] = integrand_affine
     else:
-        integr = integrand
+        integr: Callable[..., Any] = integrand
 
     return process_integrand(
         integr,
