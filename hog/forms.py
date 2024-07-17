@@ -73,10 +73,9 @@ Weak formulation
 
     # mypy type checking supposedly cannot figure out ternaries.
     # https://stackoverflow.com/a/70832391
+    integr: Callable[..., Any] = integrand
     if blending == IdentityMap():
-        integr: Callable[..., Any] = integrand_affine
-    else:
-        integr: Callable[..., Any] = integrand
+        integr = integrand_affine
 
     return process_integrand(
         integr,
@@ -153,10 +152,9 @@ Weak formulation
 
     # mypy type checking supposedly cannot figure out ternaries.
     # https://stackoverflow.com/a/70832391
+    integr: Callable[..., Any] = integrand
     if blending == IdentityMap():
-        integr: Callable[..., Any] = integrand_affine
-    else:
-        integr: Callable[..., Any] = integrand
+        integr = integrand_affine
 
     return process_integrand(
         integr,
@@ -352,10 +350,9 @@ where
 
     # mypy type checking supposedly cannot figure out ternaries.
     # https://stackoverflow.com/a/70832391
+    integr: Callable[..., Any] = integrand
     if blending == IdentityMap():
-        integr: Callable[..., Any] = integrand_affine
-    else:
-        integr: Callable[..., Any] = integrand
+        integr = integrand_affine
 
     return process_integrand(
         integr,
