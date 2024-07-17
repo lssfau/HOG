@@ -31,7 +31,12 @@ from tabulate import tabulate
 
 from hog.blending import GeometryMap, IdentityMap, AnnulusMap, IcosahedralShellMap
 from hog.cse import CseImplementation
-from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
+from hog.element_geometry import (
+    ElementGeometry,
+    TriangleElement,
+    TetrahedronElement,
+    LineElement,
+)
 from hog.exception import HOGException
 from hog.forms import (
     diffusion,
@@ -45,6 +50,7 @@ from hog.forms import (
     nonlinear_diffusion_newton_galerkin,
     supg_diffusion,
 )
+from hog.forms_boundary import mass_boundary
 from hog.forms_vectorial import curl_curl, curl_curl_plus_mass, mass_n1e1
 from hog.function_space import (
     FunctionSpace,
@@ -82,6 +88,7 @@ from generate_all_hyteg_forms import valid_base_dir
 from hog.operator_generation.types import parse_argument_type, HOGType, HOGPrecision
 import quadpy
 from hog.quadrature.quadrature import select_quadrule
+from hog.integrand import Form
 
 ALL_GEOMETRY_MAPS = [
     IdentityMap(),
@@ -440,6 +447,7 @@ def main():
                     loop,
                     blending,
                     quad,
+                    quad,
                     type_descriptor=type_descriptor,
                 )
 
@@ -478,17 +486,34 @@ class OperatorInfo:
     name: str
     trial_space: FunctionSpace
     test_space: FunctionSpace
-    form: Callable[
-        [
-            FunctionSpace,
-            FunctionSpace,
-            ElementGeometry,
-            Symbolizer,
-            GeometryMap,
-        ],
-        sp.Matrix,
-    ]
+    form: (
+        Callable[
+            [
+                FunctionSpace,
+                FunctionSpace,
+                ElementGeometry,
+                Symbolizer,
+                GeometryMap,
+            ],
+            Form,
+        ]
+        | None
+    )
     type_descriptor: HOGType
+    form_boundary: (
+        Callable[
+            [
+                FunctionSpace,
+                FunctionSpace,
+                ElementGeometry,
+                ElementGeometry,
+                Symbolizer,
+                GeometryMap,
+            ],
+            Form,
+        ]
+        | None
+    ) = None
     kernel_types: List[KernelWrapperType] = None  # type: ignore[assignment] # will definitely be initialized in __post_init__
     geometries: Sequence[ElementGeometry] = field(
         default_factory=lambda: [TriangleElement(), TetrahedronElement()]
@@ -594,6 +619,10 @@ def all_operators(
     ops.append(OperatorInfo(mapping="P2", name="SUPGDiffusion", trial_space=P2, test_space=P2, 
                             form=partial(supg_diffusion, velocity_function_space=P2, diffusivityXdelta_function_space=P2), 
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
+
+    ops.append(OperatorInfo(mapping="P2", name="BoundaryMass", trial_space=P2, test_space=P2, form=None,
+                            form_boundary=mass_boundary, type_descriptor=type_descriptor, geometries=list(geometries),
+                            opts=opts, blending=blending))
 
     # fmt: on
 
@@ -707,6 +736,7 @@ def generate_elementwise_op(
     loop_strategy: LoopStrategy,
     blending: GeometryMap,
     quad_info: dict[ElementGeometry, int | str],
+    quad_info_boundary: dict[ElementGeometry, int | str],
     type_descriptor: HOGType,
 ) -> None:
     """Generates a single operator and writes it to the HyTeG directory."""
@@ -723,28 +753,61 @@ def generate_elementwise_op(
         if geometry not in blending.supported_geometries():
             continue
 
-        quad = Quadrature(
-            select_quadrule(quad_info[geometry], geometry),
-            geometry,
-        )
+        if op_info.form is not None:
+            quad = Quadrature(
+                select_quadrule(quad_info[geometry], geometry),
+                geometry,
+            )
 
-        form = op_info.form(
-            op_info.trial_space,
-            op_info.test_space,
-            geometry,
-            symbolizer,
-            blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
-        )
+            form = op_info.form(
+                op_info.trial_space,
+                op_info.test_space,
+                geometry,
+                symbolizer,
+                blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
+            )
 
-        operator.add_volume_integral(
-            name="".join(name.split()),
-            volume_geometry=geometry,
-            quad=quad,
-            blending=blending,
-            form=form,
-            loop_strategy=loop_strategy,
-            optimizations=optimizations,
-        )
+            operator.add_volume_integral(
+                name="".join(name.split()),
+                volume_geometry=geometry,
+                quad=quad,
+                blending=blending,
+                form=form,
+                loop_strategy=loop_strategy,
+                optimizations=optimizations,
+            )
+
+        if op_info.form_boundary is not None:
+
+            if geometry == TriangleElement():
+                boundary_geometry = LineElement(space_dimension=2)
+            elif geometry == TetrahedronElement():
+                boundary_geometry = TriangleElement(space_dimension=3)
+            else:
+                raise HOGException("Invalid volume geometry for boundary integral.")
+
+            quad = Quadrature(
+                select_quadrule(quad_info_boundary[geometry], boundary_geometry),
+                boundary_geometry,
+            )
+
+            form_boundary = op_info.form_boundary(
+                op_info.trial_space,
+                op_info.test_space,
+                geometry,
+                boundary_geometry,
+                symbolizer,
+                blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
+            )
+
+            operator.add_boundary_integral(
+                name="".join(name.split()),
+                volume_geometry=geometry,
+                quad=quad,
+                blending=blending,
+                form=form_boundary,
+                optimizations=set(),
+            )
 
     dir_path = os.path.join(args.output, op_info.name.split("_")[0])
     operator.generate_class_code(
