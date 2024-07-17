@@ -73,3 +73,5 @@ add_operator_test(FILE DiffusionP1IcosahedralShell.cpp          FORM Diffusion A
 
 add_operator_test(FILE FullStokes.cpp DEF TEST_DIAG FORM=forms::p2_full_stokesvar_0_0_blending_q3 FORM FullStokes_0_0 ABBR 00b3VIQT GEN_ARGS -s P2 -b IcosahedralShellMap -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-rule yu_3 yu_3)
 add_operator_test(FILE FullStokes.cpp DEF           FORM=forms::p2_full_stokesvar_2_1_blending_q3 FORM FullStokes_2_1 ABBR 21b3VIQT GEN_ARGS -s P2 -b IcosahedralShellMap -o MOVECONSTANTS QUADLOOPS TABULATE VECTORIZE --quad-rule yu_3 yu_3)
+
+add_operator_test(FILE BoundaryMassTest.cpp DEF FORM BoundaryMass ABBR BM GEN_ARGS -s P2 -b AnnulusMap --quad-degree 5 5 --dimensions 2)
