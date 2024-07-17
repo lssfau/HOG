@@ -232,6 +232,7 @@ class Symbolizer:
         return sp.Symbol(f"{self._symbol_abs_det_jac_blending}{q_pt}")
 
     def hessian_blending_map(self, dimensions: int, q_pt: str = "") -> List[sp.Matrix]:
+        """Returns the Hessian for each component f_1, f_2, ... of the blending map f = (f_1, f_2, ...)."""
         return [
             sp.Matrix(
                 [

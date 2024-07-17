@@ -300,32 +300,61 @@ def jac_blending_inv_eval_symbols(
     return inv(jac_blending)
 
 
-def hessian_ref_to_affine(
-    geometry: ElementGeometry, hessian_ref: sp.Matrix, Jinv: sp.Matrix
+def hessian_shape_affine_ref_pullback(
+    hessian_shape_ref: sp.MatrixBase, jac_affine_inv: sp.Matrix
 ) -> sp.Matrix:
-    hessian_affine = Jinv.T * hessian_ref * Jinv
+    """
+    Small helper function that applies the chain rule for the transformation theorem when going from affine to
+    reference space.
+
+    See also https://scicomp.stackexchange.com/q/36780
+
+    :param hessian_shape_ref: the hessian of the shape function
+    :param jac_affine_inv: the inverse of the Jacobian of the mapping from reference to affine space
+    :return: the transformed integrand for integration over the reference element
+    """
+    hessian_affine = jac_affine_inv.T * hessian_shape_ref * jac_affine_inv
     return hessian_affine
 
 
-def hessian_affine_to_blending(
+def hessian_shape_blending_ref_pullback(
     geometry: ElementGeometry,
-    hessian_affine: sp.Matrix,
-    hessian_blending_map: List[sp.Matrix],
-    Jinv: sp.Matrix,
-    shape_grad_affine: sp.Matrix,
+    grad_shape_ref: sp.MatrixBase,
+    hessian_shape_ref: sp.MatrixBase,
+    jac_affine_inv: sp.Matrix,
+    hessian_blending: List[sp.Matrix],
+    jac_blending_inv: sp.Matrix,
 ) -> sp.Matrix:
     """
-    This stack answer was for nonlinear FE mapping (Q2 elements) but just using the same derivation for our blending nonlinear mapping
-    https://scicomp.stackexchange.com/q/36780
+    Small helper function that applies the chain rule for the transformation theorem when going from physical to
+    reference space.
+
+    See also https://scicomp.stackexchange.com/q/36780
+
+    :param geometry: the element geometry
+    :param grad_shape_ref: the gradient of the shape function
+    :param hessian_shape_ref: the hessian of the shape function
+    :param jac_affine_inv: the inverse of the Jacobian of the mapping from reference to affine space
+    :param hessian_blending: the Hessian of the blending map
+    :param jac_blending_inv: the inverse of the Jacobian of the blending map
+    :return: the transformed integrand for integration over the reference element
     """
+
+    shape_grad_affine = jac_affine_inv.T * grad_shape_ref
+
+    hessian_affine = hessian_shape_affine_ref_pullback(
+        hessian_shape_ref, jac_affine_inv
+    )
 
     jacinvjac_blending = []
     # jacinvjac_blending = sp.MutableDenseNDimArray(hessian_blending_map) * 0.0
 
     for i in range(geometry.dimensions):
-        jacinvjac_blending.append(-Jinv * hessian_blending_map[i] * Jinv)
+        jacinvjac_blending.append(
+            -jac_blending_inv.T * hessian_blending[i] * jac_blending_inv.T
+        )
 
-    hessian_blending = Jinv * hessian_affine * Jinv.T
+    result = jac_blending_inv.T * hessian_affine * jac_blending_inv
 
     d = geometry.dimensions
     aux_matrix = sp.zeros(d, d)
@@ -333,9 +362,9 @@ def hessian_affine_to_blending(
     for i in range(geometry.dimensions):
         aux_matrix[:, i] = jacinvjac_blending[i] * shape_grad_affine
 
-    hessian_blending += Jinv * aux_matrix
+    result += jac_blending_inv.T * aux_matrix
 
-    return hessian_blending
+    return result
 
 
 def scalar_space_dependent_coefficient(

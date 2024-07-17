@@ -127,15 +127,22 @@ class IntegrandSymbols:
     # The absolute of its determinant.
     jac_b_abs_det: sp.Symbol | None = None
 
+    # Hessian of the mapping from affine to physical space.
+    hessian_b: sp.Matrix | None = None
+
     # The trial shape function (reference space!).
     u: sp.Expr | None = None
     # The gradient of the trial shape function (reference space!).
     grad_u: sp.Matrix | None = None
+    # The Hessian of the trial shape function (reference space!).
+    hessian_u: sp.Matrix | None = None
 
     # The test shape function (reference space!).
     v: sp.Expr | None = None
     # The gradient of the test shape function (reference space!).
     grad_v: sp.Matrix | None = None
+    # The Hessian of the test shape function (reference space!).
+    hessian_v: sp.Matrix | None = None
 
     # A list of scalar constants.
     c: List[sp.Symbol] | None = None
@@ -287,6 +294,7 @@ def process_integrand(
             volume_geometry.space_dimension
         )
         s.jac_b_abs_det = symbolizer.abs_det_jac_affine_to_blending()
+        s.hessian_b = symbolizer.hessian_blending_map(volume_geometry.dimensions)
 
     if boundary_geometry is not None:
 
@@ -344,9 +352,11 @@ def process_integrand(
     for data in it:
         s.u = data.trial_shape
         s.grad_u = data.trial_shape_grad
+        s.hessian_u = data.trial_shape_hessian
 
         s.v = data.test_shape
         s.grad_v = data.test_shape_grad
+        s.hessian_v = data.test_shape_hessian
 
         mat[data.row, data.col] = integrand(**asdict(s))
 
