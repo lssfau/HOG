@@ -779,6 +779,7 @@ def generate_elementwise_op(
 
         if op_info.form_boundary is not None:
 
+            boundary_geometry: ElementGeometry
             if geometry == TriangleElement():
                 boundary_geometry = LineElement(space_dimension=2)
             elif geometry == TetrahedronElement():
