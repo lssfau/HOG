@@ -166,11 +166,22 @@ class IntegrandSymbols:
     jac_a_boundary: sp.Matrix | None = None
 
     # A callback to tabulate (aka precompute) terms that are identical on all elements of the same type.
+    #
+    # Simply enclose such a factor with this function, e.g., replace
+    #
+    #     some_term = jac_a_inv.T * grad_u
+    #
+    # with
+    #
+    #     some_term = tabulate(jac_a_inv.T * grad_u)
+    #
     # Use at your own risk, you may get wrong code if used on terms that are not element-invariant!
-    tabulate: Union[Callable[..., Any], None] = None
-    # You can also give the tabulated variable a name. That has no effect other than the generated code to be more
-    # readable. So not encouraged. But nice for debugging.
-    _tabulate_named: Union[Callable[..., Any], None] = None
+    #
+    # For debugging, you can also give the table an optional name:
+    #
+    #     some_term = tabulate(jac_a_inv.T * grad_u, factor_name="jac_grad_u")
+    #
+    tabulate: Callable[[Union[sp.Expr, sp.Matrix], str], sp.Matrix] | None = None
 
 
 def process_integrand(
@@ -260,19 +271,15 @@ def process_integrand(
 
     tabulation = Tabulation(symbolizer)
 
-    def _tabulate(factor: Union[sp.Expr, sp.Matrix]) -> sp.Matrix:
+    def _tabulate(
+        factor: Union[sp.Expr, sp.Matrix], factor_name: str = "tabulated_and_untitled"
+    ) -> sp.Matrix:
         if isinstance(factor, sp.Expr):
             factor = sp.Matrix([factor])
 
-        return tabulation.register_factor(
-            f"tabulated_factor_{symbolizer.get_next_running_integer()}", factor
-        )
-
-    def _tabulate_named(factor_name: str, factor: sp.Matrix) -> sp.Matrix:
         return tabulation.register_factor(factor_name, factor)
 
     s.tabulate = _tabulate
-    s._tabulate_named = _tabulate_named
 
     s.volume_geometry = volume_geometry
 
