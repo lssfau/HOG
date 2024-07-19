@@ -30,7 +30,7 @@ from hog.fem_helpers import (
     element_matrix_iterator,
     scalar_space_dependent_coefficient,
 )
-from hog.forms import Form
+from hog.integrand import Form
 from hog.function_space import FunctionSpace, EnrichedGalerkinFunctionSpace, N1E1Space
 from hog.math_helpers import inv, abs, det, double_contraction, dot, curl
 from hog.quadrature import Quadrature, Tabulation

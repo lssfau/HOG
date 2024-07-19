@@ -59,6 +59,8 @@ class Symbolizer:
         :param symbol_element_matrix: lambda for the names of the element matrix entries
         :param tmp_prefix: string that is used as a prefix for temporary variables
         """
+        self._running_integer = 0
+
         self._symbol_ref_coords = symbol_ref_coords
         self._symbol_affine_vertices = symbol_affine_vertices
         self._input_affine_vertices_name = input_affine_vertices_name
@@ -82,6 +84,15 @@ class Symbolizer:
         self._symbol_jac_blending_inv = symbol_jac_blending_inv
         self._symbol_abs_det_jac_blending = symbol_abs_det_jac_blending
         self._symbol_hessian_blending = symbol_hessian_blending
+
+    def get_next_running_integer(self):
+        """
+        Simply returns a new integer for every call for each Symbolizer instance.
+        Just handy if you need unique integers for any reason.
+        """
+        next_integer = self._running_integer
+        self._running_integer += 1
+        return next_integer
 
     def ref_coords_as_list(self, dimensions: int) -> List[sp.Symbol]:
         """Returns a list of symbols that correspond to the coordinates on the reference element."""
@@ -221,6 +232,7 @@ class Symbolizer:
         return sp.Symbol(f"{self._symbol_abs_det_jac_blending}{q_pt}")
 
     def hessian_blending_map(self, dimensions: int, q_pt: str = "") -> List[sp.Matrix]:
+        """Returns the Hessian for each component f_1, f_2, ... of the blending map f = (f_1, f_2, ...)."""
         return [
             sp.Matrix(
                 [

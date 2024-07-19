@@ -33,7 +33,7 @@ from hog.quadrature import Tabulation
 from hog.symbolizer import Symbolizer
 from hog.logger import TimedLogger
 from hog.blending import GeometryMap, ExternalMap, IdentityMap
-from hog.forms import Form
+from hog.integrand import Form
 
 from hog.manifold_helpers import face_projection, embedded_normal
 

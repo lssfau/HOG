@@ -31,11 +31,17 @@ from tabulate import tabulate
 
 from hog.blending import GeometryMap, IdentityMap, AnnulusMap, IcosahedralShellMap
 from hog.cse import CseImplementation
-from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
+from hog.element_geometry import (
+    ElementGeometry,
+    TriangleElement,
+    TetrahedronElement,
+    LineElement,
+)
 from hog.exception import HOGException
 from hog.forms import (
     diffusion,
     divergence,
+    gradient,
     div_k_grad,
     shear_heating,
     epsilon,
@@ -45,6 +51,7 @@ from hog.forms import (
     supg_diffusion,
     grad_rho_by_rho_dot_u,
 )
+from hog.forms_boundary import mass_boundary
 from hog.forms_vectorial import curl_curl, curl_curl_plus_mass, mass_n1e1
 from hog.function_space import (
     FunctionSpace,
@@ -82,6 +89,7 @@ from generate_all_hyteg_forms import valid_base_dir
 from hog.operator_generation.types import parse_argument_type, HOGType, HOGPrecision
 import quadpy
 from hog.quadrature.quadrature import select_quadrule
+from hog.integrand import Form
 
 ALL_GEOMETRY_MAPS = [
     IdentityMap(),
@@ -440,6 +448,7 @@ def main():
                     loop,
                     blending,
                     quad,
+                    quad,
                     type_descriptor=type_descriptor,
                 )
 
@@ -478,17 +487,34 @@ class OperatorInfo:
     name: str
     trial_space: FunctionSpace
     test_space: FunctionSpace
-    form: Callable[
-        [
-            FunctionSpace,
-            FunctionSpace,
-            ElementGeometry,
-            Symbolizer,
-            GeometryMap,
-        ],
-        sp.Matrix,
-    ]
+    form: (
+        Callable[
+            [
+                FunctionSpace,
+                FunctionSpace,
+                ElementGeometry,
+                Symbolizer,
+                GeometryMap,
+            ],
+            Form,
+        ]
+        | None
+    )
     type_descriptor: HOGType
+    form_boundary: (
+        Callable[
+            [
+                FunctionSpace,
+                FunctionSpace,
+                ElementGeometry,
+                ElementGeometry,
+                Symbolizer,
+                GeometryMap,
+            ],
+            Form,
+        ]
+        | None
+    ) = None
     kernel_types: List[KernelWrapperType] = None  # type: ignore[assignment] # will definitely be initialized in __post_init__
     geometries: Sequence[ElementGeometry] = field(
         default_factory=lambda: [TriangleElement(), TetrahedronElement()]
@@ -509,8 +535,8 @@ class OperatorInfo:
             dims = [g.dimensions for g in self.geometries]
             self.kernel_types = [
                 ApplyWrapper(
-                    self.test_space,
                     self.trial_space,
+                    self.test_space,
                     type_descriptor=self.type_descriptor,
                     dims=dims,
                 )
@@ -520,8 +546,8 @@ class OperatorInfo:
             if not ({Opts.VECTORIZE, Opts.VECTORIZE512}.intersection(all_opts)):
                 self.kernel_types.append(
                     AssembleWrapper(
-                        self.test_space,
                         self.trial_space,
+                        self.test_space,
                         type_descriptor=self.type_descriptor,
                         dims=dims,
                     )
@@ -530,7 +556,7 @@ class OperatorInfo:
             if self.test_space == self.trial_space:
                 self.kernel_types.append(
                     AssembleDiagonalWrapper(
-                        self.test_space,
+                        self.trial_space,
                         type_descriptor=self.type_descriptor,
                         dims=dims,
                     )
@@ -595,6 +621,10 @@ def all_operators(
                             form=partial(supg_diffusion, velocity_function_space=P2, diffusivityXdelta_function_space=P2), 
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
+    ops.append(OperatorInfo(mapping="P2", name="BoundaryMass", trial_space=P2, test_space=P2, form=None,
+                            form_boundary=mass_boundary, type_descriptor=type_descriptor, geometries=list(geometries),
+                            opts=opts, blending=blending))
+
     # fmt: on
 
     p2vec_epsilon = partial(
@@ -640,12 +670,14 @@ def all_operators(
             div_geometries = three_d
         else:
             div_geometries = list(geometries)
-        ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}", trial_space=P1, test_space=P2,
-                                form=partial(divergence, transpose=False, component_index=c),
+        ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}",
+                                trial_space=TensorialVectorFunctionSpace(P2, single_component=c), test_space=P1,
+                                form=partial(divergence, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
                                 blending=blending))
-        ops.append(OperatorInfo(mapping=f"P1ToP2", name=f"DivT_{c}", trial_space=P2, test_space=P1,
-                                form=partial(divergence, transpose=True, component_index=c),
+        ops.append(OperatorInfo(mapping=f"P1ToP2", name=f"DivT_{c}", trial_space=P1,
+                                test_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                                form=partial(gradient, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
                                 blending=blending))
         # fmt: on
@@ -669,11 +701,16 @@ def all_operators(
             )
             # fmt: off
             ops.append(
-                OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=P2, test_space=P2, form=p2_epsilon,
-                              type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
-            ops.append(OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=P2, test_space=P2,
-                                    form=p2_full_stokes, type_descriptor=type_descriptor, geometries=list(geometries), opts=opts,
-                                    blending=blending))
+                OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}",
+                             trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                             test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_epsilon,
+                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts,
+                             blending=blending))
+            ops.append(OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}",
+                                    trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                                    test_space=TensorialVectorFunctionSpace(P2, single_component=r),
+                                    form=p2_full_stokes, type_descriptor=type_descriptor, geometries=list(geometries),
+                                    opts=opts, blending=blending))
             # fmt: on
     for c, r in [(0, 2), (1, 2), (2, 2), (2, 1), (2, 0)]:
         p2_epsilon = partial(
@@ -693,11 +730,13 @@ def all_operators(
         )
         # fmt: off
         ops.append(
-            OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=P2, test_space=P2, form=p2_epsilon,
+            OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                         test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_epsilon,
                          type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
         ops.append(
-            OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=P2, test_space=P2, form=p2_full_stokes,
-                          type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
+            OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
+                         test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_full_stokes,
+                         type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
         # fmt: on
 
     # Removing all operators without viable element types (e.g.: some ops only support 2D, but a blending map maybe only
@@ -716,6 +755,7 @@ def generate_elementwise_op(
     loop_strategy: LoopStrategy,
     blending: GeometryMap,
     quad_info: dict[ElementGeometry, int | str],
+    quad_info_boundary: dict[ElementGeometry, int | str],
     type_descriptor: HOGType,
 ) -> None:
     """Generates a single operator and writes it to the HyTeG directory."""
@@ -732,28 +772,62 @@ def generate_elementwise_op(
         if geometry not in blending.supported_geometries():
             continue
 
-        quad = Quadrature(
-            select_quadrule(quad_info[geometry], geometry),
-            geometry,
-        )
+        if op_info.form is not None:
+            quad = Quadrature(
+                select_quadrule(quad_info[geometry], geometry),
+                geometry,
+            )
 
-        form = op_info.form(
-            op_info.test_space,
-            op_info.trial_space,
-            geometry,
-            symbolizer,
-            blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
-        )
+            form = op_info.form(
+                op_info.trial_space,
+                op_info.test_space,
+                geometry,
+                symbolizer,
+                blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
+            )
 
-        operator.add_volume_integral(
-            name="".join(name.split()),
-            volume_geometry=geometry,
-            quad=quad,
-            blending=blending,
-            form=form,
-            loop_strategy=loop_strategy,
-            optimizations=optimizations,
-        )
+            operator.add_volume_integral(
+                name="".join(name.split()),
+                volume_geometry=geometry,
+                quad=quad,
+                blending=blending,
+                form=form,
+                loop_strategy=loop_strategy,
+                optimizations=optimizations,
+            )
+
+        if op_info.form_boundary is not None:
+
+            boundary_geometry: ElementGeometry
+            if geometry == TriangleElement():
+                boundary_geometry = LineElement(space_dimension=2)
+            elif geometry == TetrahedronElement():
+                boundary_geometry = TriangleElement(space_dimension=3)
+            else:
+                raise HOGException("Invalid volume geometry for boundary integral.")
+
+            quad = Quadrature(
+                select_quadrule(quad_info_boundary[geometry], boundary_geometry),
+                boundary_geometry,
+            )
+
+            form_boundary = op_info.form_boundary(
+                op_info.trial_space,
+                op_info.test_space,
+                geometry,
+                boundary_geometry,
+                symbolizer,
+                blending=blending,  # type: ignore[call-arg] # kw-args are not supported by Callable
+            )
+
+            operator.add_boundary_integral(
+                name="".join(name.split()),
+                volume_geometry=geometry,
+                quad=quad,
+                blending=blending,
+                form=form_boundary,
+                optimizations=set(),
+            )
 
     dir_path = os.path.join(args.output, op_info.name.split("_")[0])
     operator.generate_class_code(

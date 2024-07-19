@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import sympy as sp
-from typing import Dict, List, Iterable, Tuple
+from typing import Dict, List, Tuple, Union
 
 import pystencils.astnodes as ast
 from pystencils.typing import BasicType
@@ -138,7 +138,9 @@ class Tabulation:
             subs_dict |= {symbol: expr for expr, (_, symbol) in table.entries.items()}
         return fast_subs(mat, subs_dict)
 
-    def register_phi_evals(self, phis: List[sp.Expr]) -> List[sp.Expr]:
+    def register_phi_evals(
+        self, phis: Union[List[sp.Expr], List[sp.MatrixBase]]
+    ) -> List[sp.Expr]:
         """Convenience function to register factors for the evaluation of basis functions."""
         phi_eval_symbols = []
         for idx, phi in enumerate(phis):

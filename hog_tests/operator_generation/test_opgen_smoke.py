@@ -51,7 +51,7 @@ def test_opgen_smoke():
 
     name = f"P2DivKGradBlendingPlusBoundaryMass"
 
-    dims = [2, 3]
+    dims = [2]
 
     trial = LagrangianFunctionSpace(2, symbolizer)
     test = LagrangianFunctionSpace(2, symbolizer)

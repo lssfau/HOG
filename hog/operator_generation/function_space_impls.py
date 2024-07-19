@@ -103,9 +103,15 @@ class FunctionSpaceImpl(ABC):
         elif isinstance(func_space, TensorialVectorFunctionSpace):
             if isinstance(func_space.component_function_space, LagrangianFunctionSpace):
                 if func_space.component_function_space.degree == 1:
-                    impl_class = P1VectorFunctionSpaceImpl
+                    if func_space.single_component is None:
+                        impl_class = P1VectorFunctionSpaceImpl
+                    else:
+                        impl_class = P1FunctionSpaceImpl
                 elif func_space.component_function_space.degree == 2:
-                    impl_class = P2VectorFunctionSpaceImpl
+                    if func_space.single_component is None:
+                        impl_class = P2VectorFunctionSpaceImpl
+                    else:
+                        impl_class = P2FunctionSpaceImpl
                 else:
                     raise HOGException(
                         "TensorialVectorFunctionSpaces not supported for the chosen components."

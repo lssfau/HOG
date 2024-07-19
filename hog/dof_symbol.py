@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from copy import deepcopy
 import sympy as sp
 from hog.function_space import FunctionSpace
 from hog.element_geometry import ElementGeometry
@@ -46,3 +47,11 @@ class DoFSymbol(sp.Symbol):
         obj.dof_id = dof_id
         obj.function_id = function_id
         return obj
+
+    def __deepcopy__(self, memo):
+        return DoFSymbol(
+            deepcopy(self.name),
+            deepcopy(self.function_space),
+            deepcopy(self.dof_id),
+            deepcopy(self.function_id),
+        )
