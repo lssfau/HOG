@@ -17,10 +17,5 @@
 from hog.recipes.common import *
 
 
-def integrand(
-    *,
-    # Seems we need at least one parameter.
-    u,
-    **_,
-):
-    return 0 * u
+def integrand(**_):
+    return 0

@@ -705,7 +705,7 @@ Weak formulation
     μ: coefficient    (scalar space:    {viscosity_function_space})
     w: velocity       (vectorial space: {velocity_function_space})
 
-    ∫ {{ 2 {{[ μ (grad(w)+grad(w)ᵀ) / 2 ] - 1/3 [ μ div(w) ]I}} : grad(w) }} T_h s_h
+    ∫ {{ 2 {{[ μ (grad(w)+grad(w)ᵀ) / 2 ] - 1/dim [ μ div(w) ]I}} : grad(w) }} T_h s_h
     
 The resulting matrix must be multiplied with a vector of ones to be used as the shear heating term in the RHS
 """
