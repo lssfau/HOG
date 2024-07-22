@@ -40,7 +40,7 @@ def integrand(
     symm_grad_v = symm_grad(grad_v_chain)
 
     return (
-        double_contraction(2 * k[0] * symm_grad_u, symm_grad_v)
+        double_contraction(2 * k["mu"] * symm_grad_u, symm_grad_v)
         * tabulate(jac_a_abs_det)
         * jac_b_abs_det
     )

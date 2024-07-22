@@ -18,7 +18,7 @@ import logging
 import sympy as sp
 from typing import Optional, Callable, Any
 
-from hog.element_geometry import ElementGeometry, TetrahedronElement
+from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
 from hog.fem_helpers import (
     trafo_ref_to_affine,
@@ -30,12 +30,10 @@ from hog.fem_helpers import (
     element_matrix_iterator,
     scalar_space_dependent_coefficient,
     vector_space_dependent_coefficient,
-    fem_function_on_element,
-    fem_function_gradient_on_element,
 )
 from hog.function_space import FunctionSpace, N1E1Space
 from hog.math_helpers import dot, inv, abs, det, double_contraction
-from hog.quadrature import Quadrature, Tabulation
+from hog.quadrature import Quadrature
 from hog.symbolizer import Symbolizer
 from hog.logger import TimedLogger
 from hog.blending import GeometryMap, ExternalMap, IdentityMap
@@ -163,7 +161,7 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        fe_coefficients=[("k", coefficient_function_space)],
+        fe_coefficients={"k": coefficient_function_space},
         is_symmetric=trial == test,
         docstring=docstring,
     )
@@ -230,7 +228,7 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients=[("u", coefficient_function_space)],
+        fe_coefficients={"u": coefficient_function_space},
     )
 
 
@@ -307,7 +305,7 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
         blending=blending,
         is_symmetric=False,
         docstring=docstring,
-        fe_coefficients=[("k", coefficient_function_space)],
+        fe_coefficients={"k": coefficient_function_space},
     )
 
 
@@ -363,7 +361,7 @@ where
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients=[("mu", coefficient_function_space)],
+        fe_coefficients={"mu": coefficient_function_space},
     )
 
 
@@ -658,7 +656,7 @@ where
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients=[("mu", coefficient_function_space)],
+        fe_coefficients={"mu": coefficient_function_space},
     )
 
 
@@ -726,12 +724,12 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
     ):
         """First function: mu, other functions: ux, uy, uz."""
 
-        mu = k[0]
+        mu = k["mu"]
 
         # grad_k[0] is grad_mu_ref
-        grad_wx = jac_b_inv.T * jac_a_inv.T * grad_k[1]
-        grad_wy = jac_b_inv.T * jac_a_inv.T * grad_k[2]
-        grad_wz = jac_b_inv.T * jac_a_inv.T * grad_k[3]
+        grad_wx = jac_b_inv.T * jac_a_inv.T * grad_k["wx"]
+        grad_wy = jac_b_inv.T * jac_a_inv.T * grad_k["wy"]
+        grad_wz = jac_b_inv.T * jac_a_inv.T * grad_k["wz"]
 
         grad_w = grad_wx.row_join(grad_wy)
         dim = volume_geometry.dimensions
@@ -758,12 +756,12 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         geometry,
         symbolizer,
         blending=blending,
-        fe_coefficients=[
-            ("mu", viscosity_function_space),
-            ("wx", velocity_function_space),
-            ("wy", velocity_function_space),
-            ("wz", velocity_function_space),
-        ],
+        fe_coefficients={
+            "mu": viscosity_function_space,
+            "wx": velocity_function_space,
+            "wy": velocity_function_space,
+            "wz": velocity_function_space,
+        },
         is_symmetric=trial == test,
         docstring=docstring,
     )
@@ -863,10 +861,10 @@ Weak formulation
     ):
         """First function: k𝛿, other functions: ux, uy, uz."""
 
-        k_times_delta = k[0]
-        wx = k[1]
-        wy = k[2]
-        wz = k[3]
+        k_times_delta = k["diffusivity_times_delta"]
+        wx = k["wx"]
+        wy = k["wy"]
+        wz = k["wz"]
 
         dim = volume_geometry.dimensions
         if dim == 2:
@@ -917,12 +915,12 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        fe_coefficients=[
-            ("diffusivity_times_delta", diffusivityXdelta_function_space),
-            ("wx", velocity_function_space),
-            ("wy", velocity_function_space),
-            ("wz", velocity_function_space),
-        ],
+        fe_coefficients={
+            "diffusivity_times_delta": diffusivityXdelta_function_space,
+            "wx": velocity_function_space,
+            "wy": velocity_function_space,
+            "wz": velocity_function_space,
+        },
     )
 
 def grad_rho_by_rho_dot_u(

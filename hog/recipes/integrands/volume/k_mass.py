@@ -18,4 +18,4 @@ from hog.recipes.common import *
 
 
 def integrand(*, u, v, jac_a_abs_det, jac_b_abs_det, k, tabulate, **_):
-    return k[0] * tabulate(u * v * jac_a_abs_det) * jac_b_abs_det
+    return k["k"] * tabulate(u * v * jac_a_abs_det) * jac_b_abs_det

@@ -46,8 +46,8 @@ This module contains various functions and data structures to formulate the inte
 The actual integration and code generation is handled somewhere else.
 """
 
-from typing import Callable, List, Union, Tuple, Any
-from dataclasses import dataclass, asdict, fields
+from typing import Callable, List, Union, Tuple, Any, Dict
+from dataclasses import dataclass, asdict, fields, field
 
 import sympy as sp
 
@@ -64,6 +64,7 @@ from hog.fem_helpers import (
     fem_function_gradient_on_element,
     scalar_space_dependent_coefficient,
     jac_affine_to_physical,
+    trafo_ref_to_physical,
 )
 from hog.math_helpers import inv, det
 
@@ -78,6 +79,7 @@ class Form:
     integrand: sp.MatrixBase
     tabulation: Tabulation
     symmetric: bool
+    free_symbols: List[sp.Symbol]
     docstring: str = ""
 
     def integrate(self, quad: Quadrature, symbolizer: Symbolizer) -> sp.Matrix:
@@ -144,13 +146,15 @@ class IntegrandSymbols:
     # The Hessian of the test shape function (reference space!).
     hessian_v: sp.Matrix | None = None
 
-    # A list of scalar constants.
-    c: List[sp.Symbol] | None = None
+    # The physical coordinates.
+    x: sp.Matrix | None = None
 
-    # A list of finite element functions that can be used as function parameters.
-    k: List[sp.Symbol] | None = None
+    # A dict of finite element functions that can be used as function parameters.
+    # The keys are specified by the strings that are passed to process_integrand.
+    k: Dict[str, sp.Symbol] | None = None
     # A list of the gradients of the parameter finite element functions.
-    grad_k: List[sp.Matrix] | None = None
+    # The keys are specified by the strings that are passed to process_integrand.
+    grad_k: Dict[str, sp.Matrix] | None = None
 
     # The geometry of the volume element.
     volume_geometry: ElementGeometry | None = None
@@ -164,6 +168,32 @@ class IntegrandSymbols:
     # The affine space has the space dimension (aka the dimension of the space it is embedded in) of the boundary
     # element.
     jac_a_boundary: sp.Matrix | None = None
+
+    # A callback to generate free symbols that can be chosen by the user later.
+    #
+    # To get (and register new symbols) simply pass a list of symbol names to this function.
+    # It returns sympy symbols that can be safely used in the integrand:
+    #
+    #     n_x, n_y, n_z = scalars(["n_x", "n_y", "n_z"])
+    #
+    # or for a single symbol
+    #
+    #     a = scalars("a")
+    #
+    # or use the sympy-like space syntax
+    #
+    #     a, b = scalars("a b")
+    #
+    # Simply using sp.Symbol will not work since the symbols must be registered in the generator.
+    scalars: Callable[[str | List[str]], sp.Symbol | List[sp.Symbol]] | None = None
+
+    # Same as scalars, but returns the symbols arranged as matrices.
+    #
+    # For a matrix with three rows and two columns:
+    #
+    #     A = matrix("A", 3, 2)
+    #
+    matrix: Callable[[str, int, int], sp.Matrix] | None = None
 
     # A callback to tabulate (aka precompute) terms that are identical on all elements of the same type.
     #
@@ -192,8 +222,7 @@ def process_integrand(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     boundary_geometry: ElementGeometry | None = None,
-    scalar_coefficients: List[str] | None = None,
-    fe_coefficients: List[Tuple[str, Union[FunctionSpace, None]]] | None = None,
+    fe_coefficients: Dict[str, Union[FunctionSpace, None]] | None = None,
     is_symmetric: bool = False,
     docstring: str = "",
 ) -> Form:
@@ -252,20 +281,15 @@ def process_integrand(
     :param blending: an optional blending map e.g., for curved geometries
     :param boundary_geometry: the geometry to integrate over for boundary integrals - passed through to the callable via
                               the IntegrandSymbols object
-    :param scalar_coefficients: a list of strings that are names for scalar coefficients, they will be available to the
-                                callable as `c`
-    :param fe_coefficients: a list of tuples of type (str, FunctionSpace) that are names and spaces for scalar
+    :param fe_coefficients: a dictionary of type (str, FunctionSpace) that are names and spaces for scalar
                             finite-element function coefficients, they will be available to the callable as `k`
                             supply None as the FunctionSpace for a std::function-type coeff (only works for old forms)
     :param is_symmetric: whether the bilinear form is symmetric - this is exploited by the generator
     :param docstring: documentation of the integrand/bilinear form - will end up in the docstring of the generated code
     """
 
-    if scalar_coefficients is None:
-        scalar_coefficients = []
-
     if fe_coefficients is None:
-        fe_coefficients = []
+        fe_coefficients = {}
 
     s = IntegrandSymbols()
 
@@ -280,6 +304,30 @@ def process_integrand(
         return tabulation.register_factor(factor_name, factor)
 
     s.tabulate = _tabulate
+
+    free_symbols = set()
+
+    def _scalars(symbol_names: str | List[str]) -> sp.Symbol | List[sp.Symbol]:
+        nonlocal free_symbols
+        symbs = sp.symbols(symbol_names)
+        if isinstance(symbs, list):
+            free_symbols |= set(symbs)
+        elif isinstance(symbs, sp.Symbol):
+            free_symbols.add(symbs)
+        else:
+            raise HOGException(
+                f"I did not expect sp.symbols() to return whatever this is: {type(symbs)}"
+            )
+        return symbs
+
+    def _matrix(base_name: str, rows: int, cols: int) -> sp.Matrix:
+        symbs = _scalars(
+            [f"{base_name}_{row}_{col}" for row in range(rows) for col in range(cols)]
+        )
+        return sp.Matrix(symbs).reshape(rows, cols)
+
+    s.scalars = _scalars
+    s.matrix = _matrix
 
     s.volume_geometry = volume_geometry
 
@@ -317,11 +365,11 @@ def process_integrand(
         s.boundary_geometry = boundary_geometry
         s.jac_a_boundary = symbolizer.jac_ref_to_affine(boundary_geometry)
 
-    s.c = [sp.Symbol(s) for s in scalar_coefficients]
+    s.x = trafo_ref_to_physical(volume_geometry, symbolizer, blending)
 
-    s.k = []
-    s.grad_k = []
-    for name, coefficient_function_space in fe_coefficients:
+    s.k = dict()
+    s.grad_k = dict()
+    for name, coefficient_function_space in fe_coefficients.items():
         if coefficient_function_space is None:
             k = scalar_space_dependent_coefficient(
                 name, volume_geometry, symbolizer, blending=blending
@@ -350,8 +398,8 @@ def process_integrand(
                 function_id=f"grad_{name}",
                 dof_symbols=dof_symbols,
             )
-        s.k.append(k)
-        s.grad_k.append(grad_k)
+        s.k[name] = k
+        s.grad_k[name] = grad_k
 
     mat = create_empty_element_matrix(trial, test, volume_geometry)
     it = element_matrix_iterator(trial, test, volume_geometry)
@@ -367,4 +415,12 @@ def process_integrand(
 
         mat[data.row, data.col] = integrand(**asdict(s))
 
-    return Form(mat, tabulation, symmetric=is_symmetric, docstring=docstring)
+    free_symbols = sorted(list(free_symbols), key=lambda x: str(x))
+
+    return Form(
+        mat,
+        tabulation,
+        symmetric=is_symmetric,
+        free_symbols=free_symbols,
+        docstring=docstring,
+    )
