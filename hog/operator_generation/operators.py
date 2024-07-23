@@ -665,18 +665,20 @@ class HyTeGElementwiseOperator:
                     )
 
         # Free symbols that shall be settable through the ctor.
-        free_symbol_vars = set()
+        free_symbol_vars_set = set()
         for integration_infos in self.integration_infos.values():
             for integration_info in integration_infos:
                 for fs in integration_info.free_symbols:
-                    free_symbol_vars.add(f"{str(fs)}_{integration_info.integrand_name}")
+                    free_symbol_vars_set.add(
+                        f"{str(fs)}_{integration_info.integrand_name}"
+                    )
 
         free_symbol_vars = [
             CppVariable(
                 name=fs,
                 type=str(self._type_descriptor.pystencils_type),
             )
-            for fs in free_symbol_vars
+            for fs in free_symbol_vars_set
         ]
 
         free_symbol_vars = sorted(free_symbol_vars, key=lambda x: x.name)

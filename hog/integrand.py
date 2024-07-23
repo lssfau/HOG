@@ -79,7 +79,7 @@ class Form:
     integrand: sp.MatrixBase
     tabulation: Tabulation
     symmetric: bool
-    free_symbols: List[sp.Symbol]
+    free_symbols: List[sp.Symbol] = field(default_factory=lambda: list())
     docstring: str = ""
 
     def integrate(self, quad: Quadrature, symbolizer: Symbolizer) -> sp.Matrix:
@@ -415,12 +415,12 @@ def process_integrand(
 
         mat[data.row, data.col] = integrand(**asdict(s))
 
-    free_symbols = sorted(list(free_symbols), key=lambda x: str(x))
+    free_symbols_sorted = sorted(list(free_symbols), key=lambda x: str(x))
 
     return Form(
         mat,
         tabulation,
         symmetric=is_symmetric,
-        free_symbols=free_symbols,
+        free_symbols=free_symbols_sorted,
         docstring=docstring,
     )

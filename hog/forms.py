@@ -30,6 +30,8 @@ from hog.fem_helpers import (
     element_matrix_iterator,
     scalar_space_dependent_coefficient,
     vector_space_dependent_coefficient,
+    fem_function_on_element,
+    fem_function_gradient_on_element,
 )
 from hog.function_space import FunctionSpace, N1E1Space
 from hog.math_helpers import dot, inv, abs, det, double_contraction
@@ -923,6 +925,7 @@ Weak formulation
         },
     )
 
+
 def grad_rho_by_rho_dot_u(
     trial: FunctionSpace,
     test: FunctionSpace,
@@ -945,7 +948,9 @@ Weak formulation
     ∫ ((∇ρ / ρ) · u) v
 """
 
-    with TimedLogger("assembling grad_rho_by_rho_dot_u-mass matrix", level=logging.DEBUG):
+    with TimedLogger(
+        "assembling grad_rho_by_rho_dot_u-mass matrix", level=logging.DEBUG
+    ):
         tabulation = Tabulation(symbolizer)
 
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
@@ -956,7 +961,9 @@ Weak formulation
         else:
             affine_coords = trafo_ref_to_affine(geometry, symbolizer)
             # jac_blending = blending.jacobian(affine_coords)
-            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(geometry.dimensions)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(
+                geometry.dimensions
+            )
             jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
 
         # jac_blending_det = abs(det(jac_blending))
@@ -996,12 +1003,28 @@ Weak formulation
                 #     sp.Matrix([phi * psi * jac_affine_det]),
                 # )[0]
                 if blending == IdentityMap():
-                    form = dot(((jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det
+                    form = (
+                        dot(((jac_affine_inv.T * grad_rho) / rho[0]), phi)
+                        * psi
+                        * jac_affine_det
+                    )
                 else:
-                    form = dot(((jac_blending_inv.T * jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det * jac_blending_det
+                    form = (
+                        dot(
+                            (
+                                (jac_blending_inv.T * jac_affine_inv.T * grad_rho)
+                                / rho[0]
+                            ),
+                            phi,
+                        )
+                        * psi
+                        * jac_affine_det
+                        * jac_blending_det
+                    )
                 mat[data.row, data.col] = form
 
     return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)
+
 
 def zero_form(
     trial: FunctionSpace,
