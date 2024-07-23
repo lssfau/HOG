@@ -35,7 +35,7 @@ from hog.fem_helpers import (
 )
 from hog.function_space import FunctionSpace, N1E1Space
 from hog.math_helpers import dot, inv, abs, det, double_contraction
-from hog.quadrature import Quadrature
+from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
 from hog.logger import TimedLogger
 from hog.blending import GeometryMap, ExternalMap, IdentityMap
