@@ -51,7 +51,12 @@ from hog.forms import (
     supg_diffusion,
     grad_rho_by_rho_dot_u,
 )
-from hog.forms_boundary import mass_boundary
+from hog.forms_boundary import (
+    mass_boundary,
+    freeslip_gradient_weak_boundary,
+    freeslip_divergence_weak_boundary,
+    freeslip_momentum_weak_boundary,
+)
 from hog.forms_vectorial import curl_curl, curl_curl_plus_mass, mass_n1e1
 from hog.function_space import (
     FunctionSpace,
@@ -639,6 +644,55 @@ def all_operators(
             trial_space=P2Vector,
             test_space=P2Vector,
             form=p2vec_epsilon,
+            type_descriptor=type_descriptor,
+            geometries=list(geometries),
+            opts=opts,
+            blending=blending,
+        )
+    )
+
+    p2vec_freeslip_momentum_weak_boundary = partial(
+        freeslip_momentum_weak_boundary, function_space_mu=P2
+    )
+
+    ops.append(
+        OperatorInfo(
+            mapping=f"P2Vector",
+            name=f"EpsilonFreeslip",
+            trial_space=P2Vector,
+            test_space=P2Vector,
+            form=p2vec_epsilon,
+            form_boundary=p2vec_freeslip_momentum_weak_boundary,
+            type_descriptor=type_descriptor,
+            geometries=list(geometries),
+            opts=opts,
+            blending=blending,
+        )
+    )
+
+    ops.append(
+        OperatorInfo(
+            mapping=f"P2VectorToP1",
+            name=f"DivergenceFreeslip",
+            trial_space=P2Vector,
+            test_space=P1,
+            form=divergence,
+            form_boundary=freeslip_divergence_weak_boundary,
+            type_descriptor=type_descriptor,
+            geometries=list(geometries),
+            opts=opts,
+            blending=blending,
+        )
+    )
+
+    ops.append(
+        OperatorInfo(
+            mapping=f"P1ToP2Vector",
+            name=f"GradientFreeslip",
+            trial_space=P1,
+            test_space=P2Vector,
+            form=gradient,
+            form_boundary=freeslip_gradient_weak_boundary,
             type_descriptor=type_descriptor,
             geometries=list(geometries),
             opts=opts,
