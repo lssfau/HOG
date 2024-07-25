@@ -1682,19 +1682,6 @@ class HyTeGElementwiseOperator:
 
                     kernel_parameters = kernel_function.get_parameters()
 
-                    if any(
-                        [
-                            str(free_symbol)
-                            not in [str(kp) for kp in kernel_parameters]
-                            for free_symbol in integration_info.free_symbols
-                        ]
-                    ):
-                        raise HOGException(
-                            "Hmm, some free symbols from the integrand have been lost...\n"
-                            f"free symbols: {[str(fs) for fs in integration_info.free_symbols]}\n"
-                            f"kernel parameters: {[str(kp) for kp in kernel_parameters]}"
-                        )
-
                     # We append the name of the integrand (!= name of the kernel) to the free symbols we found in the
                     # integrand to make sure that two different integrands (e.g., a boundary and a volume integrand)
                     # that use the same symbol name do not clash.
