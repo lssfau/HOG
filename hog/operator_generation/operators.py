@@ -665,6 +665,17 @@ class HyTeGElementwiseOperator:
                     )
 
         # Free symbols that shall be settable through the ctor.
+        # Those are only free symbols that have been explicitly defined by the user. Other undefined sympy symbols are
+        # not (and are not supposed to be) handled here.
+        #
+        # We append the name of the integrand (!= name of the kernel) to the free symbols we found in the
+        # integrand to make sure that two different integrands (e.g., a boundary and a volume integrand)
+        # that use the same symbol name do not clash.
+        #
+        # However, if more than one kernel is added for the same integrand by the HOG (e.g. for boundary
+        # integrals, a separate kernel per side of the simplex is added) this name will (and should) clash
+        # to make sure all kernels use the same symbols.
+        #
         free_symbol_vars_set = set()
         for integration_infos in self.integration_infos.values():
             for integration_info in integration_infos:
@@ -1684,9 +1695,13 @@ class HyTeGElementwiseOperator:
                             f"kernel parameters: {[str(kp) for kp in kernel_parameters]}"
                         )
 
-                    # We prepend the name of the kernel to the free symbols we found in the integrand to make sure that
-                    # two integrands (e.g., a boundary and a volume integrand) that use the same symbol name do not
-                    # clash.
+                    # We append the name of the integrand (!= name of the kernel) to the free symbols we found in the
+                    # integrand to make sure that two different integrands (e.g., a boundary and a volume integrand)
+                    # that use the same symbol name do not clash.
+                    #
+                    # However, if more than one kernel is added for the same integrand by the HOG (e.g. for boundary
+                    # integrals, a separate kernel per side of the simplex is added) this name will (and should) clash
+                    # to make sure all kernels use the same symbols.
 
                     kernel_parameters_updated = []
                     for prm in kernel_parameters:
