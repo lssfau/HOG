@@ -33,7 +33,7 @@ from hog.fem_helpers import (
     fem_function_on_element,
     fem_function_gradient_on_element,
 )
-from hog.function_space import FunctionSpace, N1E1Space
+from hog.function_space import FunctionSpace, N1E1Space, TrialSpace, TestSpace
 from hog.math_helpers import dot, inv, abs, det, double_contraction
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
@@ -43,8 +43,8 @@ from hog.integrand import process_integrand, Form
 
 
 def diffusion(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -84,14 +84,14 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def mass(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -118,14 +118,14 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def div_k_grad(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -164,14 +164,14 @@ Weak formulation
         symbolizer,
         blending=blending,
         fe_coefficients={"k": coefficient_function_space},
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def nonlinear_diffusion(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     coefficient_function_space: FunctionSpace,
@@ -197,7 +197,7 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
             "The nonlinear-diffusion form does currently not support blending."
         )
 
-    if trial != test:
+    if trial != test:  # type: ignore[comparison-overlap]
         raise HOGException(
             "Trial space must be equal to test space to assemble non-linear diffusion matrix."
         )
@@ -228,15 +228,15 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
         fe_coefficients={"u": coefficient_function_space},
     )
 
 
 def nonlinear_diffusion_newton_galerkin(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     coefficient_function_space: FunctionSpace,
@@ -257,7 +257,7 @@ Weak formulation
 
 Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended for :math:`k = u`.
 """
-    if trial != test:
+    if trial != test:  # type: ignore[comparison-overlap]
         raise HOGException(
             "Trial space must be equal to test space to assemble diffusion matrix."
         )
@@ -312,8 +312,8 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
 
 
 def epsilon(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -322,7 +322,6 @@ def epsilon(
     variable_viscosity: bool = True,
     coefficient_function_space: Optional[FunctionSpace] = None,
 ) -> Form:
-
     docstring = f"""
 "Epsilon" operator.
 
@@ -361,15 +360,15 @@ where
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
         fe_coefficients={"mu": coefficient_function_space},
     )
 
 
 def k_mass(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -398,14 +397,14 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def pspg(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,
@@ -456,14 +455,14 @@ for details.
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def linear_form(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,
@@ -477,7 +476,7 @@ def linear_form(
     where psi a test function and k = k(x) a scalar, external function.
     """
 
-    if trial != test:
+    if trial != test:  # type: ignore[comparison-overlap]
         raise HOGException(
             "Trial space must be equal to test space to assemble linear form (jep this is weird, but linear forms are implemented as diagonal matrices)."
         )
@@ -534,14 +533,13 @@ def linear_form(
 
 
 def divergence(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_index: int = 0,
 ) -> Form:
-
     docstring = f"""
 Divergence.
 
@@ -571,8 +569,8 @@ Weak formulation
 
 
 def gradient(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -607,8 +605,8 @@ def gradient(
 
 
 def full_stokes(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -656,15 +654,15 @@ where
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
         fe_coefficients={"mu": coefficient_function_space},
     )
 
 
 def shear_heating(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -764,14 +762,14 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
             "wy": velocity_function_space,
             "wz": velocity_function_space,
         },
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def divdiv(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     component_trial: int,
     component_test: int,
     geometry: ElementGeometry,
@@ -809,14 +807,14 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def supg_diffusion(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     velocity_function_space: FunctionSpace,
@@ -927,8 +925,8 @@ Weak formulation
 
 
 def grad_rho_by_rho_dot_u(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -1023,17 +1021,16 @@ Weak formulation
                     )
                 mat[data.row, data.col] = form
 
-    return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)
+    return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)  # type: ignore[comparison-overlap]
 
 
 def zero_form(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
 ) -> Form:
-
     from hog.recipes.integrands.volume.zero import integrand
 
     return process_integrand(
@@ -1043,6 +1040,6 @@ def zero_form(
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring="",
     )

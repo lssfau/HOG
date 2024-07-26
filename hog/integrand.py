@@ -52,7 +52,7 @@ from dataclasses import dataclass, asdict, fields, field
 import sympy as sp
 
 from hog.exception import HOGException
-from hog.function_space import FunctionSpace
+from hog.function_space import FunctionSpace, TrialSpace, TestSpace
 from hog.element_geometry import ElementGeometry
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
@@ -216,8 +216,8 @@ class IntegrandSymbols:
 
 def process_integrand(
     integrand: Callable[..., Any],
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     volume_geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -352,7 +352,6 @@ def process_integrand(
         s.hessian_b = symbolizer.hessian_blending_map(volume_geometry.dimensions)
 
     if boundary_geometry is not None:
-
         if boundary_geometry.dimensions != boundary_geometry.space_dimension - 1:
             raise HOGException(
                 "Since you are integrating over a boundary, the boundary element's space dimension should be larger "

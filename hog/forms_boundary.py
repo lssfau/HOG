@@ -17,15 +17,15 @@
 
 from typing import Optional
 from hog.element_geometry import ElementGeometry
-from hog.function_space import FunctionSpace
+from hog.function_space import FunctionSpace, TrialSpace, TestSpace
 from hog.symbolizer import Symbolizer
 from hog.blending import GeometryMap, IdentityMap
 from hog.integrand import process_integrand, Form
 
 
 def mass_boundary(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     volume_geometry: ElementGeometry,
     boundary_geometry: ElementGeometry,
     symbolizer: Symbolizer,
@@ -54,14 +54,14 @@ Weak formulation
         symbolizer,
         blending=blending,
         boundary_geometry=boundary_geometry,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         docstring=docstring,
     )
 
 
 def freeslip_momentum_weak_boundary(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     volume_geometry: ElementGeometry,
     boundary_geometry: ElementGeometry,
     symbolizer: Symbolizer,
@@ -124,15 +124,15 @@ Geometry map: {blending}
         symbolizer,
         blending=blending,
         boundary_geometry=boundary_geometry,
-        is_symmetric=trial == test,
+        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
         fe_coefficients={"mu": function_space_mu},
         docstring=docstring,
     )
 
 
 def freeslip_divergence_weak_boundary(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     volume_geometry: ElementGeometry,
     boundary_geometry: ElementGeometry,
     symbolizer: Symbolizer,
@@ -176,8 +176,8 @@ Geometry map: {blending}
 
 
 def freeslip_gradient_weak_boundary(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     volume_geometry: ElementGeometry,
     boundary_geometry: ElementGeometry,
     symbolizer: Symbolizer,

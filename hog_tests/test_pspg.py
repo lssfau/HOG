@@ -20,7 +20,7 @@ import logging
 from hog.blending import IdentityMap
 from hog.element_geometry import TriangleElement, TetrahedronElement
 from hog.forms import pspg
-from hog.function_space import LagrangianFunctionSpace
+from hog.function_space import LagrangianFunctionSpace, TrialSpace, TestSpace
 from hog.hyteg_form_template import HyTeGForm, HyTeGFormClass, HyTeGIntegrator
 from hog.quadrature import Quadrature
 from hog.symbolizer import Symbolizer
@@ -44,8 +44,8 @@ def test_pspg_p1_affine():
     form_codes = []
 
     for geometry in geometries:
-        trial = LagrangianFunctionSpace(1, symbolizer)
-        test = LagrangianFunctionSpace(1, symbolizer)
+        trial = TrialSpace(LagrangianFunctionSpace(1, symbolizer))
+        test = TestSpace(LagrangianFunctionSpace(1, symbolizer))
         quad = Quadrature("exact", geometry)
 
         form = pspg(
@@ -58,7 +58,12 @@ def test_pspg_p1_affine():
         )
         form_codes.append(
             HyTeGIntegrator(
-                class_name, form.integrand, geometry, quad, symbolizer, integrate_rows=[0]
+                class_name,
+                form.integrand,
+                geometry,
+                quad,
+                symbolizer,
+                integrate_rows=[0],
             )
         )
 

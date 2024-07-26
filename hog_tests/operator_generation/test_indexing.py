@@ -263,13 +263,13 @@ def test_micro_volume_to_volume_indices():
         geometry: ElementGeometry,
         level: int,
         indexing_info: IndexingInfo,
-        n_dofs_per_primitive,
+        n_dofs_per_primitive: int,
         primitive_type: Union[FaceType, CellType],
         primitive_index: Tuple[int, int, int],
         target_array_index: int,
         intra_primitive_index: int = 0,
         memory_layout: VolumeDoFMemoryLayout = VolumeDoFMemoryLayout.AoS,
-    ):
+    ) -> None:
         indexing_info.level = level
         dof_indices = indexing.micro_element_to_volume_indices(
             primitive_type, primitive_index, n_dofs_per_primitive, memory_layout

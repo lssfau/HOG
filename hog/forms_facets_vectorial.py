@@ -31,7 +31,7 @@ from hog.external_functions import (
     ScalarVariableCoefficient2D,
     ScalarVariableCoefficient3D,
 )
-from hog.function_space import FunctionSpace
+from hog.function_space import FunctionSpace, TrialSpace, TestSpace
 from hog.math_helpers import (
     dot,
     inv,
@@ -52,8 +52,8 @@ from hog.function_space import EnrichedGalerkinFunctionSpace
 
 def diffusion_sip_facet_vectorial(
     interface_type: str,
-    test_element_1: FunctionSpace,
-    trial_element_2: FunctionSpace,
+    test_element_1: TestSpace,
+    trial_element_2: TrialSpace,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
     symbolizer: Symbolizer,
@@ -227,8 +227,8 @@ def diffusion_sip_facet_vectorial(
 
 def diffusion_iip_facet_vectorial(
     interface_type: str,
-    test_element_1: FunctionSpace,
-    trial_element_2: FunctionSpace,
+    test_element_1: TestSpace,
+    trial_element_2: TrialSpace,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
     symbolizer: Symbolizer,
@@ -382,8 +382,8 @@ def diffusion_iip_facet_vectorial(
 
 def divergence_facet_vectorial(
     interface_type: str,
-    test_element_1: FunctionSpace,
-    trial_element_2: FunctionSpace,
+    test_element_1: TestSpace,
+    trial_element_2: TrialSpace,
     transpose: bool,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
@@ -540,8 +540,8 @@ def symm_grad(grad, jac):
 
 def epsilon_sip_facet_vectorial(
     interface_type: str,
-    test_element_1: FunctionSpace,
-    trial_element_2: FunctionSpace,
+    test_element_1: TestSpace,
+    trial_element_2: TrialSpace,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
     symbolizer: Symbolizer,
@@ -760,8 +760,8 @@ def epsilon_sip_facet_vectorial(
 
 def epsilon_nip_facet_vectorial(
     interface_type: str,
-    test_element_1: FunctionSpace,
-    trial_element_2: FunctionSpace,
+    test_element_1: TestSpace,
+    trial_element_2: TrialSpace,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
     symbolizer: Symbolizer,
@@ -1092,8 +1092,8 @@ def epsilon_sip_rhs_dirichlet_vectorial(
 
 def diffusion_nip_facet_vectorial(
     interface_type: str,
-    test_element_1: FunctionSpace,
-    trial_element_2: FunctionSpace,
+    test_element_1: TestSpace,
+    trial_element_2: TrialSpace,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
     symbolizer: Symbolizer,

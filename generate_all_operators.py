@@ -59,10 +59,11 @@ from hog.forms_boundary import (
 )
 from hog.forms_vectorial import curl_curl, curl_curl_plus_mass, mass_n1e1
 from hog.function_space import (
-    FunctionSpace,
     LagrangianFunctionSpace,
     N1E1Space,
     TensorialVectorFunctionSpace,
+    TrialSpace,
+    TestSpace,
 )
 from hog.logger import get_logger, TimedLogger
 from hog.operator_generation.kernel_types import (
@@ -490,13 +491,13 @@ def all_opts_both_cses() -> List[Tuple[Set[Opts], LoopStrategy, str]]:
 class OperatorInfo:
     mapping: str
     name: str
-    trial_space: FunctionSpace
-    test_space: FunctionSpace
+    trial_space: TrialSpace
+    test_space: TestSpace
     form: (
         Callable[
             [
-                FunctionSpace,
-                FunctionSpace,
+                TrialSpace,
+                TestSpace,
                 ElementGeometry,
                 Symbolizer,
                 GeometryMap,
@@ -509,8 +510,8 @@ class OperatorInfo:
     form_boundary: (
         Callable[
             [
-                FunctionSpace,
-                FunctionSpace,
+                TrialSpace,
+                TestSpace,
                 ElementGeometry,
                 ElementGeometry,
                 Symbolizer,
@@ -588,45 +589,45 @@ def all_operators(
 
     # fmt: off
     # TODO switch to manual specification of opts for now/developement, later use default factory
-    ops.append(OperatorInfo(mapping="N1E1", name="CurlCurl", trial_space=N1E1, test_space=N1E1, form=curl_curl,
+    ops.append(OperatorInfo("N1E1", "CurlCurl", TrialSpace(N1E1), TestSpace(N1E1), form=curl_curl,
                             type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
-    ops.append(OperatorInfo(mapping="N1E1", name="Mass", trial_space=N1E1, test_space=N1E1, form=mass_n1e1,
+    ops.append(OperatorInfo("N1E1", "Mass", TrialSpace(N1E1), TestSpace(N1E1), form=mass_n1e1,
                             type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
-    ops.append(OperatorInfo(mapping="N1E1", name="CurlCurlPlusMass", trial_space=N1E1, test_space=N1E1,
+    ops.append(OperatorInfo("N1E1", "CurlCurlPlusMass", TrialSpace(N1E1), TestSpace(N1E1),
                             form=partial(curl_curl_plus_mass, alpha_fem_space=P1, beta_fem_space=P1),
                             type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
-    ops.append(OperatorInfo(mapping="P1", name="Diffusion", trial_space=P1, test_space=P1, form=diffusion,
+    ops.append(OperatorInfo("P1", "Diffusion", TrialSpace(P1), TestSpace(P1), form=diffusion,
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
-    ops.append(OperatorInfo(mapping="P1", name="DivKGrad", trial_space=P1, test_space=P1,
+    ops.append(OperatorInfo("P1", "DivKGrad", TrialSpace(P1), TestSpace(P1),
                             form=partial(div_k_grad, coefficient_function_space=P1),
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
-    ops.append(OperatorInfo(mapping="P2", name="Diffusion", trial_space=P2, test_space=P2, form=diffusion,
+    ops.append(OperatorInfo("P2", "Diffusion", TrialSpace(P2), TestSpace(P2), form=diffusion,
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
-    ops.append(OperatorInfo(mapping="P2", name="DivKGrad", trial_space=P2, test_space=P2,
+    ops.append(OperatorInfo("P2", "DivKGrad", TrialSpace(P2), TestSpace(P2),
                             form=partial(div_k_grad, coefficient_function_space=P2),
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
-    ops.append(OperatorInfo(mapping="P2", name="ShearHeating", trial_space=P2, test_space=P2,
+    ops.append(OperatorInfo("P2", "ShearHeating", TrialSpace(P2), TestSpace(P2),
                             form=partial(shear_heating, viscosity_function_space=P2, velocity_function_space=P2),
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
-    ops.append(OperatorInfo(mapping="P1", name="NonlinearDiffusion", trial_space=P1, test_space=P1,
+    ops.append(OperatorInfo("P1", "NonlinearDiffusion", TrialSpace(P1), TestSpace(P1),
                             form=partial(nonlinear_diffusion, coefficient_function_space=P1),
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
-    ops.append(OperatorInfo(mapping="P1", name="NonlinearDiffusionNewtonGalerkin", trial_space=P1,
-                            test_space=P1, form=partial(nonlinear_diffusion_newton_galerkin,
+    ops.append(OperatorInfo("P1", "NonlinearDiffusionNewtonGalerkin", TrialSpace(P1),
+                            TestSpace(P1), form=partial(nonlinear_diffusion_newton_galerkin,
                             coefficient_function_space=P1, onlyNewtonGalerkinPartOfForm=False),
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
-    ops.append(OperatorInfo(mapping="P1Vector", name="Diffusion", trial_space=P1Vector, test_space=P1Vector,
+    ops.append(OperatorInfo("P1Vector", "Diffusion", TrialSpace(P1Vector), TestSpace(P1Vector),
                             form=diffusion, type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
-    ops.append(OperatorInfo(mapping="P2", name="SUPGDiffusion", trial_space=P2, test_space=P2, 
+    ops.append(OperatorInfo("P2", "SUPGDiffusion", TrialSpace(P2), TestSpace(P2), 
                             form=partial(supg_diffusion, velocity_function_space=P2, diffusivityXdelta_function_space=P2), 
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
-    ops.append(OperatorInfo(mapping="P2", name="BoundaryMass", trial_space=P2, test_space=P2, form=None,
+    ops.append(OperatorInfo("P2", "BoundaryMass", TrialSpace(P2), TestSpace(P2), form=None,
                             form_boundary=mass_boundary, type_descriptor=type_descriptor, geometries=list(geometries),
                             opts=opts, blending=blending))
 
@@ -639,10 +640,10 @@ def all_operators(
     )
     ops.append(
         OperatorInfo(
-            mapping=f"P2Vector",
-            name=f"Epsilon",
-            trial_space=P2Vector,
-            test_space=P2Vector,
+            f"P2Vector",
+            f"Epsilon",
+            TrialSpace(P2Vector),
+            TestSpace(P2Vector),
             form=p2vec_epsilon,
             type_descriptor=type_descriptor,
             geometries=list(geometries),
@@ -657,10 +658,10 @@ def all_operators(
 
     ops.append(
         OperatorInfo(
-            mapping=f"P2Vector",
-            name=f"EpsilonFreeslip",
-            trial_space=P2Vector,
-            test_space=P2Vector,
+            f"P2Vector",
+            f"EpsilonFreeslip",
+            TrialSpace(P2Vector),
+            TestSpace(P2Vector),
             form=p2vec_epsilon,
             form_boundary=p2vec_freeslip_momentum_weak_boundary,
             type_descriptor=type_descriptor,
@@ -672,10 +673,10 @@ def all_operators(
 
     ops.append(
         OperatorInfo(
-            mapping=f"P2VectorToP1",
-            name=f"DivergenceFreeslip",
-            trial_space=P2Vector,
-            test_space=P1,
+            f"P2VectorToP1",
+            f"DivergenceFreeslip",
+            TrialSpace(P2Vector),
+            TestSpace(P1),
             form=divergence,
             form_boundary=freeslip_divergence_weak_boundary,
             type_descriptor=type_descriptor,
@@ -687,10 +688,10 @@ def all_operators(
 
     ops.append(
         OperatorInfo(
-            mapping=f"P1ToP2Vector",
-            name=f"GradientFreeslip",
-            trial_space=P1,
-            test_space=P2Vector,
+            f"P1ToP2Vector",
+            f"GradientFreeslip",
+            TrialSpace(P1),
+            TestSpace(P2Vector),
             form=gradient,
             form_boundary=freeslip_gradient_weak_boundary,
             type_descriptor=type_descriptor,
@@ -706,10 +707,10 @@ def all_operators(
     )
     ops.append(
         OperatorInfo(
-            mapping=f"P2VectorToP1",
-            name=f"GradRhoByRhoDotU",
-            trial_space=P1,
-            test_space=P2Vector,
+            f"P2VectorToP1",
+            f"GradRhoByRhoDotU",
+            TrialSpace(P1),
+            TestSpace(P2Vector),
             form=p2vec_grad_rho,
             type_descriptor=type_descriptor,
             geometries=list(geometries),
@@ -724,13 +725,13 @@ def all_operators(
             div_geometries = three_d
         else:
             div_geometries = list(geometries)
-        ops.append(OperatorInfo(mapping=f"P2ToP1", name=f"Div_{c}",
-                                trial_space=TensorialVectorFunctionSpace(P2, single_component=c), test_space=P1,
+        ops.append(OperatorInfo(f"P2ToP1", f"Div_{c}",
+                                TrialSpace(TensorialVectorFunctionSpace(P2, single_component=c)), TestSpace(P1),
                                 form=partial(divergence, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
                                 blending=blending))
-        ops.append(OperatorInfo(mapping=f"P1ToP2", name=f"DivT_{c}", trial_space=P1,
-                                test_space=TensorialVectorFunctionSpace(P2, single_component=c),
+        ops.append(OperatorInfo(f"P1ToP2", f"DivT_{c}", TrialSpace(P1),
+                                TestSpace(TensorialVectorFunctionSpace(P2, single_component=c)),
                                 form=partial(gradient, component_index=c),
                                 type_descriptor=type_descriptor, opts=opts, geometries=div_geometries,
                                 blending=blending))
@@ -755,14 +756,14 @@ def all_operators(
             )
             # fmt: off
             ops.append(
-                OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}",
-                             trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
-                             test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_epsilon,
+                OperatorInfo(f"P2", f"Epsilon_{r}_{c}",
+                             TrialSpace(TensorialVectorFunctionSpace(P2, single_component=c)),
+                             TestSpace(TensorialVectorFunctionSpace(P2, single_component=r)), form=p2_epsilon,
                              type_descriptor=type_descriptor, geometries=list(geometries), opts=opts,
                              blending=blending))
-            ops.append(OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}",
-                                    trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
-                                    test_space=TensorialVectorFunctionSpace(P2, single_component=r),
+            ops.append(OperatorInfo(f"P2", f"FullStokes_{r}_{c}",
+                                    TrialSpace(TensorialVectorFunctionSpace(P2, single_component=c)),
+                                    TestSpace(TensorialVectorFunctionSpace(P2, single_component=r)),
                                     form=p2_full_stokes, type_descriptor=type_descriptor, geometries=list(geometries),
                                     opts=opts, blending=blending))
             # fmt: on
@@ -784,12 +785,12 @@ def all_operators(
         )
         # fmt: off
         ops.append(
-            OperatorInfo(mapping=f"P2", name=f"Epsilon_{r}_{c}", trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
-                         test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_epsilon,
+            OperatorInfo(f"P2", f"Epsilon_{r}_{c}", TrialSpace(TensorialVectorFunctionSpace(P2, single_component=c)),
+                         TestSpace(TensorialVectorFunctionSpace(P2, single_component=r)), form=p2_epsilon,
                          type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
         ops.append(
-            OperatorInfo(mapping=f"P2", name=f"FullStokes_{r}_{c}", trial_space=TensorialVectorFunctionSpace(P2, single_component=c),
-                         test_space=TensorialVectorFunctionSpace(P2, single_component=r), form=p2_full_stokes,
+            OperatorInfo(f"P2", f"FullStokes_{r}_{c}", TrialSpace(TensorialVectorFunctionSpace(P2, single_component=c)),
+                         TestSpace(TensorialVectorFunctionSpace(P2, single_component=r)), form=p2_full_stokes,
                          type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
         # fmt: on
 
@@ -851,7 +852,6 @@ def generate_elementwise_op(
             )
 
         if op_info.form_boundary is not None:
-
             boundary_geometry: ElementGeometry
             if geometry == TriangleElement():
                 boundary_geometry = LineElement(space_dimension=2)

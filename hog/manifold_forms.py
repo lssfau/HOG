@@ -27,7 +27,7 @@ from hog.fem_helpers import (
     create_empty_element_matrix,
     element_matrix_iterator,
 )
-from hog.function_space import FunctionSpace
+from hog.function_space import TrialSpace, TestSpace
 from hog.math_helpers import dot, inv, abs, det, double_contraction, e_vec
 from hog.quadrature import Tabulation
 from hog.symbolizer import Symbolizer
@@ -39,8 +39,8 @@ from hog.manifold_helpers import face_projection, embedded_normal
 
 
 def laplace_beltrami(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -59,7 +59,7 @@ Weak formulation
     ∫ ∇u · G^(-1) · ∇v · (det(G))^0.5
 """
 
-    if trial != test:
+    if trial != test:  # type: ignore[comparison-overlap]
         raise HOGException(
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
@@ -115,8 +115,8 @@ Weak formulation
 
 
 def manifold_mass(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -135,7 +135,7 @@ Weak formulation
     ∫ uv · (det(G))^0.5
 """
 
-    if trial != test:
+    if trial != test:  # type: ignore[comparison-overlap]
         raise HOGException(
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
@@ -186,8 +186,8 @@ Weak formulation
 
 
 def manifold_vector_mass(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -261,8 +261,8 @@ Weak formulation
 
 
 def manifold_normal_penalty(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -336,8 +336,8 @@ Weak formulation
 
 
 def manifold_divergence(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -409,8 +409,8 @@ Weak formulation
 
 
 def manifold_vector_divergence(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -500,8 +500,8 @@ Weak formulation
 
 
 def manifold_epsilon(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -596,8 +596,8 @@ Weak formulation
 
 
 def vector_laplace_beltrami(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),

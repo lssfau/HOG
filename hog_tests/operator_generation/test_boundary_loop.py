@@ -17,22 +17,26 @@ import logging
 
 from sympy.core.cache import clear_cache
 
-from hog.blending import AnnulusMap, IcosahedralShellMap
-from hog.element_geometry import LineElement, TriangleElement, TetrahedronElement
-from hog.function_space import LagrangianFunctionSpace
+from hog.blending import AnnulusMap, GeometryMap, IcosahedralShellMap
+from hog.element_geometry import (
+    ElementGeometry,
+    LineElement,
+    TriangleElement,
+    TetrahedronElement,
+)
+from hog.function_space import LagrangianFunctionSpace, TrialSpace, TestSpace
 from hog.operator_generation.operators import (
     HyTeGElementwiseOperator,
 )
 from hog.symbolizer import Symbolizer
 from hog.quadrature import Quadrature, select_quadrule
-from hog.operator_generation.kernel_types import ApplyWrapper
+from hog.operator_generation.kernel_types import ApplyWrapper, KernelWrapperType
 from hog.operator_generation.types import hyteg_type
 from hog.forms_boundary import mass_boundary
 from hog.logger import TimedLogger
 
 
 def test_boundary_loop():
-
     # TimedLogger.set_log_level(logging.DEBUG)
 
     dims = [2, 3]
@@ -43,15 +47,15 @@ def test_boundary_loop():
 
     name = f"P2MassBoundary"
 
-    trial = LagrangianFunctionSpace(2, symbolizer)
-    test = LagrangianFunctionSpace(2, symbolizer)
+    trial = TrialSpace(LagrangianFunctionSpace(2, symbolizer))
+    test = TestSpace(LagrangianFunctionSpace(2, symbolizer))
 
     type_descriptor = hyteg_type()
 
-    kernel_types = [
+    kernel_types: list[KernelWrapperType] = [
         ApplyWrapper(
-            test,
             trial,
+            test,
             type_descriptor=type_descriptor,
             dims=dims,
         )
@@ -65,15 +69,12 @@ def test_boundary_loop():
     )
 
     for dim in dims:
-
         if dim == 2:
-
-            volume_geometry = TriangleElement()
-            boundary_geometry = LineElement(space_dimension=2)
-            blending = AnnulusMap()
+            volume_geometry: ElementGeometry = TriangleElement()
+            boundary_geometry: ElementGeometry = LineElement(space_dimension=2)
+            blending: GeometryMap = AnnulusMap()
 
         else:
-
             volume_geometry = TetrahedronElement()
             boundary_geometry = TriangleElement(space_dimension=3)
             blending = IcosahedralShellMap()

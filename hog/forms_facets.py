@@ -33,7 +33,7 @@ from hog.external_functions import (
     ScalarVariableCoefficient2D,
     ScalarVariableCoefficient3D,
 )
-from hog.function_space import FunctionSpace
+from hog.function_space import FunctionSpace, TrialSpace, TestSpace
 from hog.math_helpers import (
     dot,
     inv,
@@ -51,7 +51,9 @@ sigma_0 = 3
 
 def _affine_element_vertices(
     volume_element_geometry: ElementGeometry, symbolizer: Symbolizer
-) -> Tuple[List[sp.Matrix], List[sp.Matrix], List[sp.Matrix], sp.Matrix, sp.Matrix, sp.Matrix]:
+) -> Tuple[
+    List[sp.Matrix], List[sp.Matrix], List[sp.Matrix], sp.Matrix, sp.Matrix, sp.Matrix
+]:
     """Helper function that returns the symbols of the affine points of two neighboring elements.
 
     Returns a tuple of
@@ -145,8 +147,7 @@ def trafo_ref_interface_to_ref_element(
         affine_points_E = affine_points_E2
         affine_point_E_opposite = affine_point_E2_opposite
     else:
-        raise HOGException(
-            "Invalid element type (should be 'inner' or 'outer')")
+        raise HOGException("Invalid element type (should be 'inner' or 'outer')")
 
     # First we compute the transformation from the interface reference space to the affine interface.
     trafo_ref_interface_to_affine_interface_E = trafo_ref_to_affine(
@@ -168,8 +169,8 @@ def trafo_ref_interface_to_ref_element(
 
 def stokes_p0_stabilization(
     interface_type: str,
-    test_element: FunctionSpace,
-    trial_element: FunctionSpace,
+    test_element: TestSpace,
+    trial_element: TrialSpace,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
     symbolizer: Symbolizer,
@@ -247,7 +248,6 @@ def stokes_p0_stabilization(
             level=logging.DEBUG,
         ):
             for data in it:
-
                 # TODO: fix this by introducing extra symbols for the shape functions
                 phi = data.trial_shape
                 psi = data.test_shape
@@ -274,28 +274,26 @@ def stokes_p0_stabilization(
                 gamma = 0.1
 
                 if interface_type == "inner":
-                    form = ((gamma * volume_interface) *
-                            phi * psi) * volume_interface
+                    form = ((gamma * volume_interface) * phi * psi) * volume_interface
 
                 elif interface_type == "outer":
-                    form = (-(gamma * volume_interface) *
-                            phi * psi) * volume_interface
+                    form = (-(gamma * volume_interface) * phi * psi) * volume_interface
 
-                mat[data.row, data.col] = facet_quad.integrate(form, symbolizer)[0].subs(
-                    reference_symbols[volume_element_geometry.dimensions - 1], 0
-                )
+                mat[data.row, data.col] = facet_quad.integrate(form, symbolizer)[
+                    0
+                ].subs(reference_symbols[volume_element_geometry.dimensions - 1], 0)
 
     return mat
 
 
 def diffusion_sip_facet(
     interface_type: str,
-    test_element_1: FunctionSpace,
-    trial_element_2: FunctionSpace,
+    test_element_1: TestSpace,
+    trial_element_2: TrialSpace,
     volume_element_geometry: ElementGeometry,
     facet_quad: Quadrature,
     symbolizer: Symbolizer,
-    blending: GeometryMap = IdentityMap()
+    blending: GeometryMap = IdentityMap(),
 ) -> sp.Matrix:
     r"""
     Interface integrals for the symmetric interior penalty formulation for the (constant-coeff.) Laplacian.
@@ -427,15 +425,15 @@ def diffusion_sip_facet(
             level=logging.DEBUG,
         ):
             for data in it:
-
                 # TODO: fix this by introducing extra symbols for the shape functions
                 phi = data.trial_shape
                 psi = data.test_shape
                 grad_phi = data.trial_shape_grad
                 grad_psi = data.test_shape_grad
 
-                shape_symbols = ["xi_shape_0", "xi_shape_1",
-                                 "xi_shape_2"][:volume_element_geometry.dimensions]
+                shape_symbols = ["xi_shape_0", "xi_shape_1", "xi_shape_2"][
+                    : volume_element_geometry.dimensions
+                ]
                 phi = phi.subs(zip(reference_symbols, shape_symbols))
                 psi = psi.subs(zip(reference_symbols, shape_symbols))
                 grad_phi = grad_phi.subs(zip(reference_symbols, shape_symbols))
@@ -468,37 +466,35 @@ def diffusion_sip_facet(
                 if interface_type == "inner":
                     form = (
                         -0.5
-                        * dot(grad_psi*jac_affine_inv_E1, outward_normal)[0, 0]
+                        * dot(grad_psi * jac_affine_inv_E1, outward_normal)[0, 0]
                         * phi
                         - 0.5
-                        * dot(grad_phi*jac_affine_inv_E1, outward_normal)[0, 0]
+                        * dot(grad_phi * jac_affine_inv_E1, outward_normal)[0, 0]
                         * psi
-                        + (sigma_0 / volume_interface ** beta_0) * phi * psi
+                        + (sigma_0 / volume_interface**beta_0) * phi * psi
                     ) * volume_interface
 
                 elif interface_type == "outer":
                     form = (
                         0.5
-                        * dot(grad_psi*jac_affine_inv_E1, outward_normal)[0, 0]
+                        * dot(grad_psi * jac_affine_inv_E1, outward_normal)[0, 0]
                         * phi
                         - 0.5
-                        * dot(grad_phi*jac_affine_inv_E2, outward_normal)[0, 0]
+                        * dot(grad_phi * jac_affine_inv_E2, outward_normal)[0, 0]
                         * psi
-                        - (sigma_0 / volume_interface ** beta_0) * phi * psi
+                        - (sigma_0 / volume_interface**beta_0) * phi * psi
                     ) * volume_interface
 
                 elif interface_type == "dirichlet":
                     form = (
-                        -dot(grad_psi*jac_affine_inv_E1,
-                             outward_normal)[0, 0] * phi
-                        - dot(grad_phi*jac_affine_inv_E1, outward_normal)[0, 0]
-                        * psi
-                        + (4 * sigma_0 / volume_interface ** beta_0) * phi * psi
+                        -dot(grad_psi * jac_affine_inv_E1, outward_normal)[0, 0] * phi
+                        - dot(grad_phi * jac_affine_inv_E1, outward_normal)[0, 0] * psi
+                        + (4 * sigma_0 / volume_interface**beta_0) * phi * psi
                     ) * volume_interface
 
-                mat[data.row, data.col] = facet_quad.integrate(form, symbolizer)[0].subs(
-                    reference_symbols[volume_element_geometry.dimensions - 1], 0
-                )
+                mat[data.row, data.col] = facet_quad.integrate(form, symbolizer)[
+                    0
+                ].subs(reference_symbols[volume_element_geometry.dimensions - 1], 0)
 
     return mat
 
@@ -612,19 +608,16 @@ def diffusion_sip_rhs_dirichlet(
             coeff_class = ScalarVariableCoefficient2D
         elif isinstance(volume_element_geometry, TetrahedronElement):
             coeff_class = ScalarVariableCoefficient3D
-        g = coeff_class(sp.Symbol("g"), 0, *
-                        trafo_ref_interface_to_affine_interface)
+        g = coeff_class(sp.Symbol("g"), 0, *trafo_ref_interface_to_affine_interface)
 
         with TimedLogger(
             f"integrating {mat.shape[0] * mat.shape[1]} expressions",
             level=logging.DEBUG,
         ):
             for i in range(function_space.num_dofs(volume_element_geometry)):
-
                 # TODO: fix this by introducing extra symbols for the shape functions
                 phi = function_space.shape(volume_element_geometry)[i]
-                grad_phi = function_space.grad_shape(
-                    volume_element_geometry)[i]
+                grad_phi = function_space.grad_shape(volume_element_geometry)[i]
 
                 shape_symbols = ["xi_shape_0", "xi_shape_1"]
                 phi = phi.subs(zip(reference_symbols, shape_symbols))
@@ -643,9 +636,8 @@ def diffusion_sip_rhs_dirichlet(
                 form = (
                     1
                     * (
-                        -dot(jac_affine_inv_E1.T *
-                             grad_phi, outward_normal)[0, 0]
-                        + (4 * sigma_0 / volume_interface ** beta_0) * phi
+                        -dot(jac_affine_inv_E1.T * grad_phi, outward_normal)[0, 0]
+                        + (4 * sigma_0 / volume_interface**beta_0) * phi
                     )
                     * g
                     * volume_interface

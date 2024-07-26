@@ -20,7 +20,7 @@ import logging
 from hog.blending import IdentityMap, ExternalMap
 from hog.element_geometry import TriangleElement, TetrahedronElement
 from hog.forms import diffusion
-from hog.function_space import LagrangianFunctionSpace
+from hog.function_space import LagrangianFunctionSpace, TrialSpace, TestSpace
 from hog.hyteg_form_template import HyTeGForm, HyTeGFormClass, HyTeGIntegrator
 from hog.quadrature import Quadrature, select_quadrule
 from hog.symbolizer import Symbolizer
@@ -40,7 +40,7 @@ def test_diffusion_p1_affine():
     symbolizer = Symbolizer()
 
     geometries = [TriangleElement(), TetrahedronElement()]
-    schemes = {TriangleElement() : 2, TetrahedronElement() : 2 }
+    schemes = {TriangleElement(): 2, TetrahedronElement(): 2}
     blending = IdentityMap()
 
     class_name = f"P1DiffusionAffine"
@@ -48,8 +48,8 @@ def test_diffusion_p1_affine():
     form_codes = []
 
     for geometry in geometries:
-        trial = LagrangianFunctionSpace(1, symbolizer)
-        test = LagrangianFunctionSpace(1, symbolizer)
+        trial = TrialSpace(LagrangianFunctionSpace(1, symbolizer))
+        test = TestSpace(LagrangianFunctionSpace(1, symbolizer))
         quad = Quadrature(select_quadrule(schemes[geometry], geometry), geometry)
 
         mat = diffusion(
@@ -90,8 +90,8 @@ def test_diffusion_p2_blending_2D():
 
     form_codes = []
 
-    trial = LagrangianFunctionSpace(2, symbolizer)
-    test = LagrangianFunctionSpace(2, symbolizer)
+    trial = TrialSpace(LagrangianFunctionSpace(2, symbolizer))
+    test = TestSpace(LagrangianFunctionSpace(2, symbolizer))
     schemes = {TriangleElement(): 4, TetrahedronElement(): 4}
 
     quad = Quadrature(select_quadrule(schemes[geometry], geometry), geometry)

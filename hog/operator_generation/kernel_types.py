@@ -37,7 +37,7 @@ from hog.cpp_printing import (
 )
 from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
-from hog.function_space import FunctionSpace
+from hog.function_space import FunctionSpace, TrialSpace, TestSpace
 from hog.operator_generation.function_space_impls import FunctionSpaceImpl
 from hog.operator_generation.indexing import FaceType, CellType
 from hog.operator_generation.pystencils_extensions import create_generic_fields
@@ -213,18 +213,13 @@ class AssembleDiagonal(KernelType):
 class Assemble(KernelType):
     def __init__(
         self,
-        src_space: FunctionSpace,
-        dst_space: FunctionSpace,
+        src: FunctionSpaceImpl,
+        dst: FunctionSpaceImpl,
     ):
         self.result_prefix = "elMat_"
-        idx_t = HOGType("idx_t", np.int64)
 
-        self.src: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
-            src_space, "src", idx_t
-        )
-        self.dst: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
-            dst_space, "dst", idx_t
-        )
+        self.src = src
+        self.dst = dst
 
     def kernel_operation(
         self,
@@ -350,19 +345,24 @@ class KernelWrapperType(ABC):
 
     @property
     @abstractmethod
-    def kernel_type(self) -> KernelType: ...
+    def kernel_type(self) -> KernelType:
+        ...
 
     @abstractmethod
-    def includes(self) -> Set[str]: ...
+    def includes(self) -> Set[str]:
+        ...
 
     @abstractmethod
-    def base_classes(self) -> List[str]: ...
+    def base_classes(self) -> List[str]:
+        ...
 
     @abstractmethod
-    def wrapper_methods(self) -> List[CppMethod]: ...
+    def wrapper_methods(self) -> List[CppMethod]:
+        ...
 
     @abstractmethod
-    def member_variables(self) -> List[CppMemberVariable]: ...
+    def member_variables(self) -> List[CppMemberVariable]:
+        ...
 
     def substitute(self, subs: Mapping[str, object]) -> None:
         self._template = Template(self._template.safe_substitute(subs))
@@ -371,8 +371,8 @@ class KernelWrapperType(ABC):
 class ApplyWrapper(KernelWrapperType):
     def __init__(
         self,
-        src_space: FunctionSpace,
-        dst_space: FunctionSpace,
+        src_space: TrialSpace,
+        dst_space: TestSpace,
         type_descriptor: HOGType,
         dims: List[int] = [2, 3],
     ):
@@ -683,8 +683,8 @@ class AssembleDiagonalWrapper(KernelWrapperType):
 class AssembleWrapper(KernelWrapperType):
     def __init__(
         self,
-        src_space: FunctionSpace,
-        dst_space: FunctionSpace,
+        src_space: TrialSpace,
+        dst_space: TestSpace,
         type_descriptor: HOGType,
         dims: List[int] = [2, 3],
     ):
@@ -761,7 +761,7 @@ class AssembleWrapper(KernelWrapperType):
 
     @property
     def kernel_type(self) -> KernelType:
-        return Assemble(self.src.fe_space, self.dst.fe_space)
+        return Assemble(self.src, self.dst)
 
     def includes(self) -> Set[str]:
         return (
