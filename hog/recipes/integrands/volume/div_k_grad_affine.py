@@ -27,7 +27,7 @@ def integrand(
     tabulate,
     **_,
 ):
-    return k[0] * tabulate(
+    return k["k"] * tabulate(
         double_contraction(
             jac_a_inv.T * grad_u,
             jac_a_inv.T * grad_v,

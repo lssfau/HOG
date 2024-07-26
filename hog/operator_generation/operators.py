@@ -164,9 +164,12 @@ class IntegrationInfo:
 
     optimizations: Set[Opts]
 
+    free_symbols: List[sp.Symbol]
+
     name: str = "unknown_integral"
     docstring: str = ""
     boundary_uid_name: str = ""
+    integrand_name: str = "unknown_integrand"
 
     def _str_(self):
         return f"Integration Info: {self.name}, {self.geometry}, {self.integration_domain}, mat shape {self.mat.shape}, quad degree {self.quad.degree}, blending {self.blending}"
@@ -311,6 +314,7 @@ class HyTeGElementwiseOperator:
         loop_strategy: LoopStrategy,
         boundary_uid_name: str,
         optimizations: Set[Opts],
+        integrand_name: str | None = None,
     ) -> None:
         """
         Use this method to add integrals to the operator if you know what you are doing. There are helper methods for
@@ -327,12 +331,21 @@ class HyTeGElementwiseOperator:
         :param boundary_uid_name: string that defines the name of the boundary UID if this is a boundary integral
                                   the parameter is ignored for volume integrals
         :param optimizations: optimizations that shall be applied to this integral
+        :param integrand_name: while each integral is a separate kernel with a name, for some types of integrals (e.g.,
+                               boundary integrals) more than one kernel with the same integrand is added - for some
+                               features (e.g., symbol naming) it is convenient to be able to identify all those
+                               integrals by a string - this (optional) integrand_name does not have to be unique (other
+                               than the name parameter which has to be unique) but can be the same for all integrals
+                               with different domains but the same integrand
         """
 
         if "".join(name.split()) != name:
             raise HOGException(
                 "Please give the integral an identifier without white space."
             )
+
+        if integrand_name is None:
+            integrand_name = name
 
         if volume_geometry.space_dimension in self.integration_infos:
             if name in [
@@ -401,6 +414,8 @@ class HyTeGElementwiseOperator:
                 loop_strategy=loop_strategy,
                 boundary_uid_name=boundary_uid_name,
                 optimizations=optimizations,
+                free_symbols=form.free_symbols,
+                integrand_name=integrand_name,
             )
         )
 
@@ -491,7 +506,7 @@ class HyTeGElementwiseOperator:
         # Since we will only integrate over the reference facet that lies on the x-line (2D) or xy-plane (3D) we need to
         # set the last reference coordinate to zero since it will otherwise appear as a free, uninitialized variable.
         #
-        # This has to be repeated later before the qudrature is applied in case we are working with symbols.
+        # This has to be repeated later before the quadrature is applied in case we are working with symbols.
         #
         form.integrand = form.integrand.subs(
             self.symbolizer.ref_coords_as_list(volume_geometry.dimensions)[-1], 0
@@ -508,6 +523,7 @@ class HyTeGElementwiseOperator:
                 BOUNDARY(facet_id=facet_id),
                 name + "_boundary_uid",
                 optimizations,
+                integrand_name=name,
             )
 
     def coefficients(self) -> List[FunctionSpaceImpl]:
@@ -648,6 +664,40 @@ class HyTeGElementwiseOperator:
                         )
                     )
 
+        # Free symbols that shall be settable through the ctor.
+        # Those are only free symbols that have been explicitly defined by the user. Other undefined sympy symbols are
+        # not (and are not supposed to be) handled here.
+        #
+        # We append the name of the integrand (!= name of the kernel) to the free symbols we found in the
+        # integrand to make sure that two different integrands (e.g., a boundary and a volume integrand)
+        # that use the same symbol name do not clash.
+        #
+        # However, if more than one kernel is added for the same integrand by the HOG (e.g. for boundary
+        # integrals, a separate kernel per side of the simplex is added) this name will (and should) clash
+        # to make sure all kernels use the same symbols.
+        #
+        free_symbol_vars_set = set()
+        for integration_infos in self.integration_infos.values():
+            for integration_info in integration_infos:
+                for fs in integration_info.free_symbols:
+                    free_symbol_vars_set.add(
+                        f"{str(fs)}_{integration_info.integrand_name}"
+                    )
+
+        free_symbol_vars = [
+            CppVariable(
+                name=fs,
+                type=str(self._type_descriptor.pystencils_type),
+            )
+            for fs in free_symbol_vars_set
+        ]
+
+        free_symbol_vars = sorted(free_symbol_vars, key=lambda x: x.name)
+
+        free_symbol_vars_members = [
+            CppVariable(name=fsv.name + "_", type=fsv.type) for fsv in free_symbol_vars
+        ]
+
         # Let's now check whether we need ctor arguments and member variables for boundary integrals.
         boundary_condition_vars = []
         for integration_infos in self.integration_infos.values():
@@ -696,9 +746,14 @@ class HyTeGElementwiseOperator:
                     )
                     for coeff in self.coefficients()
                 ]
+                + free_symbol_vars
                 + boundary_condition_vars,
                 initializer_list=["Operator( storage, minLevel, maxLevel )"]
                 + [f"{coeff.name}( _{coeff.name} )" for coeff in self.coefficients()]
+                + [
+                    f"{fsv[0].name}( {fsv[1].name} )"
+                    for fsv in zip(free_symbol_vars_members, free_symbol_vars)
+                ]
                 + [
                     f"{bcv[0].name}( {bcv[1].name} )"
                     for bcv in zip(
@@ -719,6 +774,9 @@ class HyTeGElementwiseOperator:
                     visibility="private",
                 )
             )
+
+        for fsv in free_symbol_vars_members:
+            operator_cpp_class.add(CppMemberVariable(fsv, visibility="private"))
 
         for bcv in boundary_condition_vars_members:
             operator_cpp_class.add(CppMemberVariable(bcv, visibility="private"))
@@ -1219,15 +1277,6 @@ class HyTeGElementwiseOperator:
                 for a in ass.atoms(DoFSymbol)
             }
 
-            if (
-                integration_info.integration_domain != MacroIntegrationDomain.VOLUME
-                and len(dof_symbols_set) > 0
-            ):
-                raise HOGException(
-                    "Boundary integrals and FE coefficients cannot be combined at the moment."
-                    "Dev note: the coefficients need to be sorted."
-                )
-
             dof_symbols = sorted(dof_symbols_set, key=lambda ds: ds.name)
             coeffs = dict(
                 (
@@ -1633,8 +1682,27 @@ class HyTeGElementwiseOperator:
 
                     kernel_parameters = kernel_function.get_parameters()
 
+                    # We append the name of the integrand (!= name of the kernel) to the free symbols we found in the
+                    # integrand to make sure that two different integrands (e.g., a boundary and a volume integrand)
+                    # that use the same symbol name do not clash.
+                    #
+                    # However, if more than one kernel is added for the same integrand by the HOG (e.g. for boundary
+                    # integrals, a separate kernel per side of the simplex is added) this name will (and should) clash
+                    # to make sure all kernels use the same symbols.
+
+                    kernel_parameters_updated = []
+                    for prm in kernel_parameters:
+                        if str(prm) in [
+                            str(fs) for fs in integration_info.free_symbols
+                        ]:
+                            kernel_parameters_updated.append(
+                                f"{str(prm)}_{integration_info.integrand_name}_"
+                            )
+                        else:
+                            kernel_parameters_updated.append(str(prm))
+
                     kernel_function_call_parameter_string = ",\n".join(
-                        [str(prm) for prm in kernel_parameters]
+                        kernel_parameters_updated
                     )
 
                     kernel_function_call_strings.append(

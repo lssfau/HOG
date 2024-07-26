@@ -17,26 +17,15 @@
 from hog.recipes.common import *
 
 
-def integrand(
-    *,
-    jac_a_inv,
-    jac_a_abs_det,
-    grad_u,
-    grad_v,
-    k,
-    tabulate,
-    **_,
-):
+def integrand(*, u, v, x, jac_a_boundary, jac_b, matrix, **_):
 
-    grad_u_chain = jac_a_inv.T * grad_u
-    grad_v_chain = jac_a_inv.T * grad_v
+    space_dim = len(x)
 
-    def symm_grad(w):
-        return 0.5 * (w + w.T)
+    A = matrix("A", space_dim, space_dim)
+    b = matrix("b", space_dim, 1)
 
-    symm_grad_u = symm_grad(grad_u_chain)
-    symm_grad_v = symm_grad(grad_v_chain)
+    n = A * x + b
+    n = n / n.norm()
 
-    return k["mu"] * tabulate(
-        double_contraction(2 * symm_grad_u, symm_grad_v) * jac_a_abs_det
-    )
+    ds = abs(det(jac_a_boundary.T * jac_b.T * jac_b * jac_a_boundary)) ** 0.5
+    return -dot(n, v) * u * ds

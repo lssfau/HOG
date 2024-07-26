@@ -18,7 +18,7 @@ import logging
 import sympy as sp
 from typing import Optional, Callable, Any
 
-from hog.element_geometry import ElementGeometry, TetrahedronElement
+from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
 from hog.fem_helpers import (
     trafo_ref_to_affine,
@@ -163,7 +163,7 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        fe_coefficients=[("k", coefficient_function_space)],
+        fe_coefficients={"k": coefficient_function_space},
         is_symmetric=trial == test,
         docstring=docstring,
     )
@@ -230,7 +230,7 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients=[("u", coefficient_function_space)],
+        fe_coefficients={"u": coefficient_function_space},
     )
 
 
@@ -307,7 +307,7 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
         blending=blending,
         is_symmetric=False,
         docstring=docstring,
-        fe_coefficients=[("k", coefficient_function_space)],
+        fe_coefficients={"k": coefficient_function_space},
     )
 
 
@@ -363,7 +363,7 @@ where
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients=[("mu", coefficient_function_space)],
+        fe_coefficients={"mu": coefficient_function_space},
     )
 
 
@@ -658,7 +658,7 @@ where
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients=[("mu", coefficient_function_space)],
+        fe_coefficients={"mu": coefficient_function_space},
     )
 
 
@@ -726,12 +726,12 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
     ):
         """First function: mu, other functions: ux, uy, uz."""
 
-        mu = k[0]
+        mu = k["mu"]
 
         # grad_k[0] is grad_mu_ref
-        grad_wx = jac_b_inv.T * jac_a_inv.T * grad_k[1]
-        grad_wy = jac_b_inv.T * jac_a_inv.T * grad_k[2]
-        grad_wz = jac_b_inv.T * jac_a_inv.T * grad_k[3]
+        grad_wx = jac_b_inv.T * jac_a_inv.T * grad_k["wx"]
+        grad_wy = jac_b_inv.T * jac_a_inv.T * grad_k["wy"]
+        grad_wz = jac_b_inv.T * jac_a_inv.T * grad_k["wz"]
 
         grad_w = grad_wx.row_join(grad_wy)
         dim = volume_geometry.dimensions
@@ -758,12 +758,12 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         geometry,
         symbolizer,
         blending=blending,
-        fe_coefficients=[
-            ("mu", viscosity_function_space),
-            ("wx", velocity_function_space),
-            ("wy", velocity_function_space),
-            ("wz", velocity_function_space),
-        ],
+        fe_coefficients={
+            "mu": viscosity_function_space,
+            "wx": velocity_function_space,
+            "wy": velocity_function_space,
+            "wz": velocity_function_space,
+        },
         is_symmetric=trial == test,
         docstring=docstring,
     )
@@ -863,10 +863,10 @@ Weak formulation
     ):
         """First function: k𝛿, other functions: ux, uy, uz."""
 
-        k_times_delta = k[0]
-        wx = k[1]
-        wy = k[2]
-        wz = k[3]
+        k_times_delta = k["diffusivity_times_delta"]
+        wx = k["wx"]
+        wy = k["wy"]
+        wz = k["wz"]
 
         dim = volume_geometry.dimensions
         if dim == 2:
@@ -917,13 +917,14 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        fe_coefficients=[
-            ("diffusivity_times_delta", diffusivityXdelta_function_space),
-            ("wx", velocity_function_space),
-            ("wy", velocity_function_space),
-            ("wz", velocity_function_space),
-        ],
+        fe_coefficients={
+            "diffusivity_times_delta": diffusivityXdelta_function_space,
+            "wx": velocity_function_space,
+            "wy": velocity_function_space,
+            "wz": velocity_function_space,
+        },
     )
+
 
 def grad_rho_by_rho_dot_u(
     trial: FunctionSpace,
@@ -947,7 +948,9 @@ Weak formulation
     ∫ ((∇ρ / ρ) · u) v
 """
 
-    with TimedLogger("assembling grad_rho_by_rho_dot_u-mass matrix", level=logging.DEBUG):
+    with TimedLogger(
+        "assembling grad_rho_by_rho_dot_u-mass matrix", level=logging.DEBUG
+    ):
         tabulation = Tabulation(symbolizer)
 
         jac_affine_det = symbolizer.abs_det_jac_ref_to_affine()
@@ -958,7 +961,9 @@ Weak formulation
         else:
             affine_coords = trafo_ref_to_affine(geometry, symbolizer)
             # jac_blending = blending.jacobian(affine_coords)
-            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(geometry.dimensions)
+            jac_blending_inv = symbolizer.jac_affine_to_blending_inv(
+                geometry.dimensions
+            )
             jac_blending_det = symbolizer.abs_det_jac_affine_to_blending()
 
         # jac_blending_det = abs(det(jac_blending))
@@ -998,12 +1003,28 @@ Weak formulation
                 #     sp.Matrix([phi * psi * jac_affine_det]),
                 # )[0]
                 if blending == IdentityMap():
-                    form = dot(((jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det
+                    form = (
+                        dot(((jac_affine_inv.T * grad_rho) / rho[0]), phi)
+                        * psi
+                        * jac_affine_det
+                    )
                 else:
-                    form = dot(((jac_blending_inv.T * jac_affine_inv.T * grad_rho) / rho[0]), phi) * psi * jac_affine_det * jac_blending_det
+                    form = (
+                        dot(
+                            (
+                                (jac_blending_inv.T * jac_affine_inv.T * grad_rho)
+                                / rho[0]
+                            ),
+                            phi,
+                        )
+                        * psi
+                        * jac_affine_det
+                        * jac_blending_det
+                    )
                 mat[data.row, data.col] = form
 
     return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)
+
 
 def zero_form(
     trial: FunctionSpace,

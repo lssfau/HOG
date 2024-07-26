@@ -42,7 +42,7 @@ def integrand(
     div_u = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
     div_v = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)).trace()
 
-    return k[0] * (
+    return k["mu"] * (
         (
             double_contraction(2 * symm_grad_u, symm_grad_v)
             * tabulate(jac_a_abs_det)
