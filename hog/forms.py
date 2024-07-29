@@ -33,7 +33,7 @@ from hog.fem_helpers import (
     fem_function_on_element,
     fem_function_gradient_on_element,
 )
-from hog.function_space import FunctionSpace, N1E1Space
+from hog.function_space import FunctionSpace, N1E1Space, TrialSpace, TestSpace
 from hog.math_helpers import dot, inv, abs, det, double_contraction
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
@@ -43,8 +43,8 @@ from hog.integrand import process_integrand, Form
 
 
 def diffusion(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -90,8 +90,8 @@ Weak formulation
 
 
 def mass(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -124,8 +124,8 @@ Weak formulation
 
 
 def div_k_grad(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -170,8 +170,8 @@ Weak formulation
 
 
 def nonlinear_diffusion(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     coefficient_function_space: FunctionSpace,
@@ -235,8 +235,8 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
 
 
 def nonlinear_diffusion_newton_galerkin(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     coefficient_function_space: FunctionSpace,
@@ -312,8 +312,8 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
 
 
 def epsilon(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -322,7 +322,6 @@ def epsilon(
     variable_viscosity: bool = True,
     coefficient_function_space: Optional[FunctionSpace] = None,
 ) -> Form:
-
     docstring = f"""
 "Epsilon" operator.
 
@@ -368,8 +367,8 @@ where
 
 
 def k_mass(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -404,8 +403,8 @@ Weak formulation
 
 
 def pspg(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,
@@ -462,8 +461,8 @@ for details.
 
 
 def linear_form(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,
@@ -534,14 +533,13 @@ def linear_form(
 
 
 def divergence(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_index: int = 0,
 ) -> Form:
-
     docstring = f"""
 Divergence.
 
@@ -571,8 +569,8 @@ Weak formulation
 
 
 def gradient(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -607,8 +605,8 @@ def gradient(
 
 
 def full_stokes(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -663,8 +661,8 @@ where
 
 
 def shear_heating(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -770,8 +768,8 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
 
 
 def divdiv(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     component_trial: int,
     component_test: int,
     geometry: ElementGeometry,
@@ -815,8 +813,8 @@ Weak formulation
 
 
 def supg_diffusion(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     velocity_function_space: FunctionSpace,
@@ -927,8 +925,8 @@ Weak formulation
 
 
 def grad_rho_by_rho_dot_u(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -1027,13 +1025,12 @@ Weak formulation
 
 
 def zero_form(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
 ) -> Form:
-
     from hog.recipes.integrands.volume.zero import integrand
 
     return process_integrand(

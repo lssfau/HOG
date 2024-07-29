@@ -32,7 +32,7 @@ from hog.element_geometry import (
     LineElement,
 )
 from hog.exception import HOGException
-from hog.function_space import FunctionSpace
+from hog.function_space import FunctionSpace, TrialSpace, TestSpace
 from hog.math_helpers import inv, det
 from hog.multi_assignment import MultiAssignment
 from hog.symbolizer import Symbolizer
@@ -52,7 +52,7 @@ from hog.dof_symbol import DoFSymbol
 
 
 def create_empty_element_matrix(
-    trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
+    trial: TrialSpace, test: TestSpace, geometry: ElementGeometry
 ) -> sp.Matrix:
     """
     Returns a sympy matrix of the required size corresponding to the trial and test spaces, initialized with zeros.
@@ -75,7 +75,7 @@ class ElementMatrixData:
 
 
 def element_matrix_iterator(
-    trial: FunctionSpace, test: FunctionSpace, geometry: ElementGeometry
+    trial: TrialSpace, test: TestSpace, geometry: ElementGeometry
 ) -> Iterator[ElementMatrixData]:
     """Call this to create a generator to conveniently fill the element matrix."""
     for row, (psi, grad_psi, hessian_psi) in enumerate(

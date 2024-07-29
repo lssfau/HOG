@@ -18,8 +18,13 @@ from sympy.core.cache import clear_cache
 
 from hog.operator_generation.loop_strategies import CUBES
 from hog.operator_generation.optimizer import Opts
-from hog.element_geometry import LineElement, TriangleElement, TetrahedronElement
-from hog.function_space import LagrangianFunctionSpace
+from hog.element_geometry import (
+    ElementGeometry,
+    LineElement,
+    TriangleElement,
+    TetrahedronElement,
+)
+from hog.function_space import LagrangianFunctionSpace, TrialSpace, TestSpace
 from hog.operator_generation.operators import HyTeGElementwiseOperator
 from hog.symbolizer import Symbolizer
 from hog.quadrature import Quadrature, select_quadrule
@@ -27,7 +32,7 @@ from hog.forms import div_k_grad
 from hog.forms_boundary import mass_boundary
 from hog.operator_generation.kernel_types import ApplyWrapper, AssembleWrapper
 from hog.operator_generation.types import hyteg_type
-from hog.blending import AnnulusMap, IcosahedralShellMap
+from hog.blending import AnnulusMap, GeometryMap, IcosahedralShellMap
 
 
 def test_opgen_smoke():
@@ -53,22 +58,22 @@ def test_opgen_smoke():
 
     dims = [2]
 
-    trial = LagrangianFunctionSpace(2, symbolizer)
-    test = LagrangianFunctionSpace(2, symbolizer)
+    trial = TrialSpace(LagrangianFunctionSpace(2, symbolizer))
+    test = TestSpace(LagrangianFunctionSpace(2, symbolizer))
     coeff = LagrangianFunctionSpace(2, symbolizer)
 
     type_descriptor = hyteg_type()
 
     kernel_types = [
         ApplyWrapper(
-            test,
             trial,
+            test,
             type_descriptor=type_descriptor,
             dims=dims,
         ),
         AssembleWrapper(
-            test,
             trial,
+            test,
             type_descriptor=type_descriptor,
             dims=dims,
         ),
@@ -85,11 +90,10 @@ def test_opgen_smoke():
     opts_boundary = {Opts.MOVECONSTANTS}
 
     for d in dims:
-
         if d == 2:
-            volume_geometry = TriangleElement()
-            boundary_geometry = LineElement(space_dimension=2)
-            blending_map = AnnulusMap()
+            volume_geometry: ElementGeometry = TriangleElement()
+            boundary_geometry: ElementGeometry = LineElement(space_dimension=2)
+            blending_map: GeometryMap = AnnulusMap()
         else:
             volume_geometry = TetrahedronElement()
             boundary_geometry = TriangleElement(space_dimension=3)

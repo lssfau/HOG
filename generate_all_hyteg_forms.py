@@ -31,7 +31,12 @@ from hog.element_geometry import (
     TetrahedronElement,
     ElementGeometry,
 )
-from hog.function_space import FunctionSpace, LagrangianFunctionSpace, N1E1Space
+from hog.function_space import (
+    LagrangianFunctionSpace,
+    N1E1Space,
+    TrialSpace,
+    TestSpace,
+)
 from hog.forms import (
     mass,
     diffusion,
@@ -737,8 +742,8 @@ def form_func(
     name: str,
     row: int,
     col: int,
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,
@@ -1069,17 +1074,19 @@ def main():
     for form_info in filtered_form_infos:
         logger.info(f"{form_info}")
 
-        trial: FunctionSpace
+        trial: TrialSpace
         if form_info.trial_family == "N1E1":
-            trial = N1E1Space(symbolizer)
+            trial = TrialSpace(N1E1Space(symbolizer))
         else:
-            trial = LagrangianFunctionSpace(form_info.trial_degree, symbolizer)
+            trial = TrialSpace(
+                LagrangianFunctionSpace(form_info.trial_degree, symbolizer)
+            )
 
-        test: FunctionSpace
+        test: TestSpace
         if form_info.test_family == "N1E1":
-            test = N1E1Space(symbolizer)
+            test = TestSpace(N1E1Space(symbolizer))
         else:
-            test = LagrangianFunctionSpace(form_info.test_degree, symbolizer)
+            test = TestSpace(LagrangianFunctionSpace(form_info.test_degree, symbolizer))
 
         form_classes = []
 

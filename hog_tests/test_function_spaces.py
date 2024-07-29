@@ -16,7 +16,11 @@
 
 import sympy as sp
 from hog.element_geometry import TriangleElement
-from hog.function_space import LagrangianFunctionSpace, TensorialVectorFunctionSpace
+from hog.function_space import (
+    FunctionSpace,
+    LagrangianFunctionSpace,
+    TensorialVectorFunctionSpace,
+)
 from hog.symbolizer import Symbolizer
 from hog.exception import HOGException
 
@@ -27,7 +31,7 @@ def test_function_spaces():
 
     print()
 
-    f = LagrangianFunctionSpace(1, symbolizer)
+    f: FunctionSpace = LagrangianFunctionSpace(1, symbolizer)
     f_shape = f.shape(geometry)
     f_grad_shape = f.grad_shape(geometry)
     print(f)

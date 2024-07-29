@@ -14,7 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from hog.element_geometry import LineElement, TriangleElement, TetrahedronElement
+from hog.element_geometry import (
+    ElementGeometry,
+    LineElement,
+    TriangleElement,
+    TetrahedronElement,
+)
 from hog.quadrature import Quadrature, select_quadrule
 from hog.exception import HOGException
 
@@ -22,10 +27,13 @@ from hog.exception import HOGException
 def test_smoke():
     """Just a brief test to see if the quadrature class does _something_."""
 
-    geometries = [TriangleElement(), TetrahedronElement()] # TODO fix quad for lines
+    geometries = [TriangleElement(), TetrahedronElement()]  # TODO fix quad for lines
 
     for geometry in geometries:
-        schemes = {TriangleElement(): "exact", TetrahedronElement(): "exact"}
+        schemes: dict[ElementGeometry, str | int] = {
+            TriangleElement(): "exact",
+            TetrahedronElement(): "exact",
+        }
 
         quad = Quadrature(select_quadrule(schemes[geometry], geometry), geometry)
         print("points", quad.points())
@@ -41,5 +49,6 @@ def test_smoke():
                 raise HOGException("There should be points and weights...")
             print("points", quad.points())
             print("weights", quad.weights())
+
 
 test_smoke()

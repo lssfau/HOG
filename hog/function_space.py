@@ -14,8 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from abc import ABC, abstractmethod
 from pyclbr import Function
-from typing import Any, List, Optional, Protocol, Union
+from typing import Any, List, NewType, Optional, Union
 import sympy as sp
 
 from hog.element_geometry import (
@@ -28,34 +29,40 @@ from hog.math_helpers import grad, hessian
 from hog.symbolizer import Symbolizer
 
 
-class FunctionSpace(Protocol):
+class FunctionSpace(ABC):
     """Representation of a finite element function space."""
 
     @property
+    @abstractmethod
     def family(self) -> str:
         """The common name of this FEM space."""
         ...
 
     @property
+    @abstractmethod
     def is_vectorial(self) -> bool:
         """Whether shape functions are scalar or vector valued."""
         ...
 
     @property
+    @abstractmethod
     def is_continuous(self) -> bool:
         """Whether functions in this space are continuous across elements."""
         ...
 
     @property
+    @abstractmethod
     def degree(self) -> int:
         """The polynomial degree of the shape functions."""
         ...
 
     @property
+    @abstractmethod
     def symbolizer(self) -> Symbolizer:
         """The symbolizer used to construct this object."""
         ...
 
+    @abstractmethod
     def shape(
         self,
         geometry: ElementGeometry,
@@ -123,6 +130,14 @@ class FunctionSpace(Protocol):
     def num_dofs(self, geometry: ElementGeometry) -> int:
         """The number of DoFs per element."""
         return len(self.shape(geometry))
+
+    @abstractmethod
+    def __eq__(self, other: Any) -> bool:
+        ...
+
+
+TrialSpace = NewType("TrialSpace", FunctionSpace)
+TestSpace = NewType("TestSpace", FunctionSpace)
 
 
 class LagrangianFunctionSpace(FunctionSpace):
@@ -425,7 +440,6 @@ class TensorialVectorFunctionSpace(FunctionSpace):
         domain: str = "reference",
         dof_map: Optional[List[int]] = None,
     ) -> List[sp.MatrixBase]:
-
         dim = geometry.dimensions
 
         shape_functions = self._component_function_space.shape(
@@ -532,6 +546,9 @@ class EnrichedGalerkinFunctionSpace(FunctionSpace):
     def num_dofs(self, geometry: ElementGeometry) -> int:
         """Returns the number of DoFs per element."""
         return len(self.shape(geometry))
+
+    def __eq__(self, other: Any) -> bool:
+        return type(self) == type(other)
 
     def __str__(self):
         return f"EnrichedDG"

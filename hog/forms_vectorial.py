@@ -31,7 +31,13 @@ from hog.fem_helpers import (
     scalar_space_dependent_coefficient,
 )
 from hog.integrand import Form
-from hog.function_space import FunctionSpace, EnrichedGalerkinFunctionSpace, N1E1Space
+from hog.function_space import (
+    FunctionSpace,
+    EnrichedGalerkinFunctionSpace,
+    N1E1Space,
+    TrialSpace,
+    TestSpace,
+)
 from hog.math_helpers import inv, abs, det, double_contraction, dot, curl
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
@@ -40,8 +46,8 @@ from hog.sympy_extensions import fast_subs
 
 
 def diffusion_vectorial(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,
@@ -99,8 +105,8 @@ def diffusion_vectorial(
 
 
 def mass_vectorial(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,
@@ -149,8 +155,8 @@ def mass_vectorial(
 
 
 def mass_n1e1(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -195,8 +201,8 @@ def mass_n1e1(
 
 
 def divergence_vectorial(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     transpose: bool,
     geometry: ElementGeometry,
     quad: Quadrature,
@@ -264,8 +270,8 @@ def divergence_vectorial(
 
 
 def curl_curl(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -320,8 +326,8 @@ def curl_curl(
 
 
 def curl_curl_plus_mass(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -471,8 +477,8 @@ Strong formulation
 
 
 def linear_form_vectorial(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     quad: Quadrature,
     symbolizer: Symbolizer,

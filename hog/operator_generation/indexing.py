@@ -22,7 +22,6 @@ import sympy as sp
 
 from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
 from hog.exception import HOGException
-from hog.function_space import FunctionSpace, N1E1Space
 from hog.symbolizer import Symbolizer
 
 from pystencils.integer_functions import int_div
@@ -35,7 +34,6 @@ import sympy as sp
 
 from hog.element_geometry import ElementGeometry, TriangleElement, TetrahedronElement
 from hog.exception import HOGException
-from hog.function_space import FunctionSpace
 from hog.symbolizer import Symbolizer
 
 from pystencils.integer_functions import int_div
@@ -173,7 +171,6 @@ def num_microcells_per_cell(level: int) -> int:
 
 
 def linear_macro_cell_size(width: int) -> int:
-
     if USE_SYMPY_INT_DIV:
         return sympy_int_div((width + 2) * (width + 1) * width, 6)
     else:
