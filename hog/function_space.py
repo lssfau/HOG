@@ -131,6 +131,10 @@ class FunctionSpace(ABC):
         """The number of DoFs per element."""
         return len(self.shape(geometry))
 
+    @abstractmethod
+    def __eq__(self, other: Any) -> bool:
+        ...
+
 
 TrialSpace = NewType("TrialSpace", FunctionSpace)
 TestSpace = NewType("TestSpace", FunctionSpace)
@@ -542,6 +546,9 @@ class EnrichedGalerkinFunctionSpace(FunctionSpace):
     def num_dofs(self, geometry: ElementGeometry) -> int:
         """Returns the number of DoFs per element."""
         return len(self.shape(geometry))
+
+    def __eq__(self, other: Any) -> bool:
+        return type(self) == type(other)
 
     def __str__(self):
         return f"EnrichedDG"

@@ -54,7 +54,7 @@ Weak formulation
         symbolizer,
         blending=blending,
         boundary_geometry=boundary_geometry,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -124,7 +124,7 @@ Geometry map: {blending}
         symbolizer,
         blending=blending,
         boundary_geometry=boundary_geometry,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         fe_coefficients={"mu": function_space_mu},
         docstring=docstring,
     )

@@ -84,7 +84,7 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -118,7 +118,7 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -164,7 +164,7 @@ Weak formulation
         symbolizer,
         blending=blending,
         fe_coefficients={"k": coefficient_function_space},
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -197,7 +197,7 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
             "The nonlinear-diffusion form does currently not support blending."
         )
 
-    if trial != test:  # type: ignore[comparison-overlap]
+    if trial != test:
         raise HOGException(
             "Trial space must be equal to test space to assemble non-linear diffusion matrix."
         )
@@ -228,7 +228,7 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
         fe_coefficients={"u": coefficient_function_space},
     )
@@ -257,7 +257,7 @@ Weak formulation
 
 Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended for :math:`k = u`.
 """
-    if trial != test:  # type: ignore[comparison-overlap]
+    if trial != test:
         raise HOGException(
             "Trial space must be equal to test space to assemble diffusion matrix."
         )
@@ -360,7 +360,7 @@ where
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
         fe_coefficients={"mu": coefficient_function_space},
     )
@@ -397,7 +397,7 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -455,7 +455,7 @@ for details.
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -476,7 +476,7 @@ def linear_form(
     where psi a test function and k = k(x) a scalar, external function.
     """
 
-    if trial != test:  # type: ignore[comparison-overlap]
+    if trial != test:
         raise HOGException(
             "Trial space must be equal to test space to assemble linear form (jep this is weird, but linear forms are implemented as diagonal matrices)."
         )
@@ -654,7 +654,7 @@ where
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
         fe_coefficients={"mu": coefficient_function_space},
     )
@@ -762,7 +762,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
             "wy": velocity_function_space,
             "wz": velocity_function_space,
         },
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -807,7 +807,7 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring=docstring,
     )
 
@@ -1021,7 +1021,7 @@ Weak formulation
                     )
                 mat[data.row, data.col] = form
 
-    return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)  # type: ignore[comparison-overlap]
+    return Form(mat, tabulation, symmetric=trial == test, docstring=docstring)
 
 
 def zero_form(
@@ -1040,6 +1040,6 @@ def zero_form(
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=trial == test,  # type: ignore[comparison-overlap]
+        is_symmetric=trial == test,
         docstring="",
     )

@@ -59,7 +59,7 @@ Weak formulation
     ∫ ∇u · G^(-1) · ∇v · (det(G))^0.5
 """
 
-    if trial != test:  # type: ignore[comparison-overlap]
+    if trial != test:
         raise HOGException(
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
@@ -135,7 +135,7 @@ Weak formulation
     ∫ uv · (det(G))^0.5
 """
 
-    if trial != test:  # type: ignore[comparison-overlap]
+    if trial != test:
         raise HOGException(
             "Trial space must be equal to test space to assemble laplace beltrami matrix."
         )
