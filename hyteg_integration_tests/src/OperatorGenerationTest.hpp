@@ -367,9 +367,11 @@ void compareInvDiag( OperatorFactory< RefOpType >  refOpFactory,
    // apply reference and test operators
    RefOpType opRef = refOpFactory( storage, level, level );
    opRef.computeInverseDiagonalOperatorValues();
+   opRef.computeInverseDiagonalOperatorValues();
    std::shared_ptr< RefDiagType > diagRef = opRef.getInverseDiagonalValues();
 
    TestOpType opTest = testOpFactory( storage, level, level );
+   opTest.computeInverseDiagonalOperatorValues();
    opTest.computeInverseDiagonalOperatorValues();
    std::shared_ptr< TestDiagType > diagTest = opTest.getInverseDiagonalValues();
 
