@@ -614,7 +614,7 @@ class AssembleDiagonalWrapper(KernelWrapperType):
             f"\n"
             f"for ( uint_t level = minLevel_; level <= maxLevel_; level++ )\n"
             f"{{\n"
-            f"    {self.dst.name}->interpolate( 0, level );\n"
+            f"    {self.dst.name}->setToZero( level );\n"
             f"\n"
             f"    if ( storage_->hasGlobalCells() )\n"
             f"    {{\n"
