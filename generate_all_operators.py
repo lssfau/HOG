@@ -49,6 +49,8 @@ from hog.forms import (
     nonlinear_diffusion,
     nonlinear_diffusion_newton_galerkin,
     supg_diffusion,
+    advection,
+    supg_advection,
     grad_rho_by_rho_dot_u,
 )
 from hog.forms_boundary import (
@@ -627,6 +629,14 @@ def all_operators(
 
     ops.append(OperatorInfo("P2", "SUPGDiffusion", TrialSpace(P2), TestSpace(P2), 
                             form=partial(supg_diffusion, velocity_function_space=P2, diffusivityXdelta_function_space=P2), 
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
+    
+    ops.append(OperatorInfo("P2", "Advection", TrialSpace(P2), TestSpace(P2), 
+                            form=partial(advection, velocity_function_space=P2, coefficient_function_space=P2), 
+                            type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
+
+    ops.append(OperatorInfo("P2", "SUPGAdvection", TrialSpace(P2), TestSpace(P2), 
+                            form=partial(supg_advection, velocity_function_space=P2, coefficient_function_space=P2), 
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
     ops.append(OperatorInfo("P2", "BoundaryMass", TrialSpace(P2), TestSpace(P2), form=None,
