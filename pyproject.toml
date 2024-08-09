@@ -14,7 +14,15 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["hog", "hog.operator_generation", "hog.quadrature"]
+packages = [
+  "hog", 
+  "hog.operator_generation", 
+  "hog.quadrature", 
+  "hog.recipes", 
+  "hog.recipes.integrands", 
+  "hog.recipes.integrands.boundary", 
+  "hog.recipes.integrands.volume"
+]
 
 [tool.mypy]
 pretty = true
