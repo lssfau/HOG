@@ -27,6 +27,7 @@ def integrand(
     grad_u,
     grad_v,
     k,
+    scalars,
     volume_geometry,
     tabulate,
     **_,
@@ -36,8 +37,13 @@ def integrand(
     else:
         u = sp.Matrix([[k["ux"]], [k["uy"]]])
 
+    if "cp" in k.keys():
+        coeff = k["cp"]
+    else:
+        coeff = scalars("cp")
+
     return (
-        k["cp"]
+        coeff
         * dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u), u)
         * v
         * tabulate(jac_a_abs_det)

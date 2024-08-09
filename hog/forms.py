@@ -819,6 +819,7 @@ def advection(
     symbolizer: Symbolizer,
     velocity_function_space: FunctionSpace,
     coefficient_function_space: FunctionSpace,
+    constant_cp: bool = False,
     blending: GeometryMap = IdentityMap(),
 ) -> Form:
     docstring = f"""
@@ -847,6 +848,10 @@ Weak formulation
         is_symmetric=False,
         docstring=docstring,
         fe_coefficients={
+            "ux": velocity_function_space,
+            "uy": velocity_function_space,
+            "uz": velocity_function_space,
+        } if constant_cp else {
             "ux": velocity_function_space,
             "uy": velocity_function_space,
             "uz": velocity_function_space,
