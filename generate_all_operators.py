@@ -29,7 +29,7 @@ import sympy as sp
 from sympy.core.cache import clear_cache
 from tabulate import tabulate
 
-from hog.blending import GeometryMap, IdentityMap, AnnulusMap, IcosahedralShellMap
+from hog.blending import GeometryMap, IdentityMap, AnnulusMap, IcosahedralShellMap, ParametricMap
 from hog.cse import CseImplementation
 from hog.element_geometry import (
     ElementGeometry,
@@ -101,6 +101,8 @@ ALL_GEOMETRY_MAPS = [
     IdentityMap(),
     AnnulusMap(),
     IcosahedralShellMap(),
+    ParametricMap(1),
+    ParametricMap(2),
 ]
 
 

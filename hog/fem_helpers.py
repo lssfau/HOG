@@ -22,8 +22,7 @@ from hog.blending import (
     GeometryMap,
     ExternalMap,
     IdentityMap,
-    AnnulusMap,
-    IcosahedralShellMap,
+    ParametricMap,
 )
 from hog.element_geometry import (
     ElementGeometry,
@@ -38,11 +37,9 @@ from hog.multi_assignment import MultiAssignment
 from hog.symbolizer import Symbolizer
 from hog.external_functions import (
     BlendingFTriangle,
-    BlendingFEmbeddedTriangle,
     BlendingFTetrahedron,
     BlendingDFTetrahedron,
     BlendingDFTriangle,
-    BlendingDFInvDFTriangle,
     BlendingDFEmbeddedTriangle,
     ScalarVariableCoefficient2D,
     ScalarVariableCoefficient3D,
@@ -208,6 +205,9 @@ def trafo_ref_to_physical(
 
     if geometry not in blending.supported_geometries():
         raise HOGException("Geometry not supported by blending map.")
+
+    if isinstance(blending, ParametricMap):
+        raise HOGException("Evaluation not implemented for parametric maps.")
 
     t = trafo_ref_to_affine(geometry, symbolizer)
 
