@@ -130,10 +130,13 @@ class ParametricMap(GeometryMap):
         return ""
 
     def coupling_includes(self) -> List[str]:
-        return []
+        return [
+            "hyteg/p1functionspace/P1VectorFunction.hpp",
+            "hyteg/p2functionspace/P2VectorFunction.hpp",
+        ]
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, ParametricMap) and self.degree == other.degree
+        return type(self) is type(other) and self.degree == other.degree
 
     def __str__(self):
         return self.__class__.__name__ + f"P{self.degree}"

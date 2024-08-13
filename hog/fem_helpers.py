@@ -575,4 +575,4 @@ def fem_function_gradient_on_element(
         raise HOGException(
             f"Invalid domain '{domain}': cannot evaluate local polynomial here."
         )
-    return sp.Matrix(s), dofs
+    return s, dofs
