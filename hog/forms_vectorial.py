@@ -466,8 +466,8 @@ Strong formulation
 
                 curl_curl_symbol = tabulation.register_factor(
                     "curl_curl_det", curl_curl
-                )[0]
-                mass_symbol = tabulation.register_factor("mass_det", mass)[0]
+                )
+                mass_symbol = tabulation.register_factor("mass_det", mass)
 
                 form = alpha * curl_curl_symbol + beta * mass_symbol
 

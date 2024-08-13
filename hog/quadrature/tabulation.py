@@ -80,6 +80,9 @@ class Tabulation:
                 table = self.tables.setdefault(table_name, Table(table_name))
                 replacement_symbols[r, c] = table.insert(factor[r, c])
 
+        if replacement_symbols.shape == (1, 1):
+            replacement_symbols = replacement_symbols[0]
+
         return replacement_symbols
 
     def construct_tables(
