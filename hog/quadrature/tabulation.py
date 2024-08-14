@@ -56,17 +56,14 @@ class Tabulation:
         self.tables: Dict[str, Table] = {}
 
     def register_factor(
-        self, factor_name: str, factor: sp.Matrix | sp.Expr | int | float
-    ) -> sp.Matrix | int | float:
+        self, factor_name: str, factor: sp.Matrix | int | float
+    ) -> sp.Matrix:
         """Register a factor of the weak form that can be tabulated. Returns
         symbols replacing the expression for the factor. The symbols are returned
         in the same form as the factor was given. E.g. in case of a blended full
         Stokes operator we might encounter J_F^-1 grad phi being a matrix."""
 
-        if isinstance(factor, (int, float)):
-            return factor
-
-        if isinstance(factor, sp.Expr):
+        if not isinstance(factor, sp.MatrixBase):
             factor = sp.Matrix([factor])
 
         if all(f.is_constant() for f in factor):
@@ -79,9 +76,6 @@ class Tabulation:
                 # get or insert empty table
                 table = self.tables.setdefault(table_name, Table(table_name))
                 replacement_symbols[r, c] = table.insert(factor[r, c])
-
-        if replacement_symbols.shape == (1, 1):
-            replacement_symbols = replacement_symbols[0]
 
         return replacement_symbols
 
