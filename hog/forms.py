@@ -812,6 +812,97 @@ Weak formulation
     )
 
 
+def advection(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    coefficient_function_space: FunctionSpace,
+    constant_cp: bool = False,
+    blending: GeometryMap = IdentityMap(),
+) -> Form:
+    docstring = f"""
+advection operator which needs to be used in combination with SUPG
+
+Geometry map:    {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    s: test function  (scalar space: {test})
+    u: velocity function (vectorial space: {velocity_function_space})
+
+    ∫ cp ( u · ∇T ) s
+"""
+
+    from hog.recipes.integrands.volume.advection import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=False,
+        docstring=docstring,
+        fe_coefficients={
+            "ux": velocity_function_space,
+            "uy": velocity_function_space,
+            "uz": velocity_function_space,
+        } if constant_cp else {
+            "ux": velocity_function_space,
+            "uy": velocity_function_space,
+            "uz": velocity_function_space,
+            "cp": coefficient_function_space,
+        },
+    )
+
+
+def supg_advection(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    coefficient_function_space: FunctionSpace,
+    blending: GeometryMap = IdentityMap(),
+) -> Form:
+    docstring = f"""
+advection operator which needs to be used in combination with SUPG
+
+Geometry map:    {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    s: test function  (scalar space: {test})
+    u: velocity function (vectorial space: {velocity_function_space})
+
+    ∫ cp ( u · ∇T ) 𝛿(u · ∇s)
+"""
+
+    from hog.recipes.integrands.volume.supg_advection import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=False,
+        docstring=docstring,
+        fe_coefficients={
+            "ux": velocity_function_space,
+            "uy": velocity_function_space,
+            "uz": velocity_function_space,
+            "cp_times_delta": coefficient_function_space,
+        },
+    )
+
+
 def supg_diffusion(
     trial: TrialSpace,
     test: TestSpace,
