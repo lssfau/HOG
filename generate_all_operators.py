@@ -619,7 +619,7 @@ def all_operators(
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
     ops.append(OperatorInfo("P1", "NonlinearDiffusionNewtonGalerkin", TrialSpace(P1),
                             TestSpace(P1), form=partial(nonlinear_diffusion_newton_galerkin,
-                            coefficient_function_space=P1, onlyNewtonGalerkinPartOfForm=False),
+                            coefficient_function_space=P1, only_newton_galerkin_part_of_form=False),
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
     ops.append(OperatorInfo("P1Vector", "Diffusion", TrialSpace(P1Vector), TestSpace(P1Vector),
