@@ -212,7 +212,7 @@ Note: :math:`a(c) = 1/8 + u^2` is currently hard-coded and the form is intended 
         tabulate,
         **_,
     ):
-        a = sp.Matrix([sp.Rational(1, 8)]) + k[0] * k[0]
+        a = sp.Rational(1, 8) + k["u"] * k["u"]
         return a * tabulate(
             double_contraction(
                 jac_a_inv.T * grad_u,
@@ -279,8 +279,8 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
         tabulate,
         **_,
     ):
-        a = sp.Matrix([sp.Rational(1, 8)]) + k[0] * k[0]
-        a_prime = 2 * k[0]
+        a = sp.Rational(1, 8) + k["k"] * k["k"]
+        a_prime = 2 * k["k"]
 
         diffusion_term = a * tabulate(
             dot(jac_a_inv.T * grad_u, jac_a_inv.T * grad_v) * jac_a_abs_det
@@ -289,7 +289,7 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
         newton_galerkin_term = (
             a_prime
             * u
-            * dot(jac_a_inv.T * grad_k, tabulate(jac_a_inv.T * grad_v))
+            * dot(jac_a_inv.T * grad_k["k"], tabulate(jac_a_inv.T * grad_v))
             * tabulate(jac_a_abs_det)
         )
 
