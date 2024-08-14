@@ -55,11 +55,19 @@ class Tabulation:
         self.symbolizer = symbolizer
         self.tables: Dict[str, Table] = {}
 
-    def register_factor(self, factor_name: str, factor: sp.Matrix) -> sp.Matrix:
+    def register_factor(
+        self, factor_name: str, factor: sp.Matrix | int | float
+    ) -> sp.Matrix:
         """Register a factor of the weak form that can be tabulated. Returns
         symbols replacing the expression for the factor. The symbols are returned
         in the same form as the factor was given. E.g. in case of a blended full
         Stokes operator we might encounter J_F^-1 grad phi being a matrix."""
+
+        if not isinstance(factor, sp.MatrixBase):
+            factor = sp.Matrix([factor])
+
+        if all(f.is_constant() for f in factor):
+            return factor
 
         replacement_symbols = sp.zeros(factor.rows, factor.cols)
         for r in range(factor.rows):

@@ -52,11 +52,17 @@ from dataclasses import dataclass, asdict, fields, field
 import sympy as sp
 
 from hog.exception import HOGException
-from hog.function_space import FunctionSpace, TrialSpace, TestSpace
+from hog.function_space import (
+    FunctionSpace,
+    TrialSpace,
+    TestSpace,
+    TensorialVectorFunctionSpace,
+    LagrangianFunctionSpace,
+)
 from hog.element_geometry import ElementGeometry
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
-from hog.blending import GeometryMap, IdentityMap, ExternalMap
+from hog.blending import GeometryMap, IdentityMap, ExternalMap, ParametricMap
 from hog.fem_helpers import (
     create_empty_element_matrix,
     element_matrix_iterator,
@@ -293,6 +299,28 @@ def process_integrand(
 
     s = IntegrandSymbols()
 
+    ####################
+    # Element geometry #
+    ####################
+
+    s.volume_geometry = volume_geometry
+
+    if boundary_geometry is not None:
+        if boundary_geometry.dimensions != boundary_geometry.space_dimension - 1:
+            raise HOGException(
+                "Since you are integrating over a boundary, the boundary element's space dimension should be larger "
+                "than its dimension."
+            )
+
+        if boundary_geometry.space_dimension != volume_geometry.space_dimension:
+            raise HOGException("All geometries must be embedded in the same space.")
+
+        s.boundary_geometry = boundary_geometry
+
+    ##############
+    # Tabulation #
+    ##############
+
     tabulation = Tabulation(symbolizer)
 
     def _tabulate(
@@ -304,6 +332,10 @@ def process_integrand(
         return tabulation.register_factor(factor_name, factor)
 
     s.tabulate = _tabulate
+
+    ################################
+    # Scalar and matrix parameters #
+    ################################
 
     free_symbols = set()
 
@@ -329,46 +361,29 @@ def process_integrand(
     s.scalars = _scalars
     s.matrix = _matrix
 
-    s.volume_geometry = volume_geometry
+    ###################
+    # FE coefficients #
+    ###################
 
-    s.jac_a = symbolizer.jac_ref_to_affine(volume_geometry)
-    s.jac_a_inv = symbolizer.jac_ref_to_affine_inv(volume_geometry)
-    s.jac_a_abs_det = symbolizer.abs_det_jac_ref_to_affine()
+    fe_coefficients_modified = {k: v for k, v in fe_coefficients.items()}
 
-    if isinstance(blending, IdentityMap):
-        s.jac_b = sp.eye(volume_geometry.space_dimension)
-        s.jac_b_inv = sp.eye(volume_geometry.space_dimension)
-        s.jac_b_abs_det = 1
-    elif isinstance(blending, ExternalMap):
-        s.jac_b = jac_affine_to_physical(volume_geometry, symbolizer)
-        s.jac_b_inv = inv(s.jac_b)
-        s.jac_b_abs_det = abs(det(s.jac_b))
-    else:
-        s.jac_b = symbolizer.jac_affine_to_blending(volume_geometry.space_dimension)
-        s.jac_b_inv = symbolizer.jac_affine_to_blending_inv(
-            volume_geometry.space_dimension
-        )
-        s.jac_b_abs_det = symbolizer.abs_det_jac_affine_to_blending()
-        s.hessian_b = symbolizer.hessian_blending_map(volume_geometry.dimensions)
-
-    if boundary_geometry is not None:
-        if boundary_geometry.dimensions != boundary_geometry.space_dimension - 1:
+    special_name_of_micromesh_coeff = "micromesh"
+    if isinstance(blending, ParametricMap):
+        # We add a vector coefficient for the parametric mapping here.
+        if special_name_of_micromesh_coeff in fe_coefficients:
             raise HOGException(
-                "Since you are integrating over a boundary, the boundary element's space dimension should be larger "
-                "than its dimension."
+                f"You cannot use the name {special_name_of_micromesh_coeff} for your FE coefficient."
+                f"It is reserved."
             )
-
-        if boundary_geometry.space_dimension != volume_geometry.space_dimension:
-            raise HOGException("All geometries must be embedded in the same space.")
-
-        s.boundary_geometry = boundary_geometry
-        s.jac_a_boundary = symbolizer.jac_ref_to_affine(boundary_geometry)
-
-    s.x = trafo_ref_to_physical(volume_geometry, symbolizer, blending)
+        fe_coefficients_modified[special_name_of_micromesh_coeff] = (
+            TensorialVectorFunctionSpace(
+                LagrangianFunctionSpace(blending.degree, symbolizer)
+            )
+        )
 
     s.k = dict()
     s.grad_k = dict()
-    for name, coefficient_function_space in fe_coefficients.items():
+    for name, coefficient_function_space in fe_coefficients_modified.items():
         if coefficient_function_space is None:
             k = scalar_space_dependent_coefficient(
                 name, volume_geometry, symbolizer, blending=blending
@@ -399,6 +414,66 @@ def process_integrand(
             )
         s.k[name] = k
         s.grad_k[name] = grad_k
+
+    ##############################
+    # Jacobians and determinants #
+    ##############################
+
+    s.jac_a = symbolizer.jac_ref_to_affine(volume_geometry)
+    s.jac_a_inv = symbolizer.jac_ref_to_affine_inv(volume_geometry)
+    s.jac_a_abs_det = symbolizer.abs_det_jac_ref_to_affine()
+
+    if boundary_geometry is not None:
+        s.jac_a_boundary = symbolizer.jac_ref_to_affine(boundary_geometry)
+
+    if isinstance(blending, IdentityMap):
+        s.jac_b = sp.eye(volume_geometry.space_dimension)
+        s.jac_b_inv = sp.eye(volume_geometry.space_dimension)
+        s.jac_b_abs_det = 1
+    elif isinstance(blending, ExternalMap):
+        s.jac_b = jac_affine_to_physical(volume_geometry, symbolizer)
+        s.jac_b_inv = inv(s.jac_b)
+        s.jac_b_abs_det = abs(det(s.jac_b))
+    elif isinstance(blending, ParametricMap):
+        s.jac_a = sp.eye(volume_geometry.space_dimension)
+        s.jac_a_inv = sp.eye(volume_geometry.space_dimension)
+        s.jac_a_abs_det = 1
+
+        if boundary_geometry is not None:
+            raise HOGException(
+                "Boundary integrals not tested with parametric mappings yet. "
+                "We have to handle/set the affine Jacobian at the boundary appropriately.\n"
+                "Dev note to future me: since we assume the boundary element to have the last ref coord zero, "
+                "I suppose we can set this thing to:\n"
+                " ⎡ 1 ⎤ \n"
+                " ⎣ 0 ⎦ \n"
+                "in 2D and to\n"
+                " ⎡ 1 0 ⎤ \n"
+                " | 0 1 | \n"
+                " ⎣ 0 0 ⎦ \n"
+                "in 3D."
+            )
+
+        s.jac_b = s.grad_k[special_name_of_micromesh_coeff].T
+        s.jac_b_inv = inv(s.jac_b)
+        s.jac_b_abs_det = abs(det(s.jac_b))
+
+        s.x = s.k[special_name_of_micromesh_coeff]
+
+    else:
+        s.jac_b = symbolizer.jac_affine_to_blending(volume_geometry.space_dimension)
+        s.jac_b_inv = symbolizer.jac_affine_to_blending_inv(
+            volume_geometry.space_dimension
+        )
+        s.jac_b_abs_det = symbolizer.abs_det_jac_affine_to_blending()
+        s.hessian_b = symbolizer.hessian_blending_map(volume_geometry.dimensions)
+
+    if not isinstance(blending, ParametricMap):
+        s.x = trafo_ref_to_physical(volume_geometry, symbolizer, blending)
+
+    #######################################
+    # Assembling the local element matrix #
+    #######################################
 
     mat = create_empty_element_matrix(trial, test, volume_geometry)
     it = element_matrix_iterator(trial, test, volume_geometry)

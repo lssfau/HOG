@@ -78,12 +78,12 @@ int main( int argc, char* argv[] )
       if ( d == 2 )
       {
          storageSetup = StorageSetup(
-             "quad_4el", MeshInfo::fromGmshFile( "../hyteg/data/meshes/quad_4el.msh" ), GeometryMap::Type::IDENTITY );
+             "quad_4el", MeshInfo::fromGmshFile( prependHyTeGMeshDir( "2D/quad_4el.msh" ) ), GeometryMap::Type::IDENTITY );
       }
       else
       {
          storageSetup = StorageSetup(
-             "cube_6el", MeshInfo::fromGmshFile( "../hyteg/data/meshes/3D/cube_6el.msh" ), GeometryMap::Type::IDENTITY );
+             "cube_6el", MeshInfo::fromGmshFile( prependHyTeGMeshDir( "3D/cube_6el.msh" ) ), GeometryMap::Type::IDENTITY );
       }
 
       compareApply< P2ElementwiseOperator< FORM >, operatorgeneration::TestOpEpsilon >(

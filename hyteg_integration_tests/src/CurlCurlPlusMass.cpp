@@ -61,7 +61,7 @@ int main( int argc, char* argv[] )
 
    const uint_t       level = 2;
    const StorageSetup storageSetup(
-       "cube_6el", MeshInfo::fromGmshFile( "../hyteg/data/meshes/3D/cube_6el.msh" ), GeometryMap::Type::IDENTITY );
+       "cube_6el", MeshInfo::fromGmshFile( prependHyTeGMeshDir( "3D/cube_6el.msh" ) ), GeometryMap::Type::IDENTITY );
 
    real_t thresholdOverMachineEpsApply    = 225;
    real_t thresholdOverMachineEpsInvDiag  = 9.0e6;

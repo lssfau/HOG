@@ -17,6 +17,6 @@
 
 # Collects common imports for forming integrand and operator recipes.
 import sympy as sp
-from hog.math_helpers import dot, abs, det, double_contraction
+from hog.math_helpers import dot, abs, det, inv, double_contraction
 
-__all__ = ["dot", "abs", "det", "double_contraction", "sp"]
+__all__ = ["sp", "dot", "abs", "det", "inv", "double_contraction"]

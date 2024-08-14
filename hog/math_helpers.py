@@ -118,11 +118,9 @@ def e_vec(dim: int, idx: int) -> sp.Matrix:
     return e
 
 
-def inv(mat: sp.Matrix) -> sp.Matrix:
+def inv(mat: sp.MatrixBase) -> sp.Matrix:
     """Optimized implementation of matrix inverse for 2x2, and 3x3 matrices. Use this instead of sympy's mat**-1."""
-    if isinstance(mat, sp.Expr):
-        return 1 / mat
-    elif isinstance(mat, sp.Matrix):
+    if isinstance(mat, sp.MatrixBase):
         rows, cols = mat.shape
         if rows != cols:
             raise HOGException("Matrix is not square - cannot be inverted.")
@@ -155,6 +153,8 @@ def inv(mat: sp.Matrix) -> sp.Matrix:
             return invmat
         else:
             return mat**-1
+    elif isinstance(mat, sp.Expr):
+        return 1 / mat
 
 
 def normal(plane: List[sp.Matrix], d: sp.Matrix) -> sp.Matrix:

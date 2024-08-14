@@ -583,7 +583,7 @@ Weak formulation
                 "epsilon_epsilon_prod",
                 double_contraction(phi_epsilon, psi_epsilon)
                 * fundamental_form_det**0.5,
-            )[0]
+            )
 
             mat[data.row, data.col] = form
 
@@ -676,7 +676,7 @@ Weak formulation
                 "phi_psi_prod",
                 double_contraction(phi_projected_grad, psi_projected_grad)
                 * fundamental_form_det**0.5,
-            )[0]
+            )
 
             mat[data.row, data.col] = form
 

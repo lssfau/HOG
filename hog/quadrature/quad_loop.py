@@ -37,7 +37,7 @@ from hog.fem_helpers import (
     jac_blending_inv_eval_symbols,
 )
 from hog.element_geometry import ElementGeometry
-from hog.blending import GeometryMap, IdentityMap
+from hog.blending import GeometryMap, IdentityMap, ParametricMap
 
 
 class QuadLoop:
@@ -104,7 +104,9 @@ class QuadLoop:
             for dim, symbol in enumerate(ref_symbols)
         }
 
-        if not self.blending.is_affine():
+        if not self.blending.is_affine() and not isinstance(
+            self.blending, ParametricMap
+        ):
             jac = jac_blending_evaluate(
                 self.symbolizer, self.quadrature.geometry, self.blending
             )
@@ -117,7 +119,9 @@ class QuadLoop:
             hess = hess_blending_evaluate(
                 self.symbolizer, self.quadrature.geometry, self.blending
             )
-            hess_evaluated = [fast_subs(hess[idx], coord_subs_dict) for idx in range(len(hess))]
+            hess_evaluated = [
+                fast_subs(hess[idx], coord_subs_dict) for idx in range(len(hess))
+            ]
             quadrature_assignments += self.blending_hessian_quad_loop_assignments(
                 self.quadrature.geometry, self.symbolizer, hess_evaluated
             )
@@ -229,7 +233,7 @@ class QuadLoop:
         ]
 
         return quadrature_assignments
-    
+
     def blending_hessian_quad_loop_assignments(
         self,
         geometry: ElementGeometry,
@@ -242,7 +246,11 @@ class QuadLoop:
 
         dim = geometry.dimensions
         quadrature_assignments += [
-            ast.SympyAssignment(hess_symbols[k][i, j], hessian_blending_evaluated[k][i, j], is_const=False)
+            ast.SympyAssignment(
+                hess_symbols[k][i, j],
+                hessian_blending_evaluated[k][i, j],
+                is_const=False,
+            )
             for i in range(dim)
             for j in range(dim)
             for k in range(dim)

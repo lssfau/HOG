@@ -49,7 +49,7 @@ class GeometryMap:
     def jacobian(self, x: sp.Matrix) -> sp.Matrix:
         """Evaluates the Jacobian of the geometry map at the passed point."""
         raise HOGException("jacobian() not implemented for this map.")
-    
+
     def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
         """Evaluates the hessian of the geometry map at the passed point."""
         raise HOGException("hessian() not implemented for this map.")
@@ -98,6 +98,48 @@ class ExternalMap(GeometryMap):
 
     def supported_geometries(self) -> List[ElementGeometry]:
         return [LineElement(), TriangleElement(), TetrahedronElement()]
+
+
+class ParametricMap(GeometryMap):
+    """
+    This is a special map that indicates that you want a parametric mapping.
+
+    It uses HyTeG's MicroMesh implementation and introduces a vector finite element coefficient that represents the
+    coordinates at each node. Locally, the Jacobians are computed through the gradients of the shape functions.
+
+    Depending on your choice of polynomial degree, you can use this blending map to construct sub-, super-, and
+    isoparametric mappings.
+
+    The affine Jacobians in all integrands will automatically be set to the identity if you use this map.
+    The blending Jacobians will be set to the transpose of the gradient of the shape functions.
+    """
+
+    def __init__(self, degree: int):
+
+        if degree not in [1, 2]:
+            raise HOGException(
+                "Only first and second order parametric maps are supported."
+            )
+
+        self.degree = degree
+
+    def supported_geometries(self) -> List[ElementGeometry]:
+        return [TriangleElement(), TetrahedronElement()]
+
+    def parameter_coupling_code(self) -> str:
+        return ""
+
+    def coupling_includes(self) -> List[str]:
+        return [
+            "hyteg/p1functionspace/P1VectorFunction.hpp",
+            "hyteg/p2functionspace/P2VectorFunction.hpp",
+        ]
+
+    def __eq__(self, other: Any) -> bool:
+        return type(self) is type(other) and self.degree == other.degree
+
+    def __str__(self):
+        return self.__class__.__name__ + f"P{self.degree}"
 
 
 class AnnulusMap(GeometryMap):
