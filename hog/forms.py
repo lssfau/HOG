@@ -375,7 +375,7 @@ def k_mass(
     coefficient_function_space: Optional[FunctionSpace] = None,
 ) -> Form:
     docstring = f"""
-Diffusion operator with a scalar coefficient.
+Mass operator scaled with a coefficient.
 
 Geometry map: {blending}
 
@@ -398,6 +398,7 @@ Weak formulation
         symbolizer,
         blending=blending,
         is_symmetric=trial == test,
+        fe_coefficients={"k": coefficient_function_space},
         docstring=docstring,
     )
 
