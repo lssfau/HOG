@@ -767,14 +767,10 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         docstring=docstring,
     )
 
-
 def divdiv(
     trial: TrialSpace,
     test: TestSpace,
-    component_trial: int,
-    component_test: int,
     geometry: ElementGeometry,
-    quad: Quadrature,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
 ) -> Form:
@@ -787,8 +783,6 @@ divdiv operator which is used as a stabilization term that is taken from
 
 for the P1-P0 stabilized Stokes discretization.
 
-Component trial: {component_trial}
-Component test:  {component_test}
 Geometry map:    {blending}
 
 Weak formulation
@@ -812,6 +806,48 @@ Weak formulation
         docstring=docstring,
     )
 
+def k_divdiv(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    coefficient_function_space: Optional[FunctionSpace] = None,
+    blending: GeometryMap = IdentityMap(),
+) -> Form:
+    docstring = f"""
+divdiv operator which is used as a stabilization term that is taken from
+
+    Blank, L. (2014).
+    On Divergence-Free Finite Element Methods for the Stokes Equations (Freie Universität Berlin).
+    p. 84, eq. (6.2)
+
+for the P1-P0 stabilized Stokes discretization.
+
+Geometry map:    {blending}
+
+Weak formulation
+
+    u: trial function (vectorial space: {trial})
+    v: test function  (vectorial space: {test})
+
+    ∫ μ ( ∇ · u ) · ( ∇ · v )
+"""
+
+    from hog.recipes.integrands.volume.divdiv import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=trial == test,
+        docstring=docstring,
+        fe_coefficients={
+            "k": coefficient_function_space
+        }
+    )
 
 def advection(
     trial: TrialSpace,
