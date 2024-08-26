@@ -598,71 +598,72 @@ class HyTeGElementwiseOperator:
             for member in kernel_wrapper_type.member_variables():
                 operator_cpp_class.add(member)
 
-        # Add all kernels to the class.
-        for operator_method in self.operator_methods:
+        with TimedLogger("Generating C code from kernel AST(s)"):
+            # Add all kernels to the class.
+            for operator_method in self.operator_methods:
 
-            num_integrals = len(operator_method.integration_infos)
+                num_integrals = len(operator_method.integration_infos)
 
-            if num_integrals != len(
-                operator_method.kernel_functions
-            ) or num_integrals != len(operator_method.operation_counts):
-                raise HOGException(
-                    "There should be as many IntegrationInfo (aka integrals) as KernelFunctions (aka kernels)."
-                )
-
-            for (
-                integration_info,
-                sub_kernel,
-                operation_count,
-                platform_dependent_funcs,
-            ) in zip(
-                operator_method.integration_infos,
-                operator_method.kernel_functions,
-                operator_method.operation_counts,
-                operator_method.platform_dependent_funcs,
-            ):
-                kernel_docstring = "\n".join(
-                    [
-                        f"\nIntegral: {integration_info.name}",
-                        f"- volume element:  {integration_info.geometry}",
-                        f"- kernel type:     {operator_method.kernel_wrapper_type.name}",
-                        f"- loop strategy:   {integration_info.loop_strategy}",
-                        f"- quadrature rule: {integration_info.quad}",
-                        f"- blending map:    {integration_info.blending}",
-                        f"- operations per element:",
-                        operation_count,
-                    ]
-                )
-
-                if class_files == CppClassFiles.HEADER_IMPL_AND_VARIANTS:
-                    operator_cpp_class.add(
-                        CppMethodWithVariants(
-                            {
-                                platform: CppMethod.from_kernel_function(
-                                    plat_dep_kernel,
-                                    is_const=True,
-                                    visibility="private",
-                                    docstring=indent(
-                                        kernel_docstring,
-                                        "/// ",
-                                    ),
-                                )
-                                for platform, plat_dep_kernel in platform_dependent_funcs.items()
-                            }
-                        )
+                if num_integrals != len(
+                    operator_method.kernel_functions
+                ) or num_integrals != len(operator_method.operation_counts):
+                    raise HOGException(
+                        "There should be as many IntegrationInfo (aka integrals) as KernelFunctions (aka kernels)."
                     )
-                else:
-                    operator_cpp_class.add(
-                        CppMethod.from_kernel_function(
-                            sub_kernel,
-                            is_const=True,
-                            visibility="private",
-                            docstring=indent(
-                                kernel_docstring,
-                                "/// ",
-                            ),
-                        )
+
+                for (
+                    integration_info,
+                    sub_kernel,
+                    operation_count,
+                    platform_dependent_funcs,
+                ) in zip(
+                    operator_method.integration_infos,
+                    operator_method.kernel_functions,
+                    operator_method.operation_counts,
+                    operator_method.platform_dependent_funcs,
+                ):
+                    kernel_docstring = "\n".join(
+                        [
+                            f"\nIntegral: {integration_info.name}",
+                            f"- volume element:  {integration_info.geometry}",
+                            f"- kernel type:     {operator_method.kernel_wrapper_type.name}",
+                            f"- loop strategy:   {integration_info.loop_strategy}",
+                            f"- quadrature rule: {integration_info.quad}",
+                            f"- blending map:    {integration_info.blending}",
+                            f"- operations per element:",
+                            operation_count,
+                        ]
                     )
+
+                    if class_files == CppClassFiles.HEADER_IMPL_AND_VARIANTS:
+                        operator_cpp_class.add(
+                            CppMethodWithVariants(
+                                {
+                                    platform: CppMethod.from_kernel_function(
+                                        plat_dep_kernel,
+                                        is_const=True,
+                                        visibility="private",
+                                        docstring=indent(
+                                            kernel_docstring,
+                                            "/// ",
+                                        ),
+                                    )
+                                    for platform, plat_dep_kernel in platform_dependent_funcs.items()
+                                }
+                            )
+                        )
+                    else:
+                        operator_cpp_class.add(
+                            CppMethod.from_kernel_function(
+                                sub_kernel,
+                                is_const=True,
+                                visibility="private",
+                                docstring=indent(
+                                    kernel_docstring,
+                                    "/// ",
+                                ),
+                            )
+                        )
 
         # Free symbols that shall be settable through the ctor.
         # Those are only free symbols that have been explicitly defined by the user. Other undefined sympy symbols are
