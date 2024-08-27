@@ -66,9 +66,6 @@ class Tabulation:
         if not isinstance(factor, sp.MatrixBase):
             factor = sp.Matrix([factor])
 
-        if all(f.is_constant() for f in factor):
-            return factor
-
         replacement_symbols = sp.zeros(factor.rows, factor.cols)
         for r in range(factor.rows):
             for c in range(factor.cols):
