@@ -83,16 +83,16 @@ Then, include the operator in your_app.cpp:
 #include "hyteg-operators/operators/new_form/P2ElementwiseNewForm.hpp"
 ```
 
-## 2. Alternative: Commandline Script
-You can also generate operators via the commandline script `generate_all_operators.py` in the HOG.
-The script takes various inputs about the form, optimizations etc. (run with `-h` for more information).
+## 2. Alternative: Command Line Script
+You can also generate operators via the command line using the `generate_all_operators.py` script provided
+with HOG. The script takes various inputs about the form, optimizations etc. (run with `-h` for more information).
 A desired form can be defined as in HyTeG submodule: Step 1 but then also has to be registered in the
-commandline script `generate_all_operators.py`:
+command line script `generate_all_operators.py`:
 ```python
     ops.append(OperatorInfo(mapping="P2", name="new_form", trial_space=P2, test_space=P2 ...))
  ```
 You have to take care of the integration of the generated operator into the HyTeG build system yourself
-when generating via commandline.
+when generating via command line.
 
 # Formatting
 
