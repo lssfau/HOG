@@ -1017,9 +1017,9 @@ class HyTeGElementwiseOperator:
                     "_data_"
                     + self.symbolizer.float_loop_ctr_array(geometry.dimensions)[d].name
                 )
-                custom_code += f"real_t {array_name}[{float_ctr_array_size}];\n"
+                custom_code += f"{str(self._type_descriptor.pystencils_type)} {array_name}[{float_ctr_array_size}];\n"
                 for i in range(float_ctr_array_size):
-                    custom_code += f"{array_name}[{i}] = (real_t) ctr_{d}"
+                    custom_code += f"{array_name}[{i}] = ({str(self._type_descriptor.pystencils_type)}) ctr_{d}"
                     if d == 0:
                         # We only vectorize the innermost loop.
                         # Only that counter is increased. The others are constant.
