@@ -767,7 +767,6 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         docstring=docstring,
     )
 
-
 def divdiv(
     trial: TrialSpace,
     test: TestSpace,
@@ -812,6 +811,43 @@ Weak formulation
         docstring=docstring,
     )
 
+
+def k_divdiv(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    coefficient_function_space: Optional[FunctionSpace] = None,
+    blending: GeometryMap = IdentityMap(),
+) -> Form:
+    docstring = f"""
+divdiv operator which is the compressible part of full Stokes operator
+
+Geometry map:    {blending}
+
+Weak formulation
+
+    u: trial function (vectorial space: {trial})
+    v: test function  (vectorial space: {test})
+
+    ∫ μ ( ∇ · u ) · ( ∇ · v )
+"""
+
+    from hog.recipes.integrands.volume.divdiv import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=trial == test,
+        docstring=docstring,
+        fe_coefficients={
+            "k": coefficient_function_space
+        }
+    )
 
 def advection(
     trial: TrialSpace,
