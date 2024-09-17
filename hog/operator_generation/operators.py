@@ -101,6 +101,7 @@ from hog.operator_generation.optimizer import Optimizer, Opts
 from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
 from hog.operator_generation.types import HOGType
+from hog.integrand import RotationType
 
 
 class MacroIntegrationDomain(Enum):
@@ -396,6 +397,17 @@ class HyTeGElementwiseOperator:
                             mat[row, col] = quad.integrate(
                                 mat[row, col], self.symbolizer, blending
                             )
+
+        if not form.rotmat.is_zero_matrix:
+            if form.rot_type == RotationType.PRE_AND_POST_MULTIPLY:
+                mat = form.rotmat * mat * form.rotmat.T
+            elif form.rot_type == RotationType.PRE_MULTIPLY:
+                mat = form.rotmat * mat
+            elif form.rot_type == RotationType.POST_MULTIPLY:
+                mat = mat * form.rotmat.T
+            else:
+                raise HOGException("Not implemented")
+
 
         if volume_geometry.space_dimension not in self.integration_infos:
             self.integration_infos[volume_geometry.space_dimension] = []

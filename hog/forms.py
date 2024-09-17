@@ -33,7 +33,7 @@ from hog.fem_helpers import (
     fem_function_on_element,
     fem_function_gradient_on_element,
 )
-from hog.function_space import FunctionSpace, N1E1Space, TrialSpace, TestSpace
+from hog.function_space import FunctionSpace, N1E1Space, TrialSpace, TestSpace, LagrangianFunctionSpace
 from hog.math_helpers import dot, inv, abs, det, double_contraction
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
@@ -321,6 +321,8 @@ def epsilon(
     component_test: int = 0,
     variable_viscosity: bool = True,
     coefficient_function_space: Optional[FunctionSpace] = None,
+    rotation_wrapper: bool = False,
+    normal_fspace: Optional[FunctionSpace] = None,
 ) -> Form:
     docstring = f"""
 "Epsilon" operator.
@@ -353,6 +355,8 @@ where
     if blending == IdentityMap():
         integr = integrand_affine
 
+
+
     return process_integrand(
         integr,
         trial,
@@ -362,7 +366,13 @@ where
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients={"mu": coefficient_function_space},
+        fe_coefficients={
+            "mu": coefficient_function_space, 
+            "nx": normal_fspace, 
+            "ny": normal_fspace, 
+            "nz": normal_fspace
+        } if rotation_wrapper else {"mu": coefficient_function_space},
+        rotation_wrapper = rotation_wrapper,
     )
 
 

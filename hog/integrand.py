@@ -73,6 +73,13 @@ from hog.fem_helpers import (
     trafo_ref_to_physical,
 )
 from hog.math_helpers import inv, det
+from enum import Enum
+
+
+class RotationType(Enum):
+    PRE_MULTIPLY = 1
+    POST_MULTIPLY = 2
+    PRE_AND_POST_MULTIPLY = 3
 
 
 @dataclass
@@ -87,6 +94,8 @@ class Form:
     symmetric: bool
     free_symbols: List[sp.Symbol] = field(default_factory=lambda: list())
     docstring: str = ""
+    rotmat: sp.MatrixBase = sp.Matrix([[0]])
+    rot_type: RotationType = RotationType.PRE_AND_POST_MULTIPLY
 
     def integrate(self, quad: Quadrature, symbolizer: Symbolizer) -> sp.Matrix:
         """Integrates the form using the passed quadrature directly, i.e. without tabulations or loops."""
@@ -230,6 +239,7 @@ def process_integrand(
     boundary_geometry: ElementGeometry | None = None,
     fe_coefficients: Dict[str, Union[FunctionSpace, None]] | None = None,
     is_symmetric: bool = False,
+    rotation_wrapper: bool = False,
     docstring: str = "",
 ) -> Form:
     """
@@ -375,10 +385,10 @@ def process_integrand(
                 f"You cannot use the name {special_name_of_micromesh_coeff} for your FE coefficient."
                 f"It is reserved."
             )
-        fe_coefficients_modified[special_name_of_micromesh_coeff] = (
-            TensorialVectorFunctionSpace(
-                LagrangianFunctionSpace(blending.degree, symbolizer)
-            )
+        fe_coefficients_modified[
+            special_name_of_micromesh_coeff
+        ] = TensorialVectorFunctionSpace(
+            LagrangianFunctionSpace(blending.degree, symbolizer)
         )
 
     s.k = dict()
@@ -491,6 +501,54 @@ def process_integrand(
 
     free_symbols_sorted = sorted(list(free_symbols), key=lambda x: str(x))
 
+    if rotation_wrapper:
+        if not trial.is_vectorial:
+            raise HOGException("Nope")
+
+        from hog.recipes.integrands.volume.rotation import rotation_matrix
+
+        normal_fspace = fe_coefficients_modified["nx"]
+
+        # phi_eval_symbols = tabulation.register_phi_evals(
+        #     normal_fspace.shape(volume_geometry)
+        # )
+
+        normals = ["nx", "ny"] if volume_geometry.dimensions == 2 else ["nx", "ny", "nz"]
+
+        n_dof_symbols = []
+
+
+        for normal in normals:
+            if normal_fspace is None:
+                raise HOGException("Invalid normal function space")
+            else:
+                _, nc_dof_symbols = fem_function_on_element(
+                    normal_fspace,
+                    volume_geometry,
+                    symbolizer,
+                    domain="reference",
+                    function_id=normal,
+                    # basis_eval=phi_eval_symbols,
+                )
+
+                n_dof_symbols.append(nc_dof_symbols)
+
+        rotmat = rotation_matrix(
+            trial.num_dofs(volume_geometry),
+            int(trial.num_dofs(volume_geometry) / volume_geometry.dimensions),
+            n_dof_symbols,
+            volume_geometry,
+        )
+
+        return Form(
+            mat,
+            tabulation,
+            symmetric=is_symmetric,
+            free_symbols=free_symbols_sorted,
+            docstring=docstring,
+            rotmat=rotmat,
+        )
+    
     return Form(
         mat,
         tabulation,
