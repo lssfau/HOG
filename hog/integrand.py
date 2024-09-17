@@ -503,7 +503,7 @@ def process_integrand(
 
     if rotation_wrapper:
         if not trial.is_vectorial:
-            raise HOGException("Nope")
+            raise HOGException("Rotation wrapper can only work with vectorial spaces")
 
         from hog.recipes.integrands.volume.rotation import rotation_matrix
 
@@ -539,6 +539,22 @@ def process_integrand(
             n_dof_symbols,
             volume_geometry,
         )
+
+        docstring += f"""
+
+And the assembled FE matrix (K) is wrapped with a Rotation matrix (R) locally as below,
+
+    RKRᵀ uᵣ = Rf
+
+where
+    R : Rotation matrix calculated with the normal vector (n̂) at the DoF
+    uᵣ: FE function but the components rotated at the boundaries according to the normal FE function passed
+    
+    n̂ : normals (vectorial space: {normal_fspace})
+        * The passed normal vector must be normalized
+        * The radial component of the rotated vector will be pointing in the given normal direction
+        * If the normals are zero at a DoF, the rotation matrix is identity matrix
+    """
 
         return Form(
             mat,

@@ -341,6 +341,8 @@ where
     
     ε(w) := (1/2) (∇w + (∇w)ᵀ)
 """
+
+    
     if not variable_viscosity:
         raise HOGException("Constant viscosity currently not supported.")
 
