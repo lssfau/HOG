@@ -263,7 +263,7 @@ def facedof_index(
     if faceType == FaceType.GRAY:
         return linear_macro_face_index(num_microedges_per_edge, x, y)
     elif faceType == FaceType.BLUE:
-        return num_microfaces_per_face + linear_macro_face_index(num_microedges_per_edge - 1, x, y)
+        return num_microvertices_per_face_from_width(num_microedges_per_edge) + linear_macro_face_index(num_microedges_per_edge - 1, x, y)
     else:
         raise HOGException(f"Unexpected face type: {faceType}")
 
