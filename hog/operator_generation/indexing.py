@@ -150,7 +150,7 @@ def generalized_macro_cell_index(
 def num_microvertices_per_face_from_width(width: int) -> int:
     """Computes the number of microvertices in a refined macro triangle. width depends on the level and quantifies the amount of primitives in one direction of the refined triangle."""
 
-    return (width * (width + 1)) >> 1
+    return int_div((width * (width + 1)), 2)
 
 
 def num_microvertices_per_cell_from_width(width: int) -> int:
@@ -254,16 +254,16 @@ def facedof_index(
     level: int,
     index: Tuple[int, int, int],
     faceType: Union[None, EdgeType, FaceType, CellType],
+    num_microfaces_per_face: sp.Symbol,
+    num_microedges_per_edge: sp.Symbol
 ) -> int:
     """Indexes triangles/faces. Used to compute offsets in volume dof indexing in 2D and AoS layout."""
-    x, y, _ = index
-    width = num_faces_per_row_by_type(level, faceType)
+    x, y = index
+    # width = num_faces_per_row_by_type(level, faceType)
     if faceType == FaceType.GRAY:
-        return linear_macro_face_index(width, x, y)
+        return linear_macro_face_index(num_microedges_per_edge, x, y)
     elif faceType == FaceType.BLUE:
-        return num_micro_faces_per_macro_face(
-            level, FaceType.GRAY
-        ) + linear_macro_face_index(width, x, y)
+        return num_microfaces_per_face + linear_macro_face_index(num_microedges_per_edge - 1, x, y)
     else:
         raise HOGException(f"Unexpected face type: {faceType}")
 
@@ -445,7 +445,7 @@ class DoFIndex:
                 numMicroVolumes = indexing_info.num_microfaces_per_face
 
                 microVolume = facedof_index(
-                    indexing_info.level, self.primitive_index, self.dof_sub_type
+                    indexing_info.level, self.primitive_index, self.dof_sub_type, indexing_info.num_microfaces_per_face, indexing_info.micro_edges_per_macro_edge
                 )
 
                 if self.mem_layout == VolumeDoFMemoryLayout.SoA:
