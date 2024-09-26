@@ -46,7 +46,8 @@ def rotation_matrix(
     geometry: ElementGeometry,
 ) -> sp.Matrix:
     """
-    The Rotation matrix is calculated from the normal vectors according to the method from [Engelmann 1982]
+    The Rotation matrix is used to wrap the operators, especially to apply freeslip boundary conditions.
+    The matrix itself is calculated from the normal vectors according to the method from [Engelmann 1982]
 
         :param mat_size: Number of local DoF
         :param mat_comp_size: Number of local DoF of each vector component
