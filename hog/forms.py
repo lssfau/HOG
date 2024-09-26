@@ -368,13 +368,8 @@ where
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients={
-            "mu": coefficient_function_space, 
-            "nx": normal_fspace, 
-            "ny": normal_fspace, 
-            "nz": normal_fspace
-        } if rotation_wrapper else {"mu": coefficient_function_space},
-        rotation_wrapper = rotation_wrapper,
+        fe_coefficients={"mu": coefficient_function_space},
+        rotation_wrapper=rotation_wrapper,
     )
 
 

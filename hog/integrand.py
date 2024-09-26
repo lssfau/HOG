@@ -88,7 +88,7 @@ class Form:
     symmetric: bool
     free_symbols: List[sp.Symbol] = field(default_factory=lambda: list())
     docstring: str = ""
-    rotmat: sp.MatrixBase = sp.Matrix([[0]])
+    rotmat: sp.MatrixBase = sp.Matrix([0])
     rot_type: RotationType = RotationType.NO_ROTATION
 
     def integrate(self, quad: Quadrature, symbolizer: Symbolizer) -> sp.Matrix:
@@ -502,7 +502,7 @@ def process_integrand(
 
         from hog.recipes.integrands.volume.rotation import rotation_matrix
 
-        normal_fspace = fe_coefficients_modified["nx"]
+        normal_fspace = LagrangianFunctionSpace(trial.degree, symbolizer)
 
         normals = (
             ["nx_rotation", "ny_rotation"]
@@ -554,20 +554,12 @@ where
         * If the normals are zero at a DoF, the rotation matrix is identity matrix
     """
 
-        return Form(
-            mat,
-            tabulation,
-            symmetric=is_symmetric,
-            free_symbols=free_symbols_sorted,
-            docstring=docstring,
-            rotmat=rotmat,
-            rot_type=RotationType.PRE_AND_POST_MULTIPLY,
-        )
-
     return Form(
         mat,
         tabulation,
         symmetric=is_symmetric,
         free_symbols=free_symbols_sorted,
         docstring=docstring,
+        rotmat=rotmat if rotation_wrapper else sp.Matrix([0]),
+        rot_type=RotationType.PRE_AND_POST_MULTIPLY if rotation_wrapper else RotationType.NO_ROTATION,
     )
