@@ -89,7 +89,7 @@ class Form:
     free_symbols: List[sp.Symbol] = field(default_factory=lambda: list())
     docstring: str = ""
     rotmat: sp.MatrixBase = sp.Matrix([[0]])
-    rot_type: RotationType = RotationType.PRE_AND_POST_MULTIPLY
+    rot_type: RotationType = RotationType.NO_ROTATION
 
     def integrate(self, quad: Quadrature, symbolizer: Symbolizer) -> sp.Matrix:
         """Integrates the form using the passed quadrature directly, i.e. without tabulations or loops."""
@@ -561,6 +561,7 @@ where
             free_symbols=free_symbols_sorted,
             docstring=docstring,
             rotmat=rotmat,
+            rot_type=RotationType.PRE_AND_POST_MULTIPLY,
         )
 
     return Form(
