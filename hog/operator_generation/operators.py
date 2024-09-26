@@ -101,7 +101,7 @@ from hog.operator_generation.optimizer import Optimizer, Opts
 from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
 from hog.operator_generation.types import HOGType
-from hog.integrand import RotationType
+from hog.recipes.integrands.volume.rotation import RotationType
 
 
 class MacroIntegrationDomain(Enum):
@@ -398,7 +398,7 @@ class HyTeGElementwiseOperator:
                                 mat[row, col], self.symbolizer, blending
                             )
 
-        if not form.rotmat.is_zero_matrix:
+        if not form.rot_type == RotationType.NO_ROTATION:
             if form.rot_type == RotationType.PRE_AND_POST_MULTIPLY:
                 mat = form.rotmat * mat * form.rotmat.T
             elif form.rot_type == RotationType.PRE_MULTIPLY:

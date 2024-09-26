@@ -73,13 +73,7 @@ from hog.fem_helpers import (
     trafo_ref_to_physical,
 )
 from hog.math_helpers import inv, det
-from enum import Enum
-
-
-class RotationType(Enum):
-    PRE_MULTIPLY = 1
-    POST_MULTIPLY = 2
-    PRE_AND_POST_MULTIPLY = 3
+from hog.recipes.integrands.volume.rotation import RotationType
 
 
 @dataclass
@@ -301,6 +295,7 @@ def process_integrand(
                             finite-element function coefficients, they will be available to the callable as `k`
                             supply None as the FunctionSpace for a std::function-type coeff (only works for old forms)
     :param is_symmetric: whether the bilinear form is symmetric - this is exploited by the generator
+    :param rotation_wrapper: whether the  operator has to be wrapped with rotation matrix, only applicable for Vectorial spaces
     :param docstring: documentation of the integrand/bilinear form - will end up in the docstring of the generated code
     """
 
@@ -509,16 +504,20 @@ def process_integrand(
 
         normal_fspace = fe_coefficients_modified["nx"]
 
-        # phi_eval_symbols = tabulation.register_phi_evals(
-        #     normal_fspace.shape(volume_geometry)
-        # )
-
-        normals = ["nx", "ny"] if volume_geometry.dimensions == 2 else ["nx", "ny", "nz"]
+        normals = (
+            ["nx_rotation", "ny_rotation"]
+            if volume_geometry.dimensions == 2
+            else ["nx_rotation", "ny_rotation", "nz_rotation"]
+        )
 
         n_dof_symbols = []
 
-
         for normal in normals:
+            if normal in fe_coefficients:
+                raise HOGException(
+                    f"You cannot use the name {normal} for your FE coefficient."
+                    f"It is reserved."
+                )
             if normal_fspace is None:
                 raise HOGException("Invalid normal function space")
             else:
@@ -528,7 +527,6 @@ def process_integrand(
                     symbolizer,
                     domain="reference",
                     function_id=normal,
-                    # basis_eval=phi_eval_symbols,
                 )
 
                 n_dof_symbols.append(nc_dof_symbols)
@@ -564,7 +562,7 @@ where
             docstring=docstring,
             rotmat=rotmat,
         )
-    
+
     return Form(
         mat,
         tabulation,

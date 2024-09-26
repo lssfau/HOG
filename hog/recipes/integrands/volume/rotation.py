@@ -14,16 +14,42 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from enum import Enum
+from typing import List
 from hog.recipes.common import *
 from hog.exception import HOGException
+from hog.element_geometry import ElementGeometry
 
+"""
+This decides how the operator must be wrapped
 
+The global stiffness matrix (K) assembled from an operator would result in,
+
+NO_ROTATION           - K
+PRE_MULTIPLY          - R K
+POST_MULTIPLY         - K R^T
+PRE_AND_POST_MULTIPLY - R K R^T
+"""
+class RotationType(Enum):
+    NO_ROTATION = 0
+    PRE_MULTIPLY = 1
+    POST_MULTIPLY = 2
+    PRE_AND_POST_MULTIPLY = 3
+
+"""
+The Rotation matrix is calculated from the normal vectors according to the method from [Engelmann 1982]
+
+    :param mat_size: Number of local DoF
+    :param mat_comp_size: Number of local DoF of each vector component
+    :param n_dof_symbols: Normal vector symbols packed as a list 2D/3D for each DoF
+    :param geometry: the geometry of the volume element
+"""
 def rotation_matrix(
-    mat_size,
-    mat_comp_size,
-    n_dof_symbols,
-    geometry
-):
+    mat_size: int,
+    mat_comp_size: int,
+    n_dof_symbols: List[List[sp.Symbol]],
+    geometry: ElementGeometry
+) -> sp.Matrix:
 
     rotmat = sp.zeros(mat_size, mat_size)
 
@@ -81,9 +107,6 @@ def rotation_matrix(
                             (getrotmat(t1all[2])[iRot, jRot], True),
                         )
 
-                # print("rotmat_ = ", rotmat_.subs([(nx_, 0.0), (ny_, 0.0), (nz_, 1.0)]))
-                # print("rotmat_ = ", rotmat_[0, 0])
-                # exit()
             else:
                 raise HOGException(
                     "We have not reached your dimensions, supreme being or little one"
