@@ -88,8 +88,6 @@ class Form:
     symmetric: bool
     free_symbols: List[sp.Symbol] = field(default_factory=lambda: list())
     docstring: str = ""
-    rotmat: sp.MatrixBase = sp.Matrix([0])
-    rot_type: RotationType = RotationType.NO_ROTATION
 
     def integrate(self, quad: Quadrature, symbolizer: Symbolizer) -> sp.Matrix:
         """Integrates the form using the passed quadrature directly, i.e. without tabulations or loops."""
@@ -233,7 +231,7 @@ def process_integrand(
     boundary_geometry: ElementGeometry | None = None,
     fe_coefficients: Dict[str, Union[FunctionSpace, None]] | None = None,
     is_symmetric: bool = False,
-    rotation_wrapper: bool = False,
+    rot_type: RotationType = RotationType.NO_ROTATION,
     docstring: str = "",
 ) -> Form:
     """
@@ -496,13 +494,45 @@ def process_integrand(
 
     free_symbols_sorted = sorted(list(free_symbols), key=lambda x: str(x))
 
-    if rotation_wrapper:
-        if not trial.is_vectorial:
-            raise HOGException("Rotation wrapper can only work with vectorial spaces")
+    if not rot_type == RotationType.NO_ROTATION:
+        if rot_type == RotationType.PRE_AND_POST_MULTIPLY:
+            if not trial == test:
+                HOGException(
+                    "Trial and Test spaces must be the same for RotationType.PRE_AND_POST_MULTIPLY"
+                )
+
+            if not trial.is_vectorial:
+                raise HOGException(
+                    "Rotation wrapper can only work with vectorial spaces"
+                )
+
+            rot_space = TensorialVectorFunctionSpace(
+                LagrangianFunctionSpace(trial.degree, symbolizer)
+            )
+
+        elif rot_type == RotationType.PRE_MULTIPLY:
+            if not test.is_vectorial:
+                raise HOGException(
+                    "Rotation wrapper can only work with vectorial spaces"
+                )
+
+            rot_space = TensorialVectorFunctionSpace(
+                LagrangianFunctionSpace(test.degree, symbolizer)
+            )
+
+        elif rot_type == RotationType.POST_MULTIPLY:
+            if not trial.is_vectorial:
+                raise HOGException(
+                    "Rotation wrapper can only work with vectorial spaces"
+                )
+
+            rot_space = TensorialVectorFunctionSpace(
+                LagrangianFunctionSpace(trial.degree, symbolizer)
+            )
 
         from hog.recipes.integrands.volume.rotation import rotation_matrix
 
-        normal_fspace = LagrangianFunctionSpace(trial.degree, symbolizer)
+        normal_fspace = rot_space.component_function_space
 
         normals = (
             ["nx_rotation", "ny_rotation"]
@@ -532,11 +562,18 @@ def process_integrand(
                 n_dof_symbols.append(nc_dof_symbols)
 
         rotmat = rotation_matrix(
-            trial.num_dofs(volume_geometry),
-            int(trial.num_dofs(volume_geometry) / volume_geometry.dimensions),
+            rot_space.num_dofs(volume_geometry),
+            int(rot_space.num_dofs(volume_geometry) / volume_geometry.dimensions),
             n_dof_symbols,
             volume_geometry,
         )
+
+        if rot_type == RotationType.PRE_AND_POST_MULTIPLY:
+            mat = rotmat * mat * rotmat.T
+        elif rot_type == RotationType.PRE_MULTIPLY:
+            mat = rotmat * mat
+        elif rot_type == RotationType.POST_MULTIPLY:
+            mat = mat * rotmat.T
 
         docstring += f"""
 
@@ -560,6 +597,4 @@ where
         symmetric=is_symmetric,
         free_symbols=free_symbols_sorted,
         docstring=docstring,
-        rotmat=rotmat if rotation_wrapper else sp.Matrix([0]),
-        rot_type=RotationType.PRE_AND_POST_MULTIPLY if rotation_wrapper else RotationType.NO_ROTATION,
     )
