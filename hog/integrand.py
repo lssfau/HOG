@@ -293,7 +293,8 @@ def process_integrand(
                             finite-element function coefficients, they will be available to the callable as `k`
                             supply None as the FunctionSpace for a std::function-type coeff (only works for old forms)
     :param is_symmetric: whether the bilinear form is symmetric - this is exploited by the generator
-    :param rotation_wrapper: whether the  operator has to be wrapped with rotation matrix, only applicable for Vectorial spaces
+    :param rot_type: whether the  operator has to be wrapped with rotation matrix and the type of rotation that needs 
+                     to be applied, only applicable for Vectorial spaces
     :param docstring: documentation of the integrand/bilinear form - will end up in the docstring of the generated code
     """
 
@@ -568,18 +569,23 @@ def process_integrand(
             volume_geometry,
         )
 
+        rot_doc_string = ""
+
         if rot_type == RotationType.PRE_AND_POST_MULTIPLY:
             mat = rotmat * mat * rotmat.T
+            rot_doc_string = "RKRᵀ uᵣ"
         elif rot_type == RotationType.PRE_MULTIPLY:
             mat = rotmat * mat
+            rot_doc_string = "RK uᵣ"
         elif rot_type == RotationType.POST_MULTIPLY:
             mat = mat * rotmat.T
+            rot_doc_string = "KRᵀ uᵣ"
 
         docstring += f"""
 
 And the assembled FE matrix (K) is wrapped with a Rotation matrix (R) locally as below,
 
-    RKRᵀ uᵣ = Rf
+    {rot_doc_string}
 
 where
     R : Rotation matrix calculated with the normal vector (n̂) at the DoF

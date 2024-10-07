@@ -102,6 +102,7 @@ from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
 from hog.operator_generation.types import HOGType
 
+
 class MacroIntegrationDomain(Enum):
     """Enum type to specify where to integrate."""
 
