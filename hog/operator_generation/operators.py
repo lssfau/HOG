@@ -101,8 +101,6 @@ from hog.operator_generation.optimizer import Optimizer, Opts
 from hog.quadrature import QuadLoop, Quadrature
 from hog.symbolizer import Symbolizer
 from hog.operator_generation.types import HOGType
-from hog.recipes.integrands.volume.rotation import RotationType
-
 
 class MacroIntegrationDomain(Enum):
     """Enum type to specify where to integrate."""
