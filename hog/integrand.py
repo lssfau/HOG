@@ -73,6 +73,7 @@ from hog.fem_helpers import (
     trafo_ref_to_physical,
 )
 from hog.math_helpers import inv, det
+from hog.recipes.integrands.volume.rotation import RotationType
 
 
 @dataclass
@@ -230,6 +231,7 @@ def process_integrand(
     boundary_geometry: ElementGeometry | None = None,
     fe_coefficients: Dict[str, Union[FunctionSpace, None]] | None = None,
     is_symmetric: bool = False,
+    rot_type: RotationType = RotationType.NO_ROTATION,
     docstring: str = "",
 ) -> Form:
     """
@@ -291,6 +293,8 @@ def process_integrand(
                             finite-element function coefficients, they will be available to the callable as `k`
                             supply None as the FunctionSpace for a std::function-type coeff (only works for old forms)
     :param is_symmetric: whether the bilinear form is symmetric - this is exploited by the generator
+    :param rot_type: whether the  operator has to be wrapped with rotation matrix and the type of rotation that needs 
+                     to be applied, only applicable for Vectorial spaces
     :param docstring: documentation of the integrand/bilinear form - will end up in the docstring of the generated code
     """
 
@@ -375,10 +379,10 @@ def process_integrand(
                 f"You cannot use the name {special_name_of_micromesh_coeff} for your FE coefficient."
                 f"It is reserved."
             )
-        fe_coefficients_modified[special_name_of_micromesh_coeff] = (
-            TensorialVectorFunctionSpace(
-                LagrangianFunctionSpace(blending.degree, symbolizer)
-            )
+        fe_coefficients_modified[
+            special_name_of_micromesh_coeff
+        ] = TensorialVectorFunctionSpace(
+            LagrangianFunctionSpace(blending.degree, symbolizer)
         )
 
     s.k = dict()
@@ -490,6 +494,108 @@ def process_integrand(
         mat[data.row, data.col] = integrand(**asdict(s))
 
     free_symbols_sorted = sorted(list(free_symbols), key=lambda x: str(x))
+
+    if not rot_type == RotationType.NO_ROTATION:
+        if rot_type == RotationType.PRE_AND_POST_MULTIPLY:
+            if not trial == test:
+                HOGException(
+                    "Trial and Test spaces must be the same for RotationType.PRE_AND_POST_MULTIPLY"
+                )
+
+            if not trial.is_vectorial:
+                raise HOGException(
+                    "Rotation wrapper can only work with vectorial spaces"
+                )
+
+            rot_space = TensorialVectorFunctionSpace(
+                LagrangianFunctionSpace(trial.degree, symbolizer)
+            )
+
+        elif rot_type == RotationType.PRE_MULTIPLY:
+            if not test.is_vectorial:
+                raise HOGException(
+                    "Rotation wrapper can only work with vectorial spaces"
+                )
+
+            rot_space = TensorialVectorFunctionSpace(
+                LagrangianFunctionSpace(test.degree, symbolizer)
+            )
+
+        elif rot_type == RotationType.POST_MULTIPLY:
+            if not trial.is_vectorial:
+                raise HOGException(
+                    "Rotation wrapper can only work with vectorial spaces"
+                )
+
+            rot_space = TensorialVectorFunctionSpace(
+                LagrangianFunctionSpace(trial.degree, symbolizer)
+            )
+
+        from hog.recipes.integrands.volume.rotation import rotation_matrix
+
+        normal_fspace = rot_space.component_function_space
+
+        normals = (
+            ["nx_rotation", "ny_rotation"]
+            if volume_geometry.dimensions == 2
+            else ["nx_rotation", "ny_rotation", "nz_rotation"]
+        )
+
+        n_dof_symbols = []
+
+        for normal in normals:
+            if normal in fe_coefficients:
+                raise HOGException(
+                    f"You cannot use the name {normal} for your FE coefficient."
+                    f"It is reserved."
+                )
+            if normal_fspace is None:
+                raise HOGException("Invalid normal function space")
+            else:
+                _, nc_dof_symbols = fem_function_on_element(
+                    normal_fspace,
+                    volume_geometry,
+                    symbolizer,
+                    domain="reference",
+                    function_id=normal,
+                )
+
+                n_dof_symbols.append(nc_dof_symbols)
+
+        rotmat = rotation_matrix(
+            rot_space.num_dofs(volume_geometry),
+            int(rot_space.num_dofs(volume_geometry) / volume_geometry.dimensions),
+            n_dof_symbols,
+            volume_geometry,
+        )
+
+        rot_doc_string = ""
+
+        if rot_type == RotationType.PRE_AND_POST_MULTIPLY:
+            mat = rotmat * mat * rotmat.T
+            rot_doc_string = "RKRᵀ uᵣ"
+        elif rot_type == RotationType.PRE_MULTIPLY:
+            mat = rotmat * mat
+            rot_doc_string = "RK uᵣ"
+        elif rot_type == RotationType.POST_MULTIPLY:
+            mat = mat * rotmat.T
+            rot_doc_string = "KRᵀ uᵣ"
+
+        docstring += f"""
+
+And the assembled FE matrix (K) is wrapped with a Rotation matrix (R) locally as below,
+
+    {rot_doc_string}
+
+where
+    R : Rotation matrix calculated with the normal vector (n̂) at the DoF
+    uᵣ: FE function but the components rotated at the boundaries according to the normal FE function passed
+    
+    n̂ : normals (vectorial space: {normal_fspace})
+        * The passed normal vector must be normalized
+        * The radial component of the rotated vector will be pointing in the given normal direction
+        * If the normals are zero at a DoF, the rotation matrix is identity matrix
+    """
 
     return Form(
         mat,

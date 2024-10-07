@@ -33,7 +33,13 @@ from hog.fem_helpers import (
     fem_function_on_element,
     fem_function_gradient_on_element,
 )
-from hog.function_space import FunctionSpace, N1E1Space, TrialSpace, TestSpace
+from hog.function_space import (
+    FunctionSpace,
+    N1E1Space,
+    TrialSpace,
+    TestSpace,
+    LagrangianFunctionSpace,
+)
 from hog.math_helpers import dot, inv, abs, det, double_contraction
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
@@ -321,6 +327,7 @@ def epsilon(
     component_test: int = 0,
     variable_viscosity: bool = True,
     coefficient_function_space: Optional[FunctionSpace] = None,
+    rotation_wrapper: bool = False,
 ) -> Form:
     docstring = f"""
 "Epsilon" operator.
@@ -339,9 +346,11 @@ where
     
     ε(w) := (1/2) (∇w + (∇w)ᵀ)
 """
+
     if not variable_viscosity:
         raise HOGException("Constant viscosity currently not supported.")
 
+    from hog.recipes.integrands.volume.rotation import RotationType
     from hog.recipes.integrands.volume.epsilon import integrand
     from hog.recipes.integrands.volume.epsilon_affine import (
         integrand as integrand_affine,
@@ -363,6 +372,9 @@ where
         is_symmetric=trial == test,
         docstring=docstring,
         fe_coefficients={"mu": coefficient_function_space},
+        rot_type=RotationType.PRE_AND_POST_MULTIPLY
+        if rotation_wrapper
+        else RotationType.NO_ROTATION,
     )
 
 
@@ -540,6 +552,7 @@ def divergence(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_index: int = 0,
+    rotation_wrapper: bool = False,
 ) -> Form:
     docstring = f"""
 Divergence.
@@ -556,6 +569,7 @@ Weak formulation
 """
 
     from hog.recipes.integrands.volume.divergence import integrand
+    from hog.recipes.integrands.volume.rotation import RotationType
 
     return process_integrand(
         integrand,
@@ -566,6 +580,9 @@ Weak formulation
         blending=blending,
         is_symmetric=False,
         docstring=docstring,
+        rot_type=RotationType.POST_MULTIPLY
+        if rotation_wrapper
+        else RotationType.NO_ROTATION,
     )
 
 
@@ -576,6 +593,7 @@ def gradient(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     component_index: int = 0,
+    rotation_wrapper: bool = False,
 ) -> Form:
     docstring = f"""
     Gradient.
@@ -592,6 +610,7 @@ def gradient(
     """
 
     from hog.recipes.integrands.volume.gradient import integrand
+    from hog.recipes.integrands.volume.rotation import RotationType
 
     return process_integrand(
         integrand,
@@ -602,6 +621,9 @@ def gradient(
         blending=blending,
         is_symmetric=False,
         docstring=docstring,
+        rot_type=RotationType.PRE_MULTIPLY
+        if rotation_wrapper
+        else RotationType.NO_ROTATION,
     )
 
 
@@ -767,6 +789,7 @@ The resulting matrix must be multiplied with a vector of ones to be used as the 
         docstring=docstring,
     )
 
+
 def divdiv(
     trial: TrialSpace,
     test: TestSpace,
@@ -844,10 +867,9 @@ Weak formulation
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients={
-            "k": coefficient_function_space
-        }
+        fe_coefficients={"k": coefficient_function_space},
     )
+
 
 def advection(
     trial: TrialSpace,
@@ -888,7 +910,9 @@ Weak formulation
             "ux": velocity_function_space,
             "uy": velocity_function_space,
             "uz": velocity_function_space,
-        } if constant_cp else {
+        }
+        if constant_cp
+        else {
             "ux": velocity_function_space,
             "uy": velocity_function_space,
             "uz": velocity_function_space,
