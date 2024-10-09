@@ -274,6 +274,7 @@ class HyTeGElementwiseOperator:
         "hyteg/types/types.hpp",
     }
 
+    VAR_NAME_MICRO_FACES_PER_MACRO_FACE = "num_microfaces_per_face"
     VAR_NAME_MICRO_EDGES_PER_MACRO_EDGE = "micro_edges_per_macro_edge"
     VAR_NAME_MICRO_EDGES_PER_MACRO_EDGE_FLOAT = "micro_edges_per_macro_edge_float"
 
@@ -1615,6 +1616,7 @@ class HyTeGElementwiseOperator:
                 # Setting up required scalar parameters.
                 scalar_parameter_setup = (
                     f"const auto {self.VAR_NAME_MICRO_EDGES_PER_MACRO_EDGE} = (int64_t) levelinfo::num_microedges_per_edge( level );\n"
+                    f"const auto {self.VAR_NAME_MICRO_FACES_PER_MACRO_FACE} = (int64_t) levelinfo::num_microfaces_per_face( level );\n"
                     f"const auto {self.VAR_NAME_MICRO_EDGES_PER_MACRO_EDGE_FLOAT} = ({self._type_descriptor.pystencils_type}) levelinfo::num_microedges_per_edge( level );\n"
                 )
                 scalar_parameter_setup += "\n".join(

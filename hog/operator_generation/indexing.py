@@ -150,7 +150,7 @@ def generalized_macro_cell_index(
 def num_microvertices_per_face_from_width(width: int) -> int:
     """Computes the number of microvertices in a refined macro triangle. width depends on the level and quantifies the amount of primitives in one direction of the refined triangle."""
 
-    return (width * (width + 1)) >> 1
+    return int_div((width * (width + 1)), 2)
 
 
 def num_microvertices_per_cell_from_width(width: int) -> int:
@@ -197,20 +197,20 @@ def num_faces_per_row_by_type(
 
 
 def num_cells_per_row_by_type(
-    level: int, cellType: Union[None, EdgeType, FaceType, CellType]
+    level: int, cellType: Union[None, EdgeType, FaceType, CellType], num_microedges_per_edge: sp.Symbol
 ) -> int:
     if cellType == CellType.WHITE_UP:
-        return num_microedges_per_edge(level)
+        return num_microedges_per_edge
     elif cellType == CellType.GREEN_UP:
-        return num_microedges_per_edge(level) - 1
+        return num_microedges_per_edge - 1
     elif cellType == CellType.BLUE_UP:
-        return num_microedges_per_edge(level) - 1
+        return num_microedges_per_edge - 1
     elif cellType == CellType.WHITE_DOWN:
-        return num_microedges_per_edge(level) - 2
+        return num_microedges_per_edge - 2
     elif cellType == CellType.BLUE_DOWN:
-        return num_microedges_per_edge(level) - 1
+        return num_microedges_per_edge - 1
     elif cellType == CellType.GREEN_DOWN:
-        return num_microedges_per_edge(level) - 1
+        return num_microedges_per_edge - 1
     else:
         raise HOGException(f"Unexpected cell type: {cellType}")
 
@@ -221,9 +221,9 @@ def num_micro_faces_per_macro_face(level: int, faceType: FaceType) -> int:
     )
 
 
-def num_micro_cells_per_macro_cell(level: int, cellType: CellType) -> int:
+def num_micro_cells_per_macro_cell(level: int, cellType: CellType, num_microedges_per_edge: sp.Symbol) -> int:
     return num_microvertices_per_cell_from_width(
-        num_cells_per_row_by_type(level, cellType)
+        num_cells_per_row_by_type(level, cellType, num_microedges_per_edge)
     )
 
 
@@ -254,16 +254,16 @@ def facedof_index(
     level: int,
     index: Tuple[int, int, int],
     faceType: Union[None, EdgeType, FaceType, CellType],
+    num_microfaces_per_face: sp.Symbol,
+    num_microedges_per_edge: sp.Symbol
 ) -> int:
     """Indexes triangles/faces. Used to compute offsets in volume dof indexing in 2D and AoS layout."""
-    x, y, _ = index
-    width = num_faces_per_row_by_type(level, faceType)
+    x, y = index
+    # width = num_faces_per_row_by_type(level, faceType)
     if faceType == FaceType.GRAY:
-        return linear_macro_face_index(width, x, y)
+        return linear_macro_face_index(num_microedges_per_edge, x, y)
     elif faceType == FaceType.BLUE:
-        return num_micro_faces_per_macro_face(
-            level, FaceType.GRAY
-        ) + linear_macro_face_index(width, x, y)
+        return num_microvertices_per_face_from_width(num_microedges_per_edge) + linear_macro_face_index(num_microedges_per_edge - 1, x, y)
     else:
         raise HOGException(f"Unexpected face type: {faceType}")
 
@@ -272,44 +272,45 @@ def celldof_index(
     level: int,
     index: Tuple[int, int, int],
     cellType: Union[None, EdgeType, FaceType, CellType],
+    num_microedges_per_edge: sp.Symbol,
 ) -> int:
     """Indexes cells/tetrahedra. Used to compute offsets in volume dof indexing in 3D and AoS layout."""
-    x, y, z = index
-    width = num_cells_per_row_by_type(level, cellType)  # gives expr(level)
+    x, y, z = index 
+    width = num_cells_per_row_by_type(level, cellType, num_microedges_per_edge)  # gives expr(level)
     if cellType == CellType.WHITE_UP:
         return linear_macro_cell_index(width, x, y, z)
     elif cellType == CellType.BLUE_UP:
         return num_micro_cells_per_macro_cell(  # gives expr(level)
-            level, CellType.WHITE_UP
+            level, CellType.WHITE_UP, num_microedges_per_edge
         ) + linear_macro_cell_index(width, x, y, z)
     elif cellType == CellType.GREEN_UP:
         return (
-            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP)
+            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP, num_microedges_per_edge)
             + linear_macro_cell_index(width, x, y, z)
         )
     elif cellType == CellType.WHITE_DOWN:
         return (
-            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.GREEN_UP)
+            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.GREEN_UP, num_microedges_per_edge)
             + linear_macro_cell_index(width, x, y, z)
         )
     elif cellType == CellType.BLUE_DOWN:
         return (
-            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.GREEN_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.WHITE_DOWN)
+            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.GREEN_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.WHITE_DOWN, num_microedges_per_edge)
             + linear_macro_cell_index(width, x, y, z)
         )
     elif cellType == CellType.GREEN_DOWN:
         return (
-            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.GREEN_UP)
-            + num_micro_cells_per_macro_cell(level, CellType.WHITE_DOWN)
-            + num_micro_cells_per_macro_cell(level, CellType.BLUE_DOWN)
+            num_micro_cells_per_macro_cell(level, CellType.WHITE_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.BLUE_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.GREEN_UP, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.WHITE_DOWN, num_microedges_per_edge)
+            + num_micro_cells_per_macro_cell(level, CellType.BLUE_DOWN, num_microedges_per_edge)
             + linear_macro_cell_index(width, x, y, z)
         )
     else:
@@ -326,6 +327,7 @@ class IndexingInfo:
         self.micro_edges_per_macro_edge = TypedSymbol("micro_edges_per_macro_edge", int)
         self.num_microfaces_per_face = TypedSymbol("num_microfaces_per_face", int)
         self.num_microcells_per_cell = TypedSymbol("num_microcells_per_cell", int)
+        # self.num_microedges_per_edge = TypedSymbol("num_microedges_per_edge", int)
         self.micro_edges_per_macro_edge_float = sp.Symbol(
             "micro_edges_per_macro_edge_float"
         )
@@ -445,7 +447,7 @@ class DoFIndex:
                 numMicroVolumes = indexing_info.num_microfaces_per_face
 
                 microVolume = facedof_index(
-                    indexing_info.level, self.primitive_index, self.dof_sub_type
+                    indexing_info.level, self.primitive_index, self.dof_sub_type, indexing_info.num_microfaces_per_face, indexing_info.micro_edges_per_macro_edge
                 )
 
                 if self.mem_layout == VolumeDoFMemoryLayout.SoA:
@@ -461,7 +463,7 @@ class DoFIndex:
                 numMicroVolumes = indexing_info.num_microcells_per_cell
 
                 microVolume = celldof_index(
-                    indexing_info.level, self.primitive_index, self.dof_sub_type
+                    indexing_info.level, self.primitive_index, self.dof_sub_type, indexing_info.micro_edges_per_macro_edge
                 )
 
                 if self.mem_layout == VolumeDoFMemoryLayout.SoA:
