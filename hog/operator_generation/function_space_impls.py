@@ -258,51 +258,14 @@ class P0FunctionSpaceImpl(FunctionSpaceImpl):
 
     def pre_communication(self, dim: int) -> str:
         return ""
-        # if dim == 2:
-        #     return f"communication::syncFunctionBetweenPrimitives( {self.name}, level, communication::syncDirection_t::LOW2HIGH );"
-        # else:
-        #     return (
-        #         f"{self._deref()}.communicate< Face, Cell >( level );\n"
-        #         f"{self._deref()}.communicate< Edge, Cell >( level );\n"
-        #         f"{self._deref()}.communicate< Vertex, Cell >( level );"
-        #     )
 
     def zero_halos(self, dim: int) -> str:
         return ""
-        # if dim == 2:
-        #     return (
-        #         f"for ( const auto& idx : vertexdof::macroface::Iterator( level ) ) {{\n"
-        #         f"    if ( vertexdof::macroface::isVertexOnBoundary( level, idx ) ) {{\n"
-        #         f"        auto arrayIdx = vertexdof::macroface::index( level, idx.x(), idx.y() );\n"
-        #         f"        _data_{self.name}[arrayIdx] = {self.type_descriptor.pystencils_type}( 0 );\n"
-        #         f"    }}\n"
-        #         f"}}"
-        #     )
-        # else:
-        #     return (
-        #         f"for ( const auto& idx : vertexdof::macrocell::Iterator( level ) ) {{\n"
-        #         f"    if ( !vertexdof::macrocell::isOnCellFace( idx, level ).empty() ) {{\n"
-        #         f"        auto arrayIdx = vertexdof::macrocell::index( level, idx.x(), idx.y(), idx.z() );\n"
-        #         f"        _data_{self.name}[arrayIdx] = {self.type_descriptor.pystencils_type}( 0 );\n"
-        #         f"    }}\n"
-        #         f"}}"
-        #     )
 
     def post_communication(
         self, dim: int, params: str, transform_basis: bool = True
     ) -> str:
         return ""
-        # if dim == 2:
-        #     return (
-        #         f"{self._deref()}.communicateAdditively < Face, Edge > ( {params} );\n"
-        #         f"{self._deref()}.communicateAdditively < Face, Vertex > ( {params} );"
-        #     )
-        # else:
-        #     return (
-        #         f"{self._deref()}.communicateAdditively< Cell, Face >( {params} );\n"
-        #         f"{self._deref()}.communicateAdditively< Cell, Edge >( {params} );\n"
-        #         f"{self._deref()}.communicateAdditively< Cell, Vertex >( {params} );"
-        #     )
 
     def pointer_retrieval(self, dim: int) -> str:
         """C++ code for retrieving pointers to the numerical data stored in the macro primitives `face` (2d) or `cell` (3d)."""

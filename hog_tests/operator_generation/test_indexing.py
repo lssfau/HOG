@@ -277,7 +277,7 @@ def test_micro_volume_to_volume_indices():
         array_index = sp.simplify(
             dof_indices[intra_primitive_index].array_index(geometry, indexing_info)
         )
-        print(array_index)
+        
         assert array_index == target_array_index
 
     # 2D, P0:
