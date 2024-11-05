@@ -285,13 +285,13 @@ class P0FunctionSpaceImpl(FunctionSpaceImpl):
         indexing_info: IndexingInfo,
         element_vertex_ordering: List[int],
     ) -> List[Field.Access]:
-        vertex_dof_indices = micro_element_to_volume_indices(
+        volume_dof_indices = micro_element_to_volume_indices(
             element_type, element_index, 1, VolumeDoFMemoryLayout.SoA
         )
 
         vertex_array_indices = [
             dof_idx.array_index(geometry, indexing_info)
-            for dof_idx in vertex_dof_indices
+            for dof_idx in volume_dof_indices
         ]
 
         return [
