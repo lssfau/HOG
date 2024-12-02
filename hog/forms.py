@@ -36,6 +36,7 @@ from hog.fem_helpers import (
 from hog.function_space import (
     FunctionSpace,
     N1E1Space,
+    P2PlusBubbleSpace,
     TrialSpace,
     TestSpace,
     LagrangianFunctionSpace,
@@ -1097,7 +1098,7 @@ Weak formulation
 
     ∫ ((∇ρ / ρ) · u) v
 """
-    
+
     from hog.recipes.integrands.volume.frozen_velocity import integrand
 
     return process_integrand(
@@ -1113,6 +1114,7 @@ Weak formulation
             "rho": density_function_space,
         },
     )
+
 
 def zero_form(
     trial: TrialSpace,

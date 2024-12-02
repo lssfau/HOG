@@ -21,7 +21,7 @@ from hog.ast import Assignment, CodeBlock
 from hog.exception import HOGException
 from hog.quadrature import Quadrature
 from hog.symbolizer import Symbolizer
-from hog.function_space import N1E1Space, TrialSpace, TestSpace
+from hog.function_space import N1E1Space, P2PlusBubbleSpace, TrialSpace, TestSpace
 from hog.element_geometry import ElementGeometry
 from hog.code_generation import code_block_from_element_matrix
 from hog.multi_assignment import Member
@@ -292,6 +292,8 @@ class HyTeGFormClass:
 
         if isinstance(self.trial, N1E1Space):
             super_class = f"n1e1::N1E1Form"
+        elif isinstance(self.trial, P2PlusBubbleSpace):
+            super_class = f"P2PlusBubbleForm"
         elif self.trial.degree == self.test.degree:
             super_class = f"P{self.trial.degree}FormHyTeG"
         else:
@@ -358,6 +360,8 @@ class HyTeGForm:
 
         if isinstance(self.trial, N1E1Space):
             super_class = f"N1E1Form"
+        elif isinstance(self.trial, P2PlusBubbleSpace):
+            super_class = f"P2PlusBubbleForm"
         elif self.trial.degree == self.test.degree:
             super_class = f"form_hyteg_base/P{self.trial.degree}FormHyTeG"
         else:
