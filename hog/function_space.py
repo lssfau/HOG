@@ -663,9 +663,9 @@ class P2PlusBubbleSpace(FunctionSpace):
                     L_1 * (2 * L_1 - 1),
                     L_2 * (2 * L_2 - 1),
                     L_3 * (2 * L_3 - 1),
-                    4 * L_1 * L_2,
                     4 * L_2 * L_3,
                     4 * L_1 * L_3,
+                    4 * L_1 * L_2,
                     27 * L_1 * L_2 * L_3,
                 ]
 
