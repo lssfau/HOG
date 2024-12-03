@@ -1298,7 +1298,7 @@ class HyTeGElementwiseOperator:
                         sp.Symbol(dof_symbol.name),
                         coeffs[dof_symbol.function_id].local_dofs(
                             geometry,
-                            element_index,
+                            element_index,  # type: ignore[arg-type] # list of sympy expressions also works
                             element_type,
                             indexing_info,
                             element_vertex_order,
