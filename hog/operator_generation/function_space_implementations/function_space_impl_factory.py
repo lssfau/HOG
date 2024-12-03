@@ -23,6 +23,10 @@ from hog.function_space import (
     N1E1Space,
 )
 
+from hog.operator_generation.function_space_implementations.function_space_impl_base import (
+    FunctionSpaceImpl,
+)
+
 from hog.operator_generation.function_space_implementations.p0_space_impl import (
     P0FunctionSpaceImpl,
 )
@@ -46,7 +50,7 @@ def create_impl(
     name: str,
     type_descriptor: HOGType,
     is_pointer: bool = False,
-) -> type:
+) -> FunctionSpaceImpl:
     """Takes a mathematical function space and produces the corresponding function space implementation.
 
     :param func_space:      The mathematical function space.
