@@ -15,12 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 __all__ = [
-    "function_space_implementations",
-    "indexing",
-    "kernel_types",
-    "loop_strategies",
-    "operators",
-    "optimizer",
-    "pystencils_extensions",
-    "types",
+    "function_space_impl_base",
+    "function_space_impl_factor",
+    "p0_function_space_impl",
+    "p1_function_space_impl",
+    "p2_function_space_impl",
+    "n1e1_function_space_impl",
 ]

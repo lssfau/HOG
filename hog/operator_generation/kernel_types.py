@@ -38,7 +38,12 @@ from hog.cpp_printing import (
 from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
 from hog.function_space import FunctionSpace, TrialSpace, TestSpace
-from hog.operator_generation.function_space_impls import FunctionSpaceImpl
+from hog.operator_generation.function_space_implementations.function_space_impl_base import (
+    FunctionSpaceImpl,
+)
+from hog.operator_generation.function_space_implementations.function_space_impl_factory import (
+    create_impl,
+)
 from hog.operator_generation.indexing import FaceType, CellType
 from hog.operator_generation.pystencils_extensions import create_generic_fields
 from hog.operator_generation.types import HOGPrecision, HOGType, hyteg_type
@@ -377,12 +382,8 @@ class ApplyWrapper(KernelWrapperType):
         dims: List[int] = [2, 3],
     ):
         self.name = "apply"
-        self.src: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
-            src_space, "src", type_descriptor
-        )
-        self.dst: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
-            dst_space, "dst", type_descriptor
-        )
+        self.src: FunctionSpaceImpl = create_impl(src_space, "src", type_descriptor)
+        self.dst: FunctionSpaceImpl = create_impl(dst_space, "dst", type_descriptor)
         self.src_fields = [self.src]
         self.dst_fields = [self.dst]
         self.dims = dims
@@ -562,7 +563,7 @@ class AssembleDiagonalWrapper(KernelWrapperType):
         dims: List[int] = [2, 3],
     ):
         self.name = "computeInverseDiagonalOperatorValues"
-        self.dst: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
+        self.dst: FunctionSpaceImpl = create_impl(
             fe_space, dst_field, type_descriptor, is_pointer=True
         )
         self.src_fields = []
@@ -690,12 +691,8 @@ class AssembleWrapper(KernelWrapperType):
     ):
         idx_t = HOGType("idx_t", np.int64)
         self.name = "toMatrix"
-        self.src: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
-            src_space, "src", idx_t
-        )
-        self.dst: FunctionSpaceImpl = FunctionSpaceImpl.create_impl(
-            dst_space, "dst", idx_t
-        )
+        self.src: FunctionSpaceImpl = create_impl(src_space, "src", idx_t)
+        self.dst: FunctionSpaceImpl = create_impl(dst_space, "dst", idx_t)
 
         # Treating both src and dst as dst_fields because src_fields are loaded
         # explicitly from memory prior to the kernel operation but we do not

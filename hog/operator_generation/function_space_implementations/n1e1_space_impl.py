@@ -14,8 +14,36 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import itertools
+import numpy as np
+import sympy as sp
+from typing import List, Tuple, Set, Union, Dict
 
-import hog.operator_generation.function_space_impls
+import pystencils as ps
+from pystencils import Field, FieldType
+from pystencils.backends.cbackend import CustomCodeNode
+
+from hog.element_geometry import ElementGeometry
+from hog.exception import HOGException
+from hog.function_space import (
+    FunctionSpace,
+    LagrangianFunctionSpace,
+    TensorialVectorFunctionSpace,
+    N1E1Space,
+)
+from hog.operator_generation.indexing import (
+    CellType,
+    FaceType,
+    VolumeDoFMemoryLayout,
+    micro_element_to_vertex_indices,
+    micro_vertex_to_edge_indices,
+    micro_element_to_volume_indices,
+    IndexingInfo,
+)
+from hog.operator_generation.types import HOGType
+from hog.operator_generation.function_space_implementations.function_space_impl_base import (
+    FunctionSpaceImpl,
+)
 
 
 class N1E1FunctionSpaceImpl(FunctionSpaceImpl):
