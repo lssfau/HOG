@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from hog.exception import HOGException
+
 from hog.function_space import (
     FunctionSpace,
     LagrangianFunctionSpace,
@@ -44,7 +46,7 @@ def create_impl(
     name: str,
     type_descriptor: HOGType,
     is_pointer: bool = False,
-):
+) -> type:
     """Takes a mathematical function space and produces the corresponding function space implementation.
 
     :param func_space:      The mathematical function space.
