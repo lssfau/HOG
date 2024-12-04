@@ -45,7 +45,12 @@ from hog.hyteg_code_generation import (
     GCC_WARNING_WORKAROUND,
 )
 from hog.logger import TimedLogger
-from hog.operator_generation.function_space_impls import FunctionSpaceImpl
+from hog.operator_generation.function_space_implementations.function_space_impl_base import (
+    FunctionSpaceImpl,
+)
+from hog.operator_generation.function_space_implementations.function_space_impl_factory import (
+    create_impl,
+)
 from hog.operator_generation.pystencils_extensions import create_generic_fields
 
 import pystencils as ps
@@ -219,7 +224,6 @@ def micro_vertex_permutation_for_facet(
     """
 
     if volume_geometry == TriangleElement():
-
         if element_type == FaceType.BLUE:
             return [0, 1, 2]
 
@@ -232,7 +236,6 @@ def micro_vertex_permutation_for_facet(
         return shuffle_order_gray[facet_id]
 
     elif volume_geometry == TetrahedronElement():
-
         if element_type == CellType.WHITE_DOWN:
             return [0, 1, 2, 3]
 
@@ -557,7 +560,6 @@ class HyTeGElementwiseOperator:
         with TimedLogger(
             f"Generating kernels for operator {self.name}", level=logging.INFO
         ):
-
             # Generate each kernel type (apply, gemv, ...).
             self.generate_kernels()
 
@@ -602,7 +604,6 @@ class HyTeGElementwiseOperator:
         with TimedLogger("Generating C code from kernel AST(s)"):
             # Add all kernels to the class.
             for operator_method in self.operator_methods:
-
                 num_integrals = len(operator_method.integration_infos)
 
                 if num_integrals != len(
@@ -798,7 +799,6 @@ class HyTeGElementwiseOperator:
         )
         blending_includes = set()
         for dim, integration_infos in self.integration_infos.items():
-
             if not all(
                 [
                     integration_infos[0].blending.coupling_includes()
@@ -1194,7 +1194,6 @@ class HyTeGElementwiseOperator:
             element_types = list(integration_info.loop_strategy.element_loops.keys())
 
         for element_type in element_types:
-
             # Re-ordering micro-element vertices for the handling of domain boundary integrals.
             #
             # Boundary integrals are handled by looping over all (volume-)elements that have a facet at one of the
@@ -1283,7 +1282,7 @@ class HyTeGElementwiseOperator:
             coeffs = dict(
                 (
                     dof_symbol.function_id,
-                    FunctionSpaceImpl.create_impl(
+                    create_impl(
                         dof_symbol.function_space,
                         dof_symbol.function_id,
                         self._type_descriptor,
@@ -1299,7 +1298,7 @@ class HyTeGElementwiseOperator:
                         sp.Symbol(dof_symbol.name),
                         coeffs[dof_symbol.function_id].local_dofs(
                             geometry,
-                            element_index,
+                            element_index,  # type: ignore[arg-type] # list of sympy expressions also works
                             element_type,
                             indexing_info,
                             element_vertex_order,
@@ -1530,7 +1529,6 @@ class HyTeGElementwiseOperator:
 
         for kernel_wrapper_type in self.kernel_wrapper_types:
             for dim, integration_infos in self.integration_infos.items():
-
                 kernel_functions = []
                 kernel_op_counts = []
                 platform_dep_kernels = []
@@ -1546,13 +1544,11 @@ class HyTeGElementwiseOperator:
                     )
 
                 for integration_info in integration_infos:
-
                     # generate AST of kernel loop
                     with TimedLogger(
                         f"Generating kernel {integration_info.name} ({kernel_wrapper_type.name}, {dim}D)",
                         logging.INFO,
                     ):
-
                         (
                             function_body,
                             kernel_op_count,
@@ -1655,7 +1651,6 @@ class HyTeGElementwiseOperator:
                 for kernel_function, integration_info in zip(
                     kernel_functions, integration_infos
                 ):
-
                     pre_call_code = ""
                     post_call_code = ""
 
@@ -1663,7 +1658,6 @@ class HyTeGElementwiseOperator:
                         integration_info.integration_domain
                         == MacroIntegrationDomain.DOMAIN_BOUNDARY
                     ):
-
                         if not isinstance(integration_info.loop_strategy, BOUNDARY):
                             raise HOGException(
                                 "The loop strategy should be BOUNDARY for boundary integrals."

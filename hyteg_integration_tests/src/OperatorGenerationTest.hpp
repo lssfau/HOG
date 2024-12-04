@@ -220,7 +220,7 @@ void compareApply( OperatorFactory< RefOpType > refOpFactory,
    real_t maxAbs = 1.0;
    if constexpr ( std::is_same< RefDstFncType, n1e1::N1E1VectorFunction< RefType > >::value )
    {
-      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+      maxAbs = err.getDoFs()->getMaxDoFMagnitude( level );
    }
    else if constexpr ( std::is_same_v< RefDstFncType, P1VectorFunction< RefType > > || std::is_same_v< RefDstFncType, P2VectorFunction< RefType > > )
    {
@@ -228,7 +228,7 @@ void compareApply( OperatorFactory< RefOpType > refOpFactory,
    }
    else
    {
-      maxAbs = err.getMaxMagnitude( level );
+      maxAbs = err.getMaxDoFMagnitude( level );
    }
 
    const real_t threshold = thresholdOverMachineEps * precisionDict::epsilon< TestType >();
@@ -306,7 +306,7 @@ void compareGEMV( const uint_t        level,
    real_t maxAbs = 1.0;
    if constexpr ( std::is_same< DstFncType, n1e1::N1E1VectorFunction< real_t > >::value )
    {
-      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+      maxAbs = err.getDoFs()->getMaxDoFMagnitude( level );
    }
    else if constexpr ( std::is_same_v< DstFncType, P1VectorFunction< real_t > > || std::is_same_v< DstFncType, P2VectorFunction< real_t > > )
    {
@@ -314,7 +314,7 @@ void compareGEMV( const uint_t        level,
    }
    else
    {
-      maxAbs = err.getMaxMagnitude( level );
+      maxAbs = err.getMaxDoFMagnitude( level );
    }
 
    const real_t threshold = thresholdOverMachineEps * precisionDict::epsilon< TestType >();
@@ -393,7 +393,7 @@ void compareInvDiag( OperatorFactory< RefOpType >  refOpFactory,
    real_t maxAbs = 1.0;
    if constexpr ( std::is_same< RefDiagType, n1e1::N1E1VectorFunction< RefType > >::value )
    {
-      maxAbs = err.getDoFs()->getMaxMagnitude( level );
+      maxAbs = err.getDoFs()->getMaxDoFMagnitude( level );
    }
    else if constexpr ( std::is_same_v< RefDiagType, P1VectorFunction< RefType > > || std::is_same_v< RefDiagType, P2VectorFunction< RefType > > )
    {
@@ -401,7 +401,7 @@ void compareInvDiag( OperatorFactory< RefOpType >  refOpFactory,
    }
    else
    {
-      maxAbs = err.getMaxMagnitude( level );
+      maxAbs = err.getMaxDoFMagnitude( level );
    }
 
    const real_t threshold = thresholdOverMachineEps * precisionDict::epsilon< TestType >();
