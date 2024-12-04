@@ -16,9 +16,9 @@
 
 __all__ = [
     "function_space_impl_base",
-    "function_space_impl_factor",
-    "p0_function_space_impl",
-    "p1_function_space_impl",
-    "p2_function_space_impl",
-    "n1e1_function_space_impl",
+    "function_space_impl_factory",
+    "p0_space_impl",
+    "p1_space_impl",
+    "p2_space_impl",
+    "n1e1_space_impl",
 ]

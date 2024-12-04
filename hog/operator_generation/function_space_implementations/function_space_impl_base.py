@@ -55,8 +55,8 @@ class FunctionSpaceImpl(ABC):
     implementation agnostic way.
 
     It is impossible to create an instance of this abstract base class directly.
-    Preferrably, use the static method `create_impl` which selects the correct
-    derived class for the `FunctionSpace`.
+    Preferrably, use `function_space_impl_factory.create_impl` which selects
+    the correct derived class for the `FunctionSpace`.
     """
 
     def __init__(
@@ -70,8 +70,8 @@ class FunctionSpaceImpl(ABC):
 
         It is impossible to create an instance of this abstract base class
         directly. This __init__ method is to be called by the derived classes.
-        Preferrably, use the static method `create_impl` which selects the
-        correct derived class for the `FunctionSpace`.
+        Preferrably, use `function_space_impl_factory.create_impl` which
+        selects the correct derived class for the `FunctionSpace`.
         """
         self.fe_space = fe_space
         self.name = name
