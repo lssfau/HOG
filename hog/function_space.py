@@ -213,44 +213,6 @@ class LagrangianFunctionSpace(FunctionSpace):
 
             elif (
                 isinstance(geometry, TriangleElement)
-                and geometry.dimensions == geometry.space_dimension
-                and self.family in ["Lagrange"]
-                and self._degree == 2
-            ):
-                x = symbols[0]
-                y = symbols[1]
-                basis_functions = [
-                    2 * x**2 + 4 * x * y - 3 * x + 2 * y**2 - 3 * y + 1,
-                    2 * x**2 - x,
-                    2 * y**2 - y,
-                    4 * x * y,
-                    -4 * x * y - 4 * y**2 + 4 * y,
-                    -4 * x**2 - 4 * x * y + 4 * x,
-                ]
-
-            elif (
-                isinstance(geometry, TriangleElement)
-                and geometry.dimensions == geometry.space_dimension - 1
-                and self.family in ["Lagrange"]
-                and self._degree == 0
-            ):
-                basis_functions = [sp.sympify(1)]
-
-            elif (
-                isinstance(geometry, TriangleElement)
-                and geometry.dimensions == geometry.space_dimension - 1
-                and self.family in ["Lagrange"]
-                and self._degree == 1
-            ):
-                basis_functions = [
-                    1 - symbols[0] - symbols[1],
-                    symbols[0],
-                    symbols[1],
-                ]
-
-            elif (
-                isinstance(geometry, TriangleElement)
-                and geometry.dimensions == geometry.space_dimension - 1
                 and self.family in ["Lagrange"]
                 and self._degree == 2
             ):
