@@ -265,7 +265,14 @@ def facedof_index(
     num_microedges_per_edge: sp.Symbol,
 ) -> int:
     """Indexes triangles/faces. Used to compute offsets in volume dof indexing in 2D and AoS layout."""
-    x, y, _ = index
+
+    # Ugly hack; why do we receive an index with only two entries,
+    # and why do we expect one with three?
+    if len(index) == 3:
+        x, y, _ = index
+    elif len(index) == 2:
+        x, y = index
+
     # width = num_faces_per_row_by_type(level, faceType)
     if faceType == FaceType.GRAY:
         return linear_macro_face_index(num_microedges_per_edge, x, y)

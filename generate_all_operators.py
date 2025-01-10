@@ -29,7 +29,13 @@ import sympy as sp
 from sympy.core.cache import clear_cache
 from tabulate import tabulate
 
-from hog.blending import GeometryMap, IdentityMap, AnnulusMap, IcosahedralShellMap, ParametricMap
+from hog.blending import (
+    GeometryMap,
+    IdentityMap,
+    AnnulusMap,
+    IcosahedralShellMap,
+    ParametricMap,
+)
 from hog.cse import CseImplementation
 from hog.element_geometry import (
     ElementGeometry,
@@ -46,6 +52,7 @@ from hog.forms import (
     shear_heating,
     epsilon,
     full_stokes,
+    mass,
     nonlinear_diffusion,
     nonlinear_diffusion_newton_galerkin,
     supg_diffusion,
@@ -64,6 +71,7 @@ from hog.function_space import (
     LagrangianFunctionSpace,
     N1E1Space,
     TensorialVectorFunctionSpace,
+    P2PlusBubbleSpace,
     TrialSpace,
     TestSpace,
 )
@@ -584,6 +592,7 @@ def all_operators(
     P1Vector = TensorialVectorFunctionSpace(P1)
     P2 = LagrangianFunctionSpace(2, symbolizer)
     P2Vector = TensorialVectorFunctionSpace(P2)
+    P2PlusBubble = P2PlusBubbleSpace(symbolizer)
     N1E1 = N1E1Space(symbolizer)
 
     two_d = list(geometries & {TriangleElement()})
@@ -593,6 +602,7 @@ def all_operators(
 
     # fmt: off
     # TODO switch to manual specification of opts for now/developement, later use default factory
+    
     ops.append(OperatorInfo("N1E1", "CurlCurl", TrialSpace(N1E1), TestSpace(N1E1), form=curl_curl,
                             type_descriptor=type_descriptor, geometries=three_d, opts=opts, blending=blending))
     ops.append(OperatorInfo("N1E1", "Mass", TrialSpace(N1E1), TestSpace(N1E1), form=mass_n1e1,
@@ -646,6 +656,12 @@ def all_operators(
     ops.append(OperatorInfo("P2", "BoundaryMass", TrialSpace(P2), TestSpace(P2), form=None,
                             form_boundary=mass_boundary, type_descriptor=type_descriptor, geometries=list(geometries),
                             opts=opts, blending=blending))
+
+    ops.append(OperatorInfo("P2PlusBubble", "Mass", TrialSpace(P2PlusBubble), TestSpace(P2PlusBubble), form=mass,
+                            type_descriptor=type_descriptor, geometries=two_d, opts=opts, blending=blending))
+
+    ops.append(OperatorInfo("P2PlusBubble", "Diffusion", TrialSpace(P2PlusBubble), TestSpace(P2PlusBubble), form=diffusion,
+                            type_descriptor=type_descriptor, geometries=two_d, opts=opts, blending=blending))
 
     # fmt: on
 
