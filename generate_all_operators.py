@@ -35,6 +35,7 @@ from hog.blending import (
     AnnulusMap,
     IcosahedralShellMap,
     ParametricMap,
+    AffineMap2D,
 )
 from hog.cse import CseImplementation
 from hog.element_geometry import (
@@ -113,6 +114,7 @@ ALL_GEOMETRY_MAPS = [
     IcosahedralShellMap(),
     ParametricMap(1),
     ParametricMap(2),
+    AffineMap2D(),
 ]
 
 
@@ -217,7 +219,7 @@ def parse_arguments():
         "--blending",
         default=str(IdentityMap()),
         help=f"Enter a blending type for the operator. Note some geometry maps only work in 2D or 3D respectively. "
-        f"Available geometry maps: {[str(m) for m in ALL_GEOMETRY_MAPS]}",
+        f"Available geometry maps: {sorted([str(m) for m in ALL_GEOMETRY_MAPS])}",
         # TODO add choices list and type=string.lower
     )
 
