@@ -9,7 +9,7 @@ add_subdirectory(hyteg SYSTEM)
 # add a convenience interface target to link against
 add_library(hyteg::hyteg INTERFACE IMPORTED)
 set_target_properties(hyteg::hyteg PROPERTIES
-  INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/hyteg/src"
+  INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/hyteg/src;${EIGEN_DIR}"
   INTERFACE_LINK_DIRECTORIES "${hyteg_LIBRARY_DIR}"
   INTERFACE_LINK_LIBRARIES hyteg
 )
