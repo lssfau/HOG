@@ -5,7 +5,6 @@ add_compile_options( "-Wno-unused-variable" )
 
 list(APPEND WALBERLA_MODULE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/hyteg/src" "${CMAKE_CURRENT_SOURCE_DIR}/hyteg/tests")
 add_subdirectory(hyteg SYSTEM)
-waLBerla_import()
 
 # add a convenience interface target to link against
 add_library(hyteg::hyteg INTERFACE IMPORTED)
