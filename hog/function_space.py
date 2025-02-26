@@ -164,7 +164,10 @@ class LagrangianFunctionSpace(FunctionSpace):
 
     @property
     def is_continuous(self) -> bool:
-        return True
+        if self._degree == 0:
+            return False
+        else:
+            return True
 
     @property
     def degree(self) -> int:
