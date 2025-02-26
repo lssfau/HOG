@@ -253,7 +253,7 @@ form_infos = [
         test_degree=2,
         trial_family="P2 enhanced with Bubble",
         test_family="P2 enhanced with Bubble",
-        quad_schemes={2: "exact", 3: "exact"},
+        quad_schemes={2: "exact"},
         integrate_rows=[],
     ),
     FormInfo(
@@ -316,7 +316,7 @@ form_infos = [
         test_degree=2,
         trial_family="P2 enhanced with Bubble",
         test_family="P2 enhanced with Bubble",
-        quad_schemes={2: "exact", 3: "exact"},
+        quad_schemes={2: "exact"},
         integrate_rows=[],
     ),
     FormInfo(
