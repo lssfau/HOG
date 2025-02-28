@@ -80,14 +80,14 @@ class FunctionSpace(ABC):
     ) -> List[sp.MatrixBase]:
         """Returns a list containing the gradients of the shape functions on the element.
 
-        Particularly, for each (vector- or scalar-valued) shape function N = (N_1, ..., N_n) returns the _transposed_
+        Particularly, for each (vector- or scalar-valued) shape function N = (N_1, ..., N_n) returns the *transposed*
         Jacobian
 
                           ⎡∂N₁/∂x₁  ···  ∂Nₙ/∂x₁⎤
                           ⎢   ·             ·   ⎥
         grad(N) = J(N)ᵀ = ⎢   ·             ·   ⎥
                           ⎢   ·             ·   ⎥
-                          ⎣∂N₁/∂xₖ  ···  ∂Nₙ/∂xₖ ⎦
+                          ⎣∂N₁/∂xₖ  ···  ∂Nₙ/∂xₖ⎦
 
         i.e., the returned gradient is a column vector for scalar shape functions.
 
@@ -329,7 +329,7 @@ class TensorialVectorFunctionSpace(FunctionSpace):
     shape functions of the given scalar function space.
 
     For instance, a tensorial function space of dim d = 3 that is based on a P1 (Lagrangian) scalar function space with
-    n shape functions N_1, ..., N_n has the shape functions
+    n shape functions N_1, ..., N_n has the shape functions::
 
       (N_1, 0, 0),
       ...
@@ -341,8 +341,9 @@ class TensorialVectorFunctionSpace(FunctionSpace):
       ...
       (0, 0, N_n).
 
+
     This class also enables specifying only a single component to get the shape functions, e.g. only for component 1
-    (starting to count components at 0)
+    (starting to count components at 0)::
 
       (0, N_1, 0),
       ...
@@ -592,6 +593,109 @@ class N1E1Space(FunctionSpace):
 
     def __str__(self):
         return f"N1E1"
+
+    def __repr__(self):
+        return str(self)
+
+
+class P2PlusBubbleSpace(FunctionSpace):
+    """
+    Space of continuous piecewise quadratic functions enhanced with local bubbles vanishing on element boundaries.
+
+    In the 2D case the triplet :math:`(K,P,\Sigma)` describing the Finite Element is given by the following:
+
+    #. K represents the standard 2D-simplex, i.e. the unit triangle.
+    #. The local function space :math:`P` on :math:`K` is given by
+       :math:`P = \mathbb{P}_2 \oplus \ell_1 \ell_2 \ell_3 \mathbb{R}`.
+       Here the :math:`\ell_i` represent barycentric coordinates. Thus, any function :math:`v\in P` can uniquely be
+       composed into :math:`v = p + b`, where p is a quadratic polynomial and b a bubble function.
+    #. The set :math:`\Sigma` of linear functionals :math:`L_k : P \rightarrow \mathbb{R}, k = 1,\ldots,7` is given
+       by
+
+    .. math::
+            L_m( v ) = v(x_m), m = 1,\ldots 6 \\
+            L_7( v ) = b(x_7) 
+
+    Here :math:`x_1, \ldots, x_3` represents the vertices of :math:`K`, :math:`x_4,\ldots,x_6` the midpoints
+    of its edges and :math:`x_7` its barycenter.
+    """
+
+    def __init__(self, symbolizer: Symbolizer):
+        self._symbolizer = symbolizer
+
+    @property
+    def is_vectorial(self) -> bool:
+        return False
+
+    @property
+    def is_continuous(self) -> bool:
+        return True
+
+    @property
+    def degree(self) -> int:
+        return 2
+
+    @property
+    def symbolizer(self) -> Symbolizer:
+        return self._symbolizer
+
+    @property
+    def family(self) -> str:
+        return "P2 enhanced with Bubble"
+
+    def shape(
+        self,
+        geometry: ElementGeometry,
+        domain: str = "reference",
+        dof_map: Optional[List[int]] = None,
+    ) -> List[sp.MatrixBase]:
+        """Returns a list containing the shape functions on the element.
+
+        :param dof_map: this list can be used to specify (remap) the DoF ordering of the element
+        """
+        if domain in ["ref", "reference"]:
+            symbols = self.symbolizer.ref_coords_as_list(geometry.dimensions)
+
+            basis_functions = []
+
+            if isinstance(geometry, TriangleElement):
+                L_1 = 1 - symbols[0] - symbols[1]
+                L_2 = symbols[0]
+                L_3 = symbols[1]
+                basis_functions = [
+                    L_1 * (2 * L_1 - 1),
+                    L_2 * (2 * L_2 - 1),
+                    L_3 * (2 * L_3 - 1),
+                    4 * L_2 * L_3,
+                    4 * L_1 * L_3,
+                    4 * L_1 * L_2,
+                    27 * L_1 * L_2 * L_3,
+                ]
+
+            elif isinstance(geometry, TetrahedronElement):
+                raise HOGException(
+                    f"P2PlusBubbleSpace is currently only implemented for triangle elements"
+                )
+            else:
+                raise HOGException(
+                    "Basis functions not implemented for the specified element type and geometry."
+                )
+
+            if dof_map:
+                raise HOGException("DoF reordering not implemented.")
+
+            basis_functions = [sp.Matrix([b]) for b in basis_functions]
+            return basis_functions
+
+        raise HOGException(
+            "Basis functions not implemented for the specified element type and geometry."
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        return type(self) == type(other)
+
+    def __str__(self):
+        return f"P2PlusBubble"
 
     def __repr__(self):
         return str(self)

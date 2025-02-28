@@ -1,5 +1,5 @@
 # HyTeG Operator Generator
-# Copyright (C) 2024  HyTeG Team
+# Copyright (C) 2024-2025  HyTeG Team
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -115,7 +115,6 @@ class ParametricMap(GeometryMap):
     """
 
     def __init__(self, degree: int):
-
         if degree not in [1, 2]:
             raise HOGException(
                 "Only first and second order parametric maps are supported."
@@ -229,7 +228,7 @@ class AnnulusMap(GeometryMap):
         return jac
 
     def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
-        """Evaluates the Jacobian of the geometry map at the passed point."""
+        """Evaluates the derivatives of the inverse Jacobian matrix of the geometry map at the passed point."""
 
         if sp.shape(x) != (2, 1):
             raise HOGException("Invalid input shape for AnnulusMap.")
@@ -299,6 +298,7 @@ class AnnulusMap(GeometryMap):
                 f"real_t {self.rayVertex[i]} = std::dynamic_pointer_cast< AnnulusMap >( face.getGeometryMap() )->rayVertex()[{i}];",
                 f"real_t {self.thrVertex[i]} = std::dynamic_pointer_cast< AnnulusMap >( face.getGeometryMap() )->thrVertex()[{i}];",
             ]
+
         return "\n".join(code)
 
 
@@ -469,7 +469,7 @@ class IcosahedralShellMap(GeometryMap):
         return jac
 
     def hessian(self, x_: sp.Matrix) -> List[sp.Matrix]:
-        """Evaluates the Jacobian of the geometry map at the passed point."""
+        """Evaluates the derivatives of the inverse Jacobian matrix of the geometry map at the passed point."""
 
         if sp.shape(x_) != (3, 1):
             raise HOGException("Invalid input shape for IcosahedralShellMap.")
@@ -592,6 +592,65 @@ class IcosahedralShellMap(GeometryMap):
                 f"real_t {self.rayVertex[i]} = std::dynamic_pointer_cast< IcosahedralShellMap >( cell.getGeometryMap() )->rayVertex()[{i}];",
                 f"real_t {self.thrVertex[i]} = std::dynamic_pointer_cast< IcosahedralShellMap >( cell.getGeometryMap() )->thrVertex()[{i}];",
                 f"real_t {self.forVertex[i]} = std::dynamic_pointer_cast< IcosahedralShellMap >( cell.getGeometryMap() )->forVertex()[{i}];",
+            ]
+
+        return "\n".join(code)
+
+
+class AffineMap2D(GeometryMap):
+    """
+    This blending map uses a 2x2 matrix M and a shift vector v to
+    construct an affine mapping x -> M * x + v.
+
+    This is mostly intended for testing purposes, as we normally
+    would not want to have the overhead of blending in such a situation.
+    """
+
+    def __init__(self):
+        self.mat = sp.Matrix([["bMat_00", "bMat_01"], ["bMat_10", "bMat_11"]])
+        self.vec = sp.Matrix([["bVec_0"], ["bVec_1"]])
+
+    def supported_geometries(self) -> List[ElementGeometry]:
+        return [TriangleElement()]
+
+    def is_affine(self) -> bool:
+        # is_affine is supposed to indicate that the map does not have to be re-computed
+        # for each quadrature point - however, there seems to currently be a problem with
+        # the implementation of that optimization. Thus, we return False for the moment.
+        return False
+
+    def evaluate(self, x: sp.Matrix) -> sp.Matrix:
+        return self.mat * x + self.vec
+
+    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+        jac = self.mat.copy()
+        return jac
+
+    def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
+        hess = [sp.zeros(2, 2), sp.zeros(2, 2)]
+        return hess
+
+    def coupling_includes(self) -> List[str]:
+        return ["hyteg/geometry/AffineMap2D.hpp"]
+
+    def parameter_coupling_code(self) -> str:
+        code = []
+
+        code += [
+            f"WALBERLA_CHECK_NOT_NULLPTR( std::dynamic_pointer_cast< AffineMap2D >( face.getGeometryMap() ),"
+            f'"This operator requires the AffineMap2D to be registered as GeometryMap on every macro-face." )'
+        ]
+
+        code += [
+            f"real_t {self.mat[0,0]} = std::dynamic_pointer_cast< AffineMap2D >( face.getGeometryMap() )->getMatrix()(0,0);",
+            f"real_t {self.mat[0,1]} = std::dynamic_pointer_cast< AffineMap2D >( face.getGeometryMap() )->getMatrix()(0,1);",
+            f"real_t {self.mat[1,0]} = std::dynamic_pointer_cast< AffineMap2D >( face.getGeometryMap() )->getMatrix()(1,0);",
+            f"real_t {self.mat[1,1]} = std::dynamic_pointer_cast< AffineMap2D >( face.getGeometryMap() )->getMatrix()(1,1);",
+        ]
+
+        for i in range(2):
+            code += [
+                f"real_t {self.vec[i]} = std::dynamic_pointer_cast< AffineMap2D >( face.getGeometryMap() )->getVector()[{i}];",
             ]
 
         return "\n".join(code)

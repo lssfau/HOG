@@ -19,6 +19,7 @@ from hog.exception import HOGException
 from hog.function_space import (
     FunctionSpace,
     LagrangianFunctionSpace,
+    P2PlusBubbleSpace,
     TensorialVectorFunctionSpace,
     N1E1Space,
 )
@@ -37,6 +38,9 @@ from hog.operator_generation.function_space_implementations.p1_space_impl import
 from hog.operator_generation.function_space_implementations.p2_space_impl import (
     P2FunctionSpaceImpl,
     P2VectorFunctionSpaceImpl,
+)
+from hog.operator_generation.function_space_implementations.p2_plus_bubble_space_impl import (
+    P2PlusBubbleFunctionSpaceImpl,
 )
 from hog.operator_generation.function_space_implementations.n1e1_space_impl import (
     N1E1FunctionSpaceImpl,
@@ -92,6 +96,8 @@ def create_impl(
             )
     elif isinstance(func_space, N1E1Space):
         impl_class = N1E1FunctionSpaceImpl
+    elif isinstance(func_space, P2PlusBubbleSpace):
+        impl_class = P2PlusBubbleFunctionSpaceImpl
     else:
         raise HOGException("Unexpected function space")
 

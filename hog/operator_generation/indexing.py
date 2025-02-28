@@ -27,7 +27,7 @@ from hog.symbolizer import Symbolizer
 from pystencils.integer_functions import int_div
 from pystencils import TypedSymbol
 from enum import Enum
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, cast
 
 import operator
 import sympy as sp
@@ -259,13 +259,21 @@ def linear_macro_cell_index(width: int, x: int, y: int, z: int) -> int:
 
 def facedof_index(
     level: int,
-    index: Tuple[int, int, int],
+    # Hack: see issue #46 for details
+    index: Union[Tuple[int, int], Tuple[int, int, int]],
     faceType: Union[None, EdgeType, FaceType, CellType],
     num_microfaces_per_face: sp.Symbol,
     num_microedges_per_edge: sp.Symbol,
 ) -> int:
     """Indexes triangles/faces. Used to compute offsets in volume dof indexing in 2D and AoS layout."""
-    x, y, _ = index
+
+    # second part of hack for #46
+    # also see https://github.com/python/mypy/issues/1178
+    if len(index) == 3:
+        x, y, _ = cast(Tuple[int, int, int], index)
+    else:
+        x, y = cast(Tuple[int, int], index)
+
     # width = num_faces_per_row_by_type(level, faceType)
     if faceType == FaceType.GRAY:
         return linear_macro_face_index(num_microedges_per_edge, x, y)

@@ -20,5 +20,6 @@ __all__ = [
     "p0_space_impl",
     "p1_space_impl",
     "p2_space_impl",
+    "p2_plus_bubble_space_impl",
     "n1e1_space_impl",
 ]

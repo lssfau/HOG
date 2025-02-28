@@ -34,6 +34,7 @@ from hog.element_geometry import (
 from hog.function_space import (
     LagrangianFunctionSpace,
     N1E1Space,
+    P2PlusBubbleSpace,
     TrialSpace,
     TestSpace,
 )
@@ -133,6 +134,8 @@ class FormInfo:
         """A compact representation of the function spaces."""
         if self.trial_family == "N1E1":
             return "n1e1"
+        elif self.trial_family == "P2 enhanced with Bubble":
+            return "p2_plus_bubble"
         elif self.trial_degree == self.test_degree:
             return f"p{self.trial_degree}"
         else:
@@ -163,6 +166,8 @@ class FormInfo:
         sub_dir = "p1"
         if self.trial_family == "N1E1":
             sub_dir = "n1e1"
+        elif self.trial_family == "P2 enhanced with Bubble":
+            return "p2_plus_bubble"
         elif self.trial_degree == self.test_degree:
             sub_dir = f"p{self.trial_degree}"
         else:
@@ -243,6 +248,15 @@ form_infos = [
         blending=ExternalMap(),
     ),
     FormInfo(
+        "diffusion",
+        trial_degree=2,
+        test_degree=2,
+        trial_family="P2 enhanced with Bubble",
+        test_family="P2 enhanced with Bubble",
+        quad_schemes={2: "exact"},
+        integrate_rows=[],
+    ),
+    FormInfo(
         "mass",
         trial_degree=1,
         test_degree=1,
@@ -294,6 +308,15 @@ form_infos = [
         test_family="N1E1",
         quad_schemes={3: 2},
         blending=ExternalMap(),
+        integrate_rows=[],
+    ),
+    FormInfo(
+        "mass",
+        trial_degree=2,
+        test_degree=2,
+        trial_family="P2 enhanced with Bubble",
+        test_family="P2 enhanced with Bubble",
+        quad_schemes={2: "exact"},
         integrate_rows=[],
     ),
     FormInfo(
@@ -1077,6 +1100,8 @@ def main():
         trial: TrialSpace
         if form_info.trial_family == "N1E1":
             trial = TrialSpace(N1E1Space(symbolizer))
+        elif form_info.trial_family == "P2 enhanced with Bubble":
+            trial = TrialSpace(P2PlusBubbleSpace(symbolizer))
         else:
             trial = TrialSpace(
                 LagrangianFunctionSpace(form_info.trial_degree, symbolizer)
@@ -1085,6 +1110,8 @@ def main():
         test: TestSpace
         if form_info.test_family == "N1E1":
             test = TestSpace(N1E1Space(symbolizer))
+        elif form_info.test_family == "P2 enhanced with Bubble":
+            test = TestSpace(P2PlusBubbleSpace(symbolizer))
         else:
             test = TestSpace(LagrangianFunctionSpace(form_info.test_degree, symbolizer))
 
