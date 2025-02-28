@@ -699,3 +699,166 @@ class P2PlusBubbleSpace(FunctionSpace):
 
     def __repr__(self):
         return str(self)
+
+
+class DGFunctionSpace(FunctionSpace):
+    """
+    Space of discontinuous piecewise polynomial functions (Discontinuous-Galerkin)
+    """
+
+    def __init__(self, degree: int, symbolizer: Symbolizer):
+        """Creates a FunctionSpace of the Discontinuous Galerkin family.
+
+        :param degree: the order of the shape functions
+        :param symbolizer: a Symbolizer instance
+        """
+        if degree not in [1, 2]:
+            raise HOGException("Only degrees 1 and 2 are supported.")
+
+        self._degree = degree
+        self._symbolizer = symbolizer
+
+    @property
+    def is_vectorial(self) -> bool:
+        return False
+
+    @property
+    def is_continuous(self) -> bool:
+        return False
+
+    @property
+    def degree(self) -> int:
+        return self._degree
+
+    @property
+    def symbolizer(self) -> Symbolizer:
+        return self._symbolizer
+
+    @property
+    def family(self) -> str:
+        return "DG"
+
+    def shape(
+        self,
+        geometry: ElementGeometry,
+        domain: str = "reference",
+        dof_map: Optional[List[int]] = None,
+    ) -> List[sp.MatrixBase]:
+        """Returns a list containing the shape functions on the element.
+
+        :param dof_map: this list can be used to specify (remap) the DoF ordering of the element
+        """
+        if domain in ["ref", "reference"]:
+            symbols = self.symbolizer.ref_coords_as_list(geometry.dimensions)
+
+            basis_functions = []
+
+            if (
+                isinstance(geometry, TriangleElement)
+                and self.family in ["DG"]
+                and self._degree == 1
+            ):
+                basis_functions = [
+                    1 - symbols[0] - symbols[1],
+                    symbols[0],
+                    symbols[1],
+                ]
+
+            elif (
+                isinstance(geometry, TriangleElement)
+                and self.family in ["DG"]
+                and self._degree == 2
+            ):
+                x = symbols[0]
+                y = symbols[1]
+                basis_functions = [
+                    2 * x**2 + 4 * x * y - 3 * x + 2 * y**2 - 3 * y + 1,
+                    2 * x**2 - x,
+                    2 * y**2 - y,
+                    4 * x * y,
+                    -4 * x * y - 4 * y**2 + 4 * y,
+                    -4 * x**2 - 4 * x * y + 4 * x,
+                ]
+
+            elif (
+                isinstance(geometry, TetrahedronElement)
+                and self.family in ["DG"]
+                and self._degree == 1
+            ):
+                basis_functions = [
+                    1 - symbols[0] - symbols[1] - symbols[2],
+                    symbols[0],
+                    symbols[1],
+                    symbols[2],
+                ]
+
+            elif (
+                isinstance(geometry, TetrahedronElement)
+                and self.family in ["DG"]
+                and self._degree == 2
+            ):
+                xi_1 = symbols[0]
+                xi_2 = symbols[1]
+                xi_3 = symbols[2]
+                basis_functions = [
+                    (
+                        2.0 * xi_1 * xi_1
+                        + 4.0 * xi_1 * xi_2
+                        + 4.0 * xi_1 * xi_3
+                        - 3.0 * xi_1
+                        + 2.0 * xi_2 * xi_2
+                        + 4.0 * xi_2 * xi_3
+                        - 3.0 * xi_2
+                        + 2.0 * xi_3 * xi_3
+                        - 3.0 * xi_3
+                        + 1.0
+                    ),
+                    (2.0 * xi_1 * xi_1 - 1.0 * xi_1),
+                    (2.0 * xi_2 * xi_2 - 1.0 * xi_2),
+                    (2.0 * xi_3 * xi_3 - 1.0 * xi_3),
+                    (4.0 * xi_2 * xi_3),
+                    (4.0 * xi_1 * xi_3),
+                    (4.0 * xi_1 * xi_2),
+                    (
+                        -4.0 * xi_1 * xi_3
+                        - 4.0 * xi_2 * xi_3
+                        - 4.0 * xi_3 * xi_3
+                        + 4.0 * xi_3
+                    ),
+                    (
+                        -4.0 * xi_1 * xi_2
+                        - 4.0 * xi_2 * xi_2
+                        - 4.0 * xi_2 * xi_3
+                        + 4.0 * xi_2
+                    ),
+                    (
+                        -4.0 * xi_1 * xi_1
+                        - 4.0 * xi_1 * xi_2
+                        - 4.0 * xi_1 * xi_3
+                        + 4.0 * xi_1
+                    ),
+                ]
+
+            else:
+                raise HOGException(
+                    "Basis functions not implemented for the specified element type and geometry."
+                )
+
+            if dof_map:
+                raise HOGException("DoF reordering not implemented.")
+
+            basis_functions = [sp.Matrix([b]) for b in basis_functions]
+            return basis_functions
+
+        raise HOGException(f"Shape function not available for domain type {domain}")
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, LagrangianFunctionSpace):
+            return False
+        return self.family == other.family and self._degree == other._degree
+
+    def __str__(self):
+        return f"{self.family}, degree: {self._degree}"
+
+    def __repr__(self):
+        return str(self)
