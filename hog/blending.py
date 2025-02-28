@@ -620,19 +620,10 @@ class AffineMap2D(GeometryMap):
         return False
 
     def evaluate(self, x: sp.Matrix) -> sp.Matrix:
-        xnew = sp.zeros(2, 1)
-        xnew[0] = self.mat[0, 0] * x[0] + self.mat[0, 1] * x[1] + self.vec[0]
-        xnew[1] = self.mat[1, 0] * x[0] + self.mat[1, 1] * x[1] + self.vec[1]
-        return xnew
+        return self.mat * x + self.vec
 
     def jacobian(self, x: sp.Matrix) -> sp.Matrix:
-        jac = sp.Matrix(
-            [
-                [self.mat[0, 0], self.mat[0, 1]],
-                [self.mat[1, 0], self.mat[1, 1]],
-            ]
-        )
-
+        jac = self.mat.copy()
         return jac
 
     def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
