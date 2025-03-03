@@ -220,6 +220,9 @@ class IntegrandSymbols:
     #
     tabulate: Callable[[Union[sp.Expr, sp.Matrix], str], sp.Matrix] | None = None
 
+    # For backward compatibility with (sub-)form generation this integer allows to select a component
+    component_index: int | None = None
+
 
 def process_integrand(
     integrand: Callable[..., Any],
@@ -230,6 +233,7 @@ def process_integrand(
     blending: GeometryMap = IdentityMap(),
     boundary_geometry: ElementGeometry | None = None,
     fe_coefficients: Dict[str, Union[FunctionSpace, None]] | None = None,
+    component_index: int | None = None,
     is_symmetric: bool = False,
     rot_type: RotationType = RotationType.NO_ROTATION,
     docstring: str = "",
@@ -293,7 +297,7 @@ def process_integrand(
                             finite-element function coefficients, they will be available to the callable as `k`
                             supply None as the FunctionSpace for a std::function-type coeff (only works for old forms)
     :param is_symmetric: whether the bilinear form is symmetric - this is exploited by the generator
-    :param rot_type: whether the  operator has to be wrapped with rotation matrix and the type of rotation that needs 
+    :param rot_type: whether the  operator has to be wrapped with rotation matrix and the type of rotation that needs
                      to be applied, only applicable for Vectorial spaces
     :param docstring: documentation of the integrand/bilinear form - will end up in the docstring of the generated code
     """
@@ -481,6 +485,9 @@ def process_integrand(
 
     mat = create_empty_element_matrix(trial, test, volume_geometry)
     it = element_matrix_iterator(trial, test, volume_geometry)
+
+    if component_index is not None:
+        s.component_index = component_index
 
     for data in it:
         s.u = data.trial_shape

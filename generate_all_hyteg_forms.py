@@ -1135,30 +1135,28 @@ def main():
                                 inline_values=form_info.inline_quad,
                             )
 
-                            mat = form_func(
-                                form_info.form_name,
-                                row,
-                                col,
-                                trial,
-                                test,
-                                geometry,
-                                quad,
-                                symbolizer,
-                                blending=form_info.blending,
-                            )
-                            form_codes.append(
-                                HyTeGIntegrator(
-                                    form_info.class_name(row, col),
-                                    mat,
+                            if form_info.is_implemented( row, col, geometry.dimensions ):
+                                mat = form_func(
+                                    form_info.form_name,
+                                    row,
+                                    col,
+                                    trial,
+                                    test,
                                     geometry,
                                     quad,
                                     symbolizer,
-                                    not_implemented=not form_info.is_implemented(
-                                        row, col, geometry.dimensions
-                                    ),
-                                    integrate_rows=form_info.integrate_rows,
+                                    blending=form_info.blending,
                                 )
-                            )
+                                form_codes.append(
+                                    HyTeGIntegrator(
+                                        form_info.class_name(row, col),
+                                        mat,
+                                        geometry,
+                                        quad,
+                                        symbolizer,
+                                        integrate_rows=form_info.integrate_rows,
+                                    )
+                                )
                 form_classes.append(
                     HyTeGFormClass(
                         form_info.class_name(row, col),
