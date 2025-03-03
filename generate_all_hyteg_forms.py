@@ -166,8 +166,8 @@ class FormInfo:
         sub_dir = "p1"
         if self.trial_family == "N1E1":
             sub_dir = "n1e1"
-        elif self.trial_family == "P2 enhanced with Bubble":
-            return "p2_plus_bubble"
+        elif self.trial_family == "P2 enhanced with Bubble" and self.test_family == "P2 enhanced with Bubble":
+            sub_dir = "p2"
         elif self.trial_degree == self.test_degree:
             sub_dir = f"p{self.trial_degree}"
         else:
