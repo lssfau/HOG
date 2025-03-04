@@ -21,10 +21,12 @@ class BlendingFTriangle(MultiAssignment):
     def function_name(self):
         return "Blending_F_Triangle"
 
-    def num_input_args(self):
+    @classmethod
+    def num_input_args(cls):
         return 2
 
-    def num_output_args(self):
+    @classmethod
+    def num_output_args(cls):
         return 2
 
     def implementation(self):
@@ -39,10 +41,12 @@ class BlendingFEmbeddedTriangle(MultiAssignment):
     def function_name(self):
         return "Blending_F_EmbeddedTriangle"
 
-    def num_input_args(self):
+    @classmethod
+    def num_input_args(cls):
         return 3
 
-    def num_output_args(self):
+    @classmethod
+    def num_output_args(cls):
         return 3
 
     def implementation(self):
@@ -58,10 +62,12 @@ class BlendingFTetrahedron(MultiAssignment):
     def function_name(self):
         return "Blending_F_Tetrahedron"
 
-    def num_input_args(self):
+    @classmethod
+    def num_input_args(cls):
         return 3
 
-    def num_output_args(self):
+    @classmethod
+    def num_output_args(cls):
         return 3
 
     def implementation(self):

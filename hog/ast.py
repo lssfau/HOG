@@ -36,7 +36,7 @@ class Operations:
 
     def to_table(self) -> str:
         d = vars(self)
-        return tabulate.tabulate([d.values()], headers=d.keys())  # type: ignore
+        return tabulate.tabulate([d.values()], headers=list(d.keys()))
 
 
 def count_operations(
