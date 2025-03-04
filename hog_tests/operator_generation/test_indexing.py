@@ -45,19 +45,19 @@ def test_micro_element_to_vertex_indices():
     clear_cache()
 
     assert indexing.micro_element_to_vertex_indices(
-        TriangleElement(), FaceType.GRAY, (0, 0, 0)
+        TriangleElement(), FaceType.GRAY, (0, 0)
     ) == [
-        DoFIndex((0, 0, 0), DoFType.VERTEX),
-        DoFIndex((1, 0, 0), DoFType.VERTEX),
-        DoFIndex((0, 1, 0), DoFType.VERTEX),
+        DoFIndex((0, 0), DoFType.VERTEX),
+        DoFIndex((1, 0), DoFType.VERTEX),
+        DoFIndex((0, 1), DoFType.VERTEX),
     ]
 
     assert indexing.micro_element_to_vertex_indices(
-        TriangleElement(), FaceType.BLUE, (2, 4, 0)
+        TriangleElement(), FaceType.BLUE, (2, 4)
     ) == [
-        DoFIndex((3, 4, 0), DoFType.VERTEX),
-        DoFIndex((2, 5, 0), DoFType.VERTEX),
-        DoFIndex((3, 5, 0), DoFType.VERTEX),
+        DoFIndex((3, 4), DoFType.VERTEX),
+        DoFIndex((2, 5), DoFType.VERTEX),
+        DoFIndex((3, 5), DoFType.VERTEX),
     ]
 
     assert indexing.micro_element_to_vertex_indices(
@@ -122,28 +122,28 @@ def test_micro_vertex_to_edge_indices():
     assert indexing.micro_vertex_to_edge_indices(
         TriangleElement(),
         [
-            DoFIndex((5, 4, 0), DoFType.VERTEX),
-            DoFIndex((6, 4, 0), DoFType.VERTEX),
-            DoFIndex((5, 5, 0), DoFType.VERTEX),
+            DoFIndex((5, 4), DoFType.VERTEX),
+            DoFIndex((6, 4), DoFType.VERTEX),
+            DoFIndex((5, 5), DoFType.VERTEX),
         ],
     ) == [
-        DoFIndex((5, 4, 0), DoFType.EDGE, EdgeType.XY),
-        DoFIndex((5, 4, 0), DoFType.EDGE, EdgeType.Y),
-        DoFIndex((5, 4, 0), DoFType.EDGE, EdgeType.X),
+        DoFIndex((5, 4), DoFType.EDGE, EdgeType.XY),
+        DoFIndex((5, 4), DoFType.EDGE, EdgeType.Y),
+        DoFIndex((5, 4), DoFType.EDGE, EdgeType.X),
     ]
 
     # BLUE
     assert indexing.micro_vertex_to_edge_indices(
         TriangleElement(),
         [
-            DoFIndex((6, 4, 0), DoFType.VERTEX),
-            DoFIndex((5, 5, 0), DoFType.VERTEX),
-            DoFIndex((6, 5, 0), DoFType.VERTEX),
+            DoFIndex((6, 4), DoFType.VERTEX),
+            DoFIndex((5, 5), DoFType.VERTEX),
+            DoFIndex((6, 5), DoFType.VERTEX),
         ],
     ) == [
-        DoFIndex((5, 5, 0), DoFType.EDGE, EdgeType.X),
-        DoFIndex((6, 4, 0), DoFType.EDGE, EdgeType.Y),
-        DoFIndex((5, 4, 0), DoFType.EDGE, EdgeType.XY),
+        DoFIndex((5, 5), DoFType.EDGE, EdgeType.X),
+        DoFIndex((6, 4), DoFType.EDGE, EdgeType.Y),
+        DoFIndex((5, 4), DoFType.EDGE, EdgeType.XY),
     ]
 
     # WHITE UP
@@ -266,7 +266,7 @@ def test_micro_volume_to_volume_indices():
         indexing_info: IndexingInfo,
         n_dofs_per_primitive: int,
         primitive_type: Union[FaceType, CellType],
-        primitive_index: Tuple[int, int, int],
+        primitive_index: Tuple[int, int] | Tuple[int, int, int],
         target_array_index: int,
         intra_primitive_index: int = 0,
         memory_layout: VolumeDoFMemoryLayout = VolumeDoFMemoryLayout.AoS,
@@ -286,16 +286,16 @@ def test_micro_volume_to_volume_indices():
 
     # 2D, P0:
     test_element_type_on_level(
-        TriangleElement(), 2, indexingInfo, 1, FaceType.GRAY, (2, 0, 0), 2
+        TriangleElement(), 2, indexingInfo, 1, FaceType.GRAY, (2, 0), 2
     )
     test_element_type_on_level(
-        TriangleElement(), 2, indexingInfo, 1, FaceType.GRAY, (1, 2, 0), 8
+        TriangleElement(), 2, indexingInfo, 1, FaceType.GRAY, (1, 2), 8
     )
     test_element_type_on_level(
-        TriangleElement(), 2, indexingInfo, 1, FaceType.BLUE, (1, 1, 0), 14
+        TriangleElement(), 2, indexingInfo, 1, FaceType.BLUE, (1, 1), 14
     )
     test_element_type_on_level(
-        TriangleElement(), 2, indexingInfo, 1, FaceType.BLUE, (0, 2, 0), 15
+        TriangleElement(), 2, indexingInfo, 1, FaceType.BLUE, (0, 2), 15
     )
 
     # 2D, P1:
@@ -310,7 +310,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.GRAY,
-        (2, 0, 0),
+        (2, 0),
         7,
         intra_primitive_index=1,
     )
@@ -320,7 +320,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.GRAY,
-        (1, 2, 0),
+        (1, 2),
         26,
         intra_primitive_index=2,
     )
@@ -330,7 +330,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.BLUE,
-        (1, 1, 0),
+        (1, 1),
         30 + 13,
         intra_primitive_index=1,
     )
@@ -340,7 +340,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.BLUE,
-        (0, 2, 0),
+        (0, 2),
         30 + 17,
         intra_primitive_index=2,
     )
@@ -355,7 +355,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.GRAY,
-        (2, 0, 0),
+        (2, 0),
         18,
         intra_primitive_index=1,
         memory_layout=VolumeDoFMemoryLayout.SoA,
@@ -366,7 +366,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.GRAY,
-        (1, 1, 0),
+        (1, 1),
         32 + 5,
         intra_primitive_index=2,
         memory_layout=VolumeDoFMemoryLayout.SoA,
@@ -377,7 +377,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.BLUE,
-        (1, 1, 0),
+        (1, 1),
         26 + 4,
         intra_primitive_index=1,
         memory_layout=VolumeDoFMemoryLayout.SoA,
@@ -388,7 +388,7 @@ def test_micro_volume_to_volume_indices():
         indexingInfo,
         3,
         FaceType.BLUE,
-        (0, 2, 0),
+        (0, 2),
         42 + 5,
         intra_primitive_index=2,
         memory_layout=VolumeDoFMemoryLayout.SoA,
