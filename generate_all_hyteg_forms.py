@@ -166,8 +166,11 @@ class FormInfo:
         sub_dir = "p1"
         if self.trial_family == "N1E1":
             sub_dir = "n1e1"
-        elif self.trial_family == "P2 enhanced with Bubble":
-            return "p2_plus_bubble"
+        elif (
+            self.trial_family == "P2 enhanced with Bubble"
+            and self.test_family == "P2 enhanced with Bubble"
+        ):
+            sub_dir = "p2"
         elif self.trial_degree == self.test_degree:
             sub_dir = f"p{self.trial_degree}"
         else:
@@ -836,7 +839,9 @@ def form_func(
             quad, symbolizer
         )
     elif name.startswith("pspg"):
-        return pspg(trial, test, geometry, quad, symbolizer, blending=blending)
+        return pspg(
+            trial, test, geometry, quad, symbolizer, blending=blending
+        ).integrate(quad, symbolizer)
     elif name.startswith("linear_form"):
         return linear_form(trial, test, geometry, quad, symbolizer, blending=blending)
     elif name.startswith("divt"):
@@ -1135,30 +1140,28 @@ def main():
                                 inline_values=form_info.inline_quad,
                             )
 
-                            mat = form_func(
-                                form_info.form_name,
-                                row,
-                                col,
-                                trial,
-                                test,
-                                geometry,
-                                quad,
-                                symbolizer,
-                                blending=form_info.blending,
-                            )
-                            form_codes.append(
-                                HyTeGIntegrator(
-                                    form_info.class_name(row, col),
-                                    mat,
+                            if form_info.is_implemented(row, col, geometry.dimensions):
+                                mat = form_func(
+                                    form_info.form_name,
+                                    row,
+                                    col,
+                                    trial,
+                                    test,
                                     geometry,
                                     quad,
                                     symbolizer,
-                                    not_implemented=not form_info.is_implemented(
-                                        row, col, geometry.dimensions
-                                    ),
-                                    integrate_rows=form_info.integrate_rows,
+                                    blending=form_info.blending,
                                 )
-                            )
+                                form_codes.append(
+                                    HyTeGIntegrator(
+                                        form_info.class_name(row, col),
+                                        mat,
+                                        geometry,
+                                        quad,
+                                        symbolizer,
+                                        integrate_rows=form_info.integrate_rows,
+                                    )
+                                )
                 form_classes.append(
                     HyTeGFormClass(
                         form_info.class_name(row, col),

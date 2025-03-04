@@ -579,6 +579,7 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
+        component_index=component_index,
         is_symmetric=False,
         docstring=docstring,
         rot_type=RotationType.POST_MULTIPLY
@@ -620,6 +621,7 @@ def gradient(
         geometry,
         symbolizer,
         blending=blending,
+        component_index=component_index,
         is_symmetric=False,
         docstring=docstring,
         rot_type=RotationType.PRE_MULTIPLY

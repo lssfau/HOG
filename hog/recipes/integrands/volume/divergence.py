@@ -26,10 +26,21 @@ def integrand(
     grad_u,
     v,
     tabulate,
+    component_index,
     **_,
 ):
-    return (
-        -(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
-        * tabulate(v * jac_a_abs_det)
-        * jac_b_abs_det
-    )
+    # working with vector-valued functions
+    if grad_u.is_square:
+        return (
+            -(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
+            * tabulate(v * jac_a_abs_det)
+            * jac_b_abs_det
+        )
+
+    # working with scalar-valued functions (backward compatibility)
+    else:
+        return (
+            -(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u))[component_index]
+            * tabulate(v * jac_a_abs_det)
+            * jac_b_abs_det
+        )
