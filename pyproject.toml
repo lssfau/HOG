@@ -1,6 +1,6 @@
 [project]
 name = "hog"
-version = "0.1"
+version = "0.1.1"
 dependencies = [
   "islpy",
   "ndim @ https://github.com/sigma-py/ndim/archive/refs/tags/v0.1.6.tar.gz",
@@ -17,6 +17,7 @@ dependencies = [
 packages = [
   "hog", 
   "hog.operator_generation", 
+  "hog.operator_generation.function_space_implementations", 
   "hog.quadrature", 
   "hog.recipes", 
   "hog.recipes.integrands", 
