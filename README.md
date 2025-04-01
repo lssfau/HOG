@@ -57,6 +57,9 @@ The reason for this module is to administer different versions of each operator.
 it might be possible to use AVX512, AVX2 or no vectorization at all. The module will choose the correct type of vectorization for you, generate and build it.
 (More precisely, it generates a non-vectorized and a vectorized version alongside logic which chooses the desired version at build time (automatically).)
 
+Depending on the operator you are adding you might also need to extend `hyteg-operators/generate/generate.py`, e.g. if you want to use a new FE space or
+blending map.
+
 ### Step 3: Operator generation
 Generate the operator by creating a virtual environment including the HOG and running
 `hyteg-operators/generate/generate.py`:
@@ -69,6 +72,11 @@ python generate.py -o ../operators ../operators.toml
 ```
 The generated operator will be saved at `hyteg-operators/operators`.
 Note: the pointer to HOG in the `requirements.txt` should point to the commit you published the form on or, if you have not published it, to you local HOG repository.
+
+For a full list of options run
+```sh
+python generate.py -h
+```
 
 ### Step 4: Linking and including in Apps
 Link your application against the operator in the corresponding `CMakeLists.txt`:
