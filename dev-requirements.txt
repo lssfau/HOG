@@ -1,5 +1,5 @@
 black ~= 23.10
-mypy ~= 1.2.0
+mypy ~= 1.15.0
 types-tabulate == 0.8.7
 Sphinx == 7.2.6
 furo == 2024.1.29

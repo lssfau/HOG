@@ -90,6 +90,7 @@ from hog.exception import HOGException
 from hog.operator_generation.indexing import (
     all_element_types,
     element_vertex_coordinates,
+    Index,
     IndexingInfo,
     FaceType,
     CellType,
@@ -907,9 +908,9 @@ class HyTeGElementwiseOperator:
     def _compute_micro_element_coordinates(
         self,
         integration_info: IntegrationInfo,
-        element_index: List[sp.Symbol],
+        element_index: Tuple[sp.Symbol, sp.Symbol, sp.Symbol],
         geometry: ElementGeometry,
-    ) -> Tuple[List[int | sp.Symbol | Field.Access], List[CustomCodeNode]]:
+    ) -> Tuple[Index, List[CustomCodeNode]]:
         """
         Computes coordinates of the micro-element. This is _not_ to be confused with the coordinates of the element's
         vertices!
@@ -947,7 +948,7 @@ class HyTeGElementwiseOperator:
         ):
             # The Jacobians are loop-counter dependent, and we do not care about vectorization.
             # So we just use the indices. pystencils will handle casting them to float.
-            el_matrix_element_index = element_index.copy()
+            el_matrix_element_index = element_index
 
         else:
             # Vectorization and loop-counter dependencies
@@ -1000,12 +1001,12 @@ class HyTeGElementwiseOperator:
             # are _not_ array accesses. We assign them to the first entry of the float loop counter array. The
             # vectorizer can automatically assign multiple variables here.
             # Note that the first, i.e., innermost loop counter is chosen for the array access for all dimensions!
-            el_matrix_element_index = [
+            el_matrix_element_index = tuple(
                 float_loop_ctr_arrays[d].absolute_access(
                     (element_index[0] - phantom_ctr,), (0,)
                 )
                 for d in range(geometry.dimensions)
-            ]
+            )
 
             # Let's fill the array.
             float_ctr_array_size = (
@@ -1175,9 +1176,9 @@ class HyTeGElementwiseOperator:
         ]
 
         # create loop according to loop strategy
-        element_index = [
+        element_index = tuple(
             LoopOverCoordinate.get_loop_counter_symbol(i) for i in range(dim)
-        ]
+        )
         loop = integration_info.loop_strategy.create_loop(
             dim, element_index, indexing_info.micro_edges_per_macro_edge
         )
@@ -1235,7 +1236,7 @@ class HyTeGElementwiseOperator:
             src_vecs_accesses = [
                 src_field.local_dofs(
                     geometry,
-                    element_index,  # type: ignore[arg-type] # list of sympy expressions also works
+                    element_index,
                     element_type,
                     indexing_info,
                     element_vertex_order,
@@ -1245,7 +1246,7 @@ class HyTeGElementwiseOperator:
             dst_vecs_accesses = [
                 dst_field.local_dofs(
                     geometry,
-                    element_index,  # type: ignore[arg-type] # list of sympy expressions also works
+                    element_index,
                     element_type,
                     indexing_info,
                     element_vertex_order,
@@ -1262,7 +1263,7 @@ class HyTeGElementwiseOperator:
 
             kernel_op_post_assignments = kernel_type.kernel_post_operation(
                 geometry,
-                element_index,  # type: ignore[arg-type] # list of sympy expressions also works
+                element_index,
                 element_type,
                 src_vecs_accesses,
                 dst_vecs_accesses,
@@ -1298,7 +1299,7 @@ class HyTeGElementwiseOperator:
                         sp.Symbol(dof_symbol.name),
                         coeffs[dof_symbol.function_id].local_dofs(
                             geometry,
-                            element_index,  # type: ignore[arg-type] # list of sympy expressions also works
+                            element_index,
                             element_type,
                             indexing_info,
                             element_vertex_order,
@@ -1322,7 +1323,7 @@ class HyTeGElementwiseOperator:
 
             el_vertex_coordinates = element_vertex_coordinates(
                 geometry,
-                el_matrix_element_index,  # type: ignore[arg-type] # list of sympy expressions also works
+                el_matrix_element_index,
                 element_type,
                 indexing_info.micro_edges_per_macro_edge_float,
                 macro_vertex_coordinates,

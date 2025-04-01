@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from enum import Enum
-from typing import Any, List, Tuple, Union, Optional
+from typing import Any, List, Tuple, Union
 
 import operator
 import sympy as sp
@@ -27,7 +27,7 @@ from hog.symbolizer import Symbolizer
 from pystencils.integer_functions import int_div
 from pystencils import TypedSymbol
 from enum import Enum
-from typing import Tuple, List, Union, cast
+from typing import Tuple, List, TypeAlias, Union, cast
 
 import operator
 import sympy as sp
@@ -40,6 +40,12 @@ from pystencils.integer_functions import int_div
 
 # only for testing, switch off casts etc to make a pure sympy AST that can be evaluated
 USE_SYMPY_INT_DIV = False
+
+
+Index1d: TypeAlias = int | sp.Symbol
+Index2d: TypeAlias = Tuple[Index1d, Index1d]
+Index3d: TypeAlias = Tuple[Index1d, Index1d, Index1d]
+Index: TypeAlias = Index2d | Index3d
 
 
 class DoFType(Enum):
@@ -90,17 +96,6 @@ class CellType(Enum):
     GREEN_DOWN = "GREEN_DOWN"
 
 
-class Point:
-    """
-    Resembles a point in 2D or 3D to make index computations more visual.
-    """
-
-    def _init_(self, x=0, y=0, z=None):
-        self.x = x
-        self.y = y
-        self.z = z
-
-
 class VolumeDoFMemoryLayout(Enum):
     """
     Array of structs or stuct of array; memory layouts for DG
@@ -115,35 +110,22 @@ def sympy_int_div(x: float, y: float) -> int:
     return sp.floor(x / y)
 
 
-def generalized_macro_face_index(
-    logical_index: Tuple[int, int, int], width: int
-) -> int:
+def generalized_macro_face_index(logical_index: Index2d, width: int) -> int:
     """Indexes macro faces. width depends on the level and quantifies the amount of primitives in one direction of the refined triangle."""
-    x, y, _ = logical_index
-    if USE_SYMPY_INT_DIV:
-        row_offset = y * (width + 1) - sympy_int_div(((y + 1) * y), 2)
-    else:
-        row_offset = y * (width + 1) - int_div(((y + 1) * y), 2)
+    x, y = logical_index
+    row_offset = y * (width + 1) - num_microvertices_per_face_from_width(y)
     return row_offset + x
 
 
-def generalized_macro_cell_index(
-    logical_index: Tuple[int, int, int], width: int
-) -> int:
+def generalized_macro_cell_index(logical_index: Index3d, width: int) -> int:
     """Indexes macro tetrahedra. width depends on the level and quantifies the amount of primitives in one direction of the refined tetrahedron."""
 
     x, y, z = logical_index
     width_minus_slice = width - z
-    if USE_SYMPY_INT_DIV:
-        slice_offset = int_div(((width + 2) * (width + 1) * width), 6) - sympy_int_div(
-            ((width_minus_slice + 2) * (width_minus_slice + 1) * width_minus_slice), 6
-        )
-        row_offset = y * (width_minus_slice + 1) - sympy_int_div(((y + 1) * y), 2)
-    else:
-        slice_offset = int_div(((width + 2) * (width + 1) * width), 6) - int_div(
-            ((width_minus_slice + 2) * (width_minus_slice + 1) * width_minus_slice), 6
-        )
-        row_offset = y * (width_minus_slice + 1) - int_div(((y + 1) * y), 2)
+    slice_offset = num_microvertices_per_cell_from_width(
+        width
+    ) - num_microvertices_per_cell_from_width(width_minus_slice)
+    row_offset = y * (width_minus_slice + 1) - num_microvertices_per_face_from_width(y)
     return slice_offset + row_offset + x
 
 
@@ -151,18 +133,18 @@ def num_microvertices_per_face_from_width(width: int) -> int:
     """Computes the number of microvertices in a refined macro triangle. width depends on the level and quantifies the amount of primitives in one direction of the refined triangle."""
 
     if USE_SYMPY_INT_DIV:
-        return sympy_int_div((width * (width + 1)), 2)
+        return sympy_int_div(width * (width + 1), 2)
     else:
-        return int_div((width * (width + 1)), 2)
+        return int_div(width * (width + 1), 2)
 
 
 def num_microvertices_per_cell_from_width(width: int) -> int:
     """Computes the number of microvertices in a refined macro tetrahedron. width depends on the level and quantifies the amount of primitives in one direction of the refined triangle."""
 
     if USE_SYMPY_INT_DIV:
-        return sympy_int_div(((width + 2) * (width + 1) * width), 6)
+        return sympy_int_div((width + 2) * (width + 1) * width, 6)
     else:
-        return int_div(((width + 2) * (width + 1) * width), 6)
+        return int_div((width + 2) * (width + 1) * width, 6)
 
 
 def num_microfaces_per_face(level: int) -> int:
@@ -173,13 +155,6 @@ def num_microcells_per_cell(level: int) -> int:
     return 8 ** (level)
 
 
-def linear_macro_cell_size(width: int) -> int:
-    if USE_SYMPY_INT_DIV:
-        return sympy_int_div((width + 2) * (width + 1) * width, 6)
-    else:
-        return int_div((width + 2) * (width + 1) * width, 6)
-
-
 def num_microvertices_per_edge(level: int) -> int:
     return 2**level + 1
 
@@ -188,9 +163,7 @@ def num_microedges_per_edge(level: int) -> int:
     return num_microvertices_per_edge(level) - 1
 
 
-def num_faces_per_row_by_type(
-    level: int, faceType: Union[None, EdgeType, FaceType, CellType]
-) -> int:
+def num_faces_per_row_by_type(level: int, faceType: FaceType) -> int:
     if faceType == FaceType.GRAY:
         return num_microedges_per_edge(level)
     elif faceType == FaceType.BLUE:
@@ -201,7 +174,7 @@ def num_faces_per_row_by_type(
 
 def num_cells_per_row_by_type(
     level: int,
-    cellType: Union[None, EdgeType, FaceType, CellType],
+    cellType: CellType,
     num_microedges_per_edge: sp.Symbol,
 ) -> int:
     if cellType == CellType.WHITE_UP:
@@ -234,74 +207,39 @@ def num_micro_cells_per_macro_cell(
     )
 
 
-def linear_macro_face_index(width: int, x: int, y: int) -> int:
-    if USE_SYMPY_INT_DIV:
-        rowOffset = y * ((width) + 1) - sympy_int_div(((y + 1) * (y)), 2)
-    else:
-        rowOffset = y * ((width) + 1) - int_div(((y + 1) * (y)), 2)
-    return rowOffset + x
-
-
-def linear_macro_cell_index(width: int, x: int, y: int, z: int) -> int:
-    widthMinusSlice = width - z
-    if USE_SYMPY_INT_DIV:
-        sliceOffset = linear_macro_cell_size(width) - sympy_int_div(
-            (widthMinusSlice + 2) * (widthMinusSlice + 1) * widthMinusSlice, 6
-        )
-        rowOffset = y * (widthMinusSlice + 1) - sympy_int_div((y + 1) * y, 2)
-    else:
-        sliceOffset = linear_macro_cell_size(width) - int_div(
-            (widthMinusSlice + 2) * (widthMinusSlice + 1) * widthMinusSlice, 6
-        )
-        rowOffset = y * (widthMinusSlice + 1) - int_div((y + 1) * y, 2)
-    return sliceOffset + rowOffset + x
-
-
 def facedof_index(
     level: int,
-    # Hack: see issue #46 for details
-    index: Union[Tuple[int, int], Tuple[int, int, int]],
-    faceType: Union[None, EdgeType, FaceType, CellType],
+    index: Index2d,
+    faceType: FaceType,
     num_microfaces_per_face: sp.Symbol,
     num_microedges_per_edge: sp.Symbol,
 ) -> int:
-    """Indexes triangles/faces. Used to compute offsets in volume dof indexing in 2D and AoS layout."""
-
-    # second part of hack for #46
-    # also see https://github.com/python/mypy/issues/1178
-    if len(index) == 3:
-        x, y, _ = cast(Tuple[int, int, int], index)
-    else:
-        x, y = cast(Tuple[int, int], index)
-
-    # width = num_faces_per_row_by_type(level, faceType)
     if faceType == FaceType.GRAY:
-        return linear_macro_face_index(num_microedges_per_edge, x, y)
+        return generalized_macro_face_index(index, num_microedges_per_edge)
     elif faceType == FaceType.BLUE:
         return num_microvertices_per_face_from_width(
             num_microedges_per_edge
-        ) + linear_macro_face_index(num_microedges_per_edge - 1, x, y)
+        ) + generalized_macro_face_index(index, num_microedges_per_edge - 1)
     else:
         raise HOGException(f"Unexpected face type: {faceType}")
 
 
 def celldof_index(
     level: int,
-    index: Tuple[int, int, int],
-    cellType: Union[None, EdgeType, FaceType, CellType],
+    index: Index3d,
+    cellType: CellType,
     num_microedges_per_edge: sp.Symbol,
 ) -> int:
     """Indexes cells/tetrahedra. Used to compute offsets in volume dof indexing in 3D and AoS layout."""
-    x, y, z = index
     width = num_cells_per_row_by_type(
         level, cellType, num_microedges_per_edge
     )  # gives expr(level)
     if cellType == CellType.WHITE_UP:
-        return linear_macro_cell_index(width, x, y, z)
+        return generalized_macro_cell_index(index, width)
     elif cellType == CellType.BLUE_UP:
         return num_micro_cells_per_macro_cell(  # gives expr(level)
             level, CellType.WHITE_UP, num_microedges_per_edge
-        ) + linear_macro_cell_index(width, x, y, z)
+        ) + generalized_macro_cell_index(index, width)
     elif cellType == CellType.GREEN_UP:
         return (
             num_micro_cells_per_macro_cell(
@@ -310,7 +248,7 @@ def celldof_index(
             + num_micro_cells_per_macro_cell(
                 level, CellType.BLUE_UP, num_microedges_per_edge
             )
-            + linear_macro_cell_index(width, x, y, z)
+            + generalized_macro_cell_index(index, width)
         )
     elif cellType == CellType.WHITE_DOWN:
         return (
@@ -323,7 +261,7 @@ def celldof_index(
             + num_micro_cells_per_macro_cell(
                 level, CellType.GREEN_UP, num_microedges_per_edge
             )
-            + linear_macro_cell_index(width, x, y, z)
+            + generalized_macro_cell_index(index, width)
         )
     elif cellType == CellType.BLUE_DOWN:
         return (
@@ -339,7 +277,7 @@ def celldof_index(
             + num_micro_cells_per_macro_cell(
                 level, CellType.WHITE_DOWN, num_microedges_per_edge
             )
-            + linear_macro_cell_index(width, x, y, z)
+            + generalized_macro_cell_index(index, width)
         )
     elif cellType == CellType.GREEN_DOWN:
         return (
@@ -358,7 +296,7 @@ def celldof_index(
             + num_micro_cells_per_macro_cell(
                 level, CellType.BLUE_DOWN, num_microedges_per_edge
             )
-            + linear_macro_cell_index(width, x, y, z)
+            + generalized_macro_cell_index(index, width)
         )
     else:
         raise HOGException()
@@ -408,7 +346,7 @@ class DoFIndex:
 
     def __init__(
         self,
-        primitive_index: Tuple[int, int, int],
+        primitive_index: Index,
         dof_type: DoFType = DoFType.VERTEX,
         dof_sub_type: Union[None, EdgeType, FaceType, CellType] = None,
         n_dofs_per_primitive: int = 1,
@@ -438,16 +376,28 @@ class DoFIndex:
         """
         Computes the array index of the passed DoF.
         """
+        if geometry.dimensions != len(self.primitive_index):
+            raise HOGException(
+                "Geometry dimension does not match length of micro-primitive index:\n"
+                f"  geometry dimension = {geometry.dimensions}\n"
+                f"  index length       = {len(self.primitive_index)}"
+            )
+
         if self.dof_type == DoFType.VERTEX:
             width = indexing_info.micro_edges_per_macro_edge + 1
             if isinstance(geometry, TriangleElement):
-                return generalized_macro_face_index(self.primitive_index, width)
+                return generalized_macro_face_index(
+                    cast(Index2d, self.primitive_index), width
+                )
             elif isinstance(geometry, TetrahedronElement):
-                return generalized_macro_cell_index(self.primitive_index, width)
+                return generalized_macro_cell_index(
+                    cast(Index3d, self.primitive_index), width
+                )
             else:
                 raise HOGException(
                     "Indexing function not implemented for this geometry."
                 )
+
         elif self.dof_type == DoFType.EDGE:
             width = indexing_info.micro_edges_per_macro_edge
             if isinstance(geometry, TriangleElement):
@@ -472,7 +422,7 @@ class DoFIndex:
                 return order.index(
                     self.dof_sub_type
                 ) * micro_edges_one_type_per_macro_face + generalized_macro_face_index(
-                    self.primitive_index, width
+                    cast(Index2d, self.primitive_index), width
                 )
             elif isinstance(geometry, TetrahedronElement):
                 order = [
@@ -489,20 +439,23 @@ class DoFIndex:
                 ) * num_microvertices_per_cell_from_width(
                     width
                 ) + generalized_macro_cell_index(
-                    self.primitive_index,
+                    cast(Index3d, self.primitive_index),
                     width - (1 if self.dof_sub_type == EdgeType.XYZ else 0),
                 )
             else:
                 raise HOGException(
                     "Indexing function not implemented for this geometry."
                 )
+
         elif self.dof_type == DoFType.VOLUME:
             if isinstance(geometry, TriangleElement):
+                assert isinstance(self.dof_sub_type, FaceType)
+
                 numMicroVolumes = indexing_info.num_microfaces_per_face
 
                 microVolume = facedof_index(
                     indexing_info.level,
-                    self.primitive_index,
+                    cast(Index2d, self.primitive_index),
                     self.dof_sub_type,
                     indexing_info.num_microfaces_per_face,
                     indexing_info.micro_edges_per_macro_edge,
@@ -518,11 +471,13 @@ class DoFIndex:
                     )
                     return idx
             elif isinstance(geometry, TetrahedronElement):
+                assert isinstance(self.dof_sub_type, CellType)
+
                 numMicroVolumes = indexing_info.num_microcells_per_cell
 
                 microVolume = celldof_index(
                     indexing_info.level,
-                    self.primitive_index,
+                    cast(Index3d, self.primitive_index),
                     self.dof_sub_type,
                     indexing_info.micro_edges_per_macro_edge,
                 )
@@ -541,6 +496,7 @@ class DoFIndex:
                 raise HOGException(
                     "Indexing function not implemented for this geometry."
                 )
+
         else:
             raise HOGException(
                 "Indexing function not implemented for this function space."
@@ -561,30 +517,38 @@ class DoFIndex:
 def micro_element_to_vertex_indices(
     geometry: ElementGeometry,
     element_type: Union[FaceType, CellType],
-    element_index: Tuple[int, int, int],
+    element_index: Index,
 ) -> List[DoFIndex]:
     """
     Returns the micro vertex indices of the given micro element, ordered such
     that orientations of mesh entities are locally consistent.
     """
+    if geometry.dimensions != len(element_index):
+        raise HOGException(
+            "Geometry dimension does not match length of micro-primitive index:\n"
+            f"  geometry dimension = {geometry.dimensions}\n"
+            f"  index length       = {len(element_index)}"
+        )
+
     if isinstance(geometry, TriangleElement):
         # fmt: off
         if element_type == FaceType.GRAY:
             return [
-                DoFIndex((element_index[0]    , element_index[1]    , 0)),
-                DoFIndex((element_index[0] + 1, element_index[1]    , 0)),
-                DoFIndex((element_index[0]    , element_index[1] + 1, 0)),
+                DoFIndex((element_index[0]    , element_index[1]    )),
+                DoFIndex((element_index[0] + 1, element_index[1]    )),
+                DoFIndex((element_index[0]    , element_index[1] + 1)),
             ]
         elif element_type == FaceType.BLUE:
             return [
-                DoFIndex((element_index[0] + 1, element_index[1]    , 0)),
-                DoFIndex((element_index[0]    , element_index[1] + 1, 0)),
-                DoFIndex((element_index[0] + 1, element_index[1] + 1, 0)),
+                DoFIndex((element_index[0] + 1, element_index[1]    )),
+                DoFIndex((element_index[0]    , element_index[1] + 1)),
+                DoFIndex((element_index[0] + 1, element_index[1] + 1)),
             ]
         else:
             raise HOGException(f"Invalid face type {element_type} for 2D.")
         # fmt: on
     elif isinstance(geometry, TetrahedronElement):
+        element_index = cast(Index3d, element_index)
         # fmt: off
         if element_type == CellType.WHITE_UP:
             return [
@@ -637,7 +601,7 @@ def micro_element_to_vertex_indices(
 
 def micro_element_to_volume_indices(
     primitive_type: Union[FaceType, CellType],
-    primitive_index: Tuple[int, int, int],
+    primitive_index: Index,
     n_dofs_per_primitive: int,
     memory_layout: VolumeDoFMemoryLayout,
 ) -> List[DoFIndex]:
@@ -663,6 +627,10 @@ def micro_vertex_to_edge_indices(
     """
     Returns a collection of correctly oriented edges in form of DoFIndices from a given set of vertex DoFIndices.
     """
+    if any(geometry.dimensions != len(idx.primitive_index) for idx in vertex_indices):
+        raise HOGException(
+            "Geometry dimension does not match length of micro-primitive index."
+        )
 
     edge_indices: List[DoFIndex] = []
 
@@ -675,22 +643,8 @@ def micro_vertex_to_edge_indices(
         raise HOGException("Indexing function not implemented for this geometry.")
 
     for vertex_start, vertex_end in edges:
-        vertex_idx_start: Tuple[int, int, int]
-        vertex_idx_end: Tuple[int, int, int]
-        if isinstance(geometry, TriangleElement):
-            vertex_idx_start = (
-                vertex_indices[vertex_start][0],
-                vertex_indices[vertex_start][1],
-                0,
-            )
-            vertex_idx_end = (
-                vertex_indices[vertex_end][0],
-                vertex_indices[vertex_end][1],
-                0,
-            )
-        elif isinstance(geometry, TetrahedronElement):
-            vertex_idx_start = vertex_indices[vertex_start].primitive_index
-            vertex_idx_end = vertex_indices[vertex_end].primitive_index
+        vertex_idx_start = vertex_indices[vertex_start].primitive_index
+        vertex_idx_end = vertex_indices[vertex_end].primitive_index
 
         # determine orientation of the edge between the two vertices
         edge_orientation = calc_edge_orientation(vertex_idx_start, vertex_idx_end)
@@ -712,7 +666,7 @@ def array_access_from_dof_index():
 
 def element_vertex_coordinates(
     geometry: ElementGeometry,
-    element_index: Tuple[int, int, int],
+    element_index: Index,
     element_type: Union[FaceType, CellType],
     micro_edges_per_macro_edge: sp.Symbol,
     macro_vertex_coordinates: List[sp.Matrix],
@@ -755,15 +709,17 @@ def element_vertex_coordinates(
     return vertex_coordinates
 
 
-def calc_edge_orientation(
-    vertex_idx_start: Tuple[int, int, int], vertex_idx_end: Tuple[int, int, int]
-) -> EdgeType:
+def calc_edge_orientation(vertex_idx_start: Index, vertex_idx_end: Index) -> EdgeType:
     """
     This function computes the edge type/edge orientation between two given vertex dof indices.
     """
     x = vertex_idx_end[0] - vertex_idx_start[0]
     y = vertex_idx_end[1] - vertex_idx_start[1]
-    z = vertex_idx_end[2] - vertex_idx_start[2]
+
+    if len(vertex_idx_start) > 2 and len(vertex_idx_end) > 2:
+        z = vertex_idx_end[2] - vertex_idx_start[2]
+    else:
+        z = 0
 
     if x == 1 and y == 0 and z == 0:
         return EdgeType.X
@@ -804,10 +760,10 @@ def calc_edge_orientation(
 
 
 def get_edge_dof_index(
-    vertex_idx_start: Tuple[int, int, int],
-    vertex_idx_end: Tuple[int, int, int],
+    vertex_idx_start: Index,
+    vertex_idx_end: Index,
     orientation: EdgeType,
-) -> Tuple[int, int, int]:
+) -> Index:
     """
     This function maps the edge between the vertex dof indices vertex_idx_start and
     vertex_idx_end to the corresponding edge dof index.
@@ -824,12 +780,6 @@ def get_edge_dof_index(
             if vertex_idx_start[1] < vertex_idx_end[1]
             else vertex_idx_end
         )
-    elif orientation == EdgeType.Z:
-        return (
-            vertex_idx_start
-            if vertex_idx_start[2] < vertex_idx_end[2]
-            else vertex_idx_end
-        )
     elif orientation == EdgeType.XY:
         return tuple(
             map(
@@ -841,7 +791,17 @@ def get_edge_dof_index(
                 ),
                 (0, -1, 0),
             )
-        )  # type: ignore
+        )
+
+    if len(vertex_idx_start) != 3 or len(vertex_idx_end) != 3:
+        raise HOGException(f"Got 3d edge orientation {orientation} but not 3d indices.")
+
+    elif orientation == EdgeType.Z:
+        return (
+            vertex_idx_start
+            if vertex_idx_start[2] < vertex_idx_end[2]
+            else vertex_idx_end
+        )
     elif orientation == EdgeType.XZ:
         return tuple(
             map(
@@ -853,7 +813,7 @@ def get_edge_dof_index(
                 ),
                 (0, 0, -1),
             )
-        )  # type: ignore
+        )
     elif orientation == EdgeType.YZ:
         return tuple(
             map(
@@ -865,7 +825,7 @@ def get_edge_dof_index(
                 ),
                 (0, 0, -1),
             )
-        )  # type: ignore
+        )
     elif orientation == EdgeType.XYZ:
         return tuple(
             map(
@@ -877,6 +837,6 @@ def get_edge_dof_index(
                 ),
                 (0, -1, 0),
             )
-        )  # type: ignore
+        )
     else:
         raise HOGException("Unexpected orientation.")
