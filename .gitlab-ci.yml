@@ -37,8 +37,8 @@ form-generation:
     - cd hyteg
     - git status
     - git diff --exit-code --stat
-  when: manual
-  allow_failure: true
+  # when: manual
+  # allow_failure: true
 
 operator-generation:
   stage: integration
