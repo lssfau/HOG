@@ -52,7 +52,6 @@ from hog.forms import (
     gradient,
     full_stokes,
     divdiv,
-    supg_diffusion,
 )
 from hog.manifold_forms import (
     laplace_beltrami,
@@ -511,20 +510,6 @@ form_infos = [
         integrate_rows=[],
     ),
     FormInfo(
-        "supg_diffusion",
-        trial_degree=2,
-        test_degree=2,
-        quad_schemes={2: 4, 3: 4},
-        blending=ExternalMap(),
-    ),
-    FormInfo(
-        "supg_diffusion",
-        trial_degree=2,
-        test_degree=2,
-        quad_schemes={2: 4, 3: 4},
-        blending=AnnulusMap(),
-    ),
-    FormInfo(
         "laplace_beltrami",
         trial_degree=1,
         test_degree=1,
@@ -975,8 +960,6 @@ def form_func(
             component_index=col,
             blending=blending,
         ).integrate(quad, symbolizer)
-    elif name.startswith("supg_d"):
-        raise HOGException(f"SUPG Diffusion is not supported for form generation")
     elif name.startswith("laplace_beltrami"):
         return laplace_beltrami(
             trial, test, geometry, symbolizer, blending=blending
