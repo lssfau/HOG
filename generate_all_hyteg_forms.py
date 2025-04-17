@@ -133,32 +133,34 @@ class FormInfo:
 
     def space_desc(self) -> str:
         """A compact representation of the function spaces."""
+        descr_string = ""
         if self.trial_family == "N1E1":
-            return "n1e1"
+            descr_string = "n1e1"
         elif self.trial_family == "P2 enhanced with Bubble":
             if self.test_family == "P2 enhanced with Bubble":
-                return "p2_plus_bubble"
+                descr_string =  "p2_plus_bubble"
             elif self.test_family == "DG":
-                return f"p2_plus_bubble_to_dg{self.test_degree}"
+                descr_string =  f"p2_plus_bubble_to_dg{self.test_degree}"
         elif self.trial_family == "Lagrange" and self.test_family == "Lagrange":
             if self.trial_degree == self.test_degree:
-                return f"p{self.trial_degree}"
+                descr_string =  f"p{self.trial_degree}"
             else:
-                return f"p{self.trial_degree}_to_p{self.test_degree}"
+                descr_string =  f"p{self.trial_degree}_to_p{self.test_degree}"
         elif self.trial_family == "DG":
             if self.test_family == "DG":
                 if self.trial_degree == self.test_degree:
-                    return f"dg{self.trial_degree}"
+                    descr_string =  f"dg{self.trial_degree}"
                 else:
-                    return f"dg{self.trial_degree}_to_dg{self.test_degree}"
+                    descr_string =  f"dg{self.trial_degree}_to_dg{self.test_degree}"
             elif self.test_family == "Lagrange":
-                return f"dg{self.trial_degree}_to_p{self.test_degree}"
+                descr_string =  f"dg{self.trial_degree}_to_p{self.test_degree}"
             elif self.test_family == "P2 enhanced with Bubble":
-                return f"dg{self.trial_degree}_to_p2_plus_bubble"
+                descr_string =  f"dg{self.trial_degree}_to_p2_plus_bubble"
             else:
                 raise HOGException(
                     f"Do not know how to name combination of DGFunctionSpace with {self.test_family}."
                 )
+        return descr_string
 
     def blending_desc(self) -> str:
         """The type of transformation from the reference element. Either 'blending' or 'affine'."""
