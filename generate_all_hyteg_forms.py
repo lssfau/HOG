@@ -1048,10 +1048,10 @@ def parse_arguments():
         "-g",
         "--geometry",
         type=str,
-        help="build form(s) only for triangle (2D) or tetrahedron (3D) elements; if not speficied we do both",
+        help="build form(s) only for triangle (2D), tetrahedron (3D) elements or embedded triangles (manifolds); if not speficied we do triangle and tetrahedron",
         nargs="?",
-        choices=["triangle", "tetrahedron", "embedded_triangle", "both"],
-        default="both",
+        choices=["triangle", "tetrahedron", "triangle+tetrahedron", "embedded_triangle"],
+        default="triangle+tetrahedron",
     )
     parser.add_argument(
         "-l",
