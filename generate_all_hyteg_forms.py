@@ -114,6 +114,9 @@ class FormInfo:
     test_degree: int
     trial_family: str = "Lagrange"
     test_family: str = "Lagrange"
+    supported_geometry_options: List[str] = field(
+        default_factory=lambda: ["triangle", "tetrahedron"]
+    )
     quad_schemes: Dict[int, Union[int, str]] = field(
         default_factory=lambda: {2: 2, 3: 2}
     )
@@ -138,24 +141,24 @@ class FormInfo:
             descr_string = "n1e1"
         elif self.trial_family == "P2 enhanced with Bubble":
             if self.test_family == "P2 enhanced with Bubble":
-                descr_string =  "p2_plus_bubble"
+                descr_string = "p2_plus_bubble"
             elif self.test_family == "DG":
-                descr_string =  f"p2_plus_bubble_to_dg{self.test_degree}"
+                descr_string = f"p2_plus_bubble_to_dg{self.test_degree}"
         elif self.trial_family == "Lagrange" and self.test_family == "Lagrange":
             if self.trial_degree == self.test_degree:
-                descr_string =  f"p{self.trial_degree}"
+                descr_string = f"p{self.trial_degree}"
             else:
-                descr_string =  f"p{self.trial_degree}_to_p{self.test_degree}"
+                descr_string = f"p{self.trial_degree}_to_p{self.test_degree}"
         elif self.trial_family == "DG":
             if self.test_family == "DG":
                 if self.trial_degree == self.test_degree:
-                    descr_string =  f"dg{self.trial_degree}"
+                    descr_string = f"dg{self.trial_degree}"
                 else:
-                    descr_string =  f"dg{self.trial_degree}_to_dg{self.test_degree}"
+                    descr_string = f"dg{self.trial_degree}_to_dg{self.test_degree}"
             elif self.test_family == "Lagrange":
-                descr_string =  f"dg{self.trial_degree}_to_p{self.test_degree}"
+                descr_string = f"dg{self.trial_degree}_to_p{self.test_degree}"
             elif self.test_family == "P2 enhanced with Bubble":
-                descr_string =  f"dg{self.trial_degree}_to_p2_plus_bubble"
+                descr_string = f"dg{self.trial_degree}_to_p2_plus_bubble"
             else:
                 raise HOGException(
                     f"Do not know how to name combination of DGFunctionSpace with {self.test_family}."
@@ -312,6 +315,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 2},
         integrate_rows=[],
     ),
@@ -321,6 +325,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: "exact"},
         integrate_rows=[],
     ),
@@ -330,6 +335,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 2},
         blending=ExternalMap(),
         integrate_rows=[],
@@ -340,6 +346,7 @@ form_infos = [
         test_degree=2,
         trial_family="P2 enhanced with Bubble",
         test_family="P2 enhanced with Bubble",
+        supported_geometry_options=["triangle"],
         quad_schemes={2: "exact"},
         integrate_rows=[],
     ),
@@ -349,6 +356,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 0},
         integrate_rows=[],
     ),
@@ -358,6 +366,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 2},
         blending=ExternalMap(),
         integrate_rows=[],
@@ -473,6 +482,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 6},
         description="Implements a linear form of type: (k(x), psi) where psi a test function and k = k(x) a vectorial, external function.",
         integrate_rows=[],
@@ -483,6 +493,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 6},
         blending=ExternalMap(),
         description="Implements a linear form of type: (k(x), psi) where psi a test function and k = k(x) a vectorial, external function.",
@@ -506,20 +517,29 @@ form_infos = [
         "laplace_beltrami",
         trial_degree=1,
         test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
         quad_schemes={3: 1},
     ),
     FormInfo(
         "laplace_beltrami",
         trial_degree=1,
         test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
         quad_schemes={3: 3},
         blending=ExternalMap(),
     ),
-    FormInfo("manifold_mass", trial_degree=1, test_degree=1, quad_schemes={2: 1}),
     FormInfo(
         "manifold_mass",
         trial_degree=1,
         test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
+        quad_schemes={2: 1},
+    ),
+    FormInfo(
+        "manifold_mass",
+        trial_degree=1,
+        test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
         quad_schemes={2: 3},
         blending=ExternalMap(),
     ),
@@ -668,6 +688,7 @@ for trial_deg, test_deg, transpose in [
                     test_degree=test_deg,
                     trial_family="P2 enhanced with Bubble",
                     test_family="DG",
+                    supported_geometry_options=["triangle"],
                     quad_schemes={
                         2: 3 + test_deg - 1,
                         3: 4 + test_deg - 1,
@@ -686,6 +707,7 @@ for trial_deg, test_deg, transpose in [
                     test_degree=test_deg,
                     trial_family="DG",
                     test_family="P2 enhanced with Bubble",
+                    supported_geometry_options=["triangle"],
                     quad_schemes={
                         2: trial_deg + 3 - 1,
                         3: trial_deg + 4 - 1,
@@ -703,6 +725,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_vector_mass",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -716,6 +739,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_normal_penalty",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -729,6 +753,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_epsilon",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -742,6 +767,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_epsilon",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 6},
             row_dim=3,
             col_dim=3,
@@ -755,6 +781,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "vector_laplace_beltrami",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -771,6 +798,7 @@ for trial_deg, test_deg, transpose in [(1, 2, True), (2, 1, False)]:
                     "manifold_div",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=1,
                     col_dim=3,
@@ -784,6 +812,7 @@ for trial_deg, test_deg, transpose in [(1, 2, True), (2, 1, False)]:
                     "manifold_divt",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=3,
                     col_dim=1,
@@ -805,6 +834,7 @@ for trial_deg, test_deg, transpose in [
                     "manifold_vector_div",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=1,
                     col_dim=3,
@@ -818,6 +848,7 @@ for trial_deg, test_deg, transpose in [
                     "manifold_vector_divt",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=3,
                     col_dim=1,
@@ -1050,7 +1081,12 @@ def parse_arguments():
         type=str,
         help="build form(s) only for triangle (2D), tetrahedron (3D) elements or embedded triangles (manifolds); if not speficied we do triangle and tetrahedron",
         nargs="?",
-        choices=["triangle", "tetrahedron", "triangle+tetrahedron", "embedded_triangle"],
+        choices=[
+            "triangle",
+            "tetrahedron",
+            "triangle+tetrahedron",
+            "embedded_triangle",
+        ],
         default="triangle+tetrahedron",
     )
     parser.add_argument(
