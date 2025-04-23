@@ -239,8 +239,8 @@ Weak formulation
         for data in it:
             phi = data.trial_shape
             psi = data.test_shape
-            phi_vec = e_vec(geometry.dimensions, component_trial) * phi
-            psi_vec = e_vec(geometry.dimensions, component_test) * psi
+            phi_vec = e_vec(geometry.space_dimension, component_trial) * phi
+            psi_vec = e_vec(geometry.space_dimension, component_test) * psi
             projected_phi = projection * phi_vec
             projected_psi = projection * psi_vec
 
@@ -314,8 +314,8 @@ Weak formulation
         for data in it:
             phi = data.trial_shape
             psi = data.test_shape
-            phi_vec = e_vec(geometry.dimensions, component_trial) * phi
-            psi_vec = e_vec(geometry.dimensions, component_test) * psi
+            phi_vec = e_vec(geometry.space_dimension, component_trial) * phi
+            psi_vec = e_vec(geometry.space_dimension, component_test) * psi
             phi_normal = dot(phi_vec, normal)
             psi_normal = dot(psi_vec, normal)
 
@@ -465,12 +465,12 @@ Weak formulation
         it = element_matrix_iterator(trial, test, geometry)
 
         for data in it:
-            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
+            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
             if not transpose:
                 phi_vec = (
                     projection_mat
                     * (
-                        e_vec(geometry.dimensions, component_index) * data.trial_shape
+                        e_vec(geometry.space_dimension, component_index) * data.trial_shape
                     ).jacobian(ref_symbols_list)
                 ).T
                 phi = data.test_shape
@@ -479,7 +479,7 @@ Weak formulation
                 phi_vec = (
                     projection_mat
                     * (
-                        e_vec(geometry.dimensions, component_index) * data.test_shape
+                        e_vec(geometry.space_dimension, component_index) * data.test_shape
                     ).jacobian(ref_symbols_list)
                 ).T
 
@@ -553,18 +553,18 @@ Weak formulation
         it = element_matrix_iterator(trial, test, geometry)
 
         for data in it:
-            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
+            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
             phi = data.trial_shape
             psi = data.test_shape
             unscaled_phi_projected_grad = (
                 projection_mat
-                * (e_vec(geometry.dimensions, component_trial) * phi).jacobian(
+                * (e_vec(geometry.space_dimension, component_trial) * phi).jacobian(
                     ref_symbols_list
                 )
             ).T
             unscaled_psi_projected_grad = (
                 projection_mat
-                * (e_vec(geometry.dimensions, component_test) * psi).jacobian(
+                * (e_vec(geometry.space_dimension, component_test) * psi).jacobian(
                     ref_symbols_list
                 )
             ).T
@@ -649,18 +649,18 @@ Weak formulation
         it = element_matrix_iterator(trial, test, geometry)
 
         for data in it:
-            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions - 1)
+            ref_symbols_list = symbolizer.ref_coords_as_list(geometry.dimensions)
             phi = data.trial_shape
             psi = data.test_shape
             unscaled_phi_projected_grad = (
                 projection_mat
-                * (e_vec(geometry.dimensions, component_trial) * phi).jacobian(
+                * (e_vec(geometry.space_dimension, component_trial) * phi).jacobian(
                     ref_symbols_list
                 )
             ).T
             unscaled_psi_projected_grad = (
                 projection_mat
-                * (e_vec(geometry.dimensions, component_test) * psi).jacobian(
+                * (e_vec(geometry.space_dimension, component_test) * psi).jacobian(
                     ref_symbols_list
                 )
             ).T
