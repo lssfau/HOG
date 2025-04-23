@@ -28,17 +28,19 @@ test:
   script:
     - pytest hog_tests -v
 
-form-generation:
+generation-of-selected-forms:
   stage: integration
   script:
-    - git clone https://i10git.cs.fau.de/hyteg/hyteg.git
-    - rm -rf hyteg/src/hyteg/forms/form_hyteg_generated
-    - python3 generate_all_hyteg_forms.py hyteg/
-    - cd hyteg
-    - git status
-    - git diff --exit-code --stat
-  # when: manual
-  # allow_failure: true
+    - python3 generate_all_hyteg_forms.py --output generated_forms1.cpp --filter p2_plus
+    - python3 generate_all_hyteg_forms.py --output generated_forms2.cpp --geometry embedded_triangle
+    - python3 generate_all_hyteg_forms.py --output generated_forms3.cpp --filter p1_epsilonvar_blending_q1 --geometry tetrahedron
+    - python3 generate_all_hyteg_forms.py --output generated_forms4.cpp --filter p1_full_stokesvar_blending_q1 --geometry triangle
+
+generation-of-all-forms:
+  stage: integration
+  script:
+    - python3 generate_all_hyteg_forms.py --output generated_forms.cpp
+  when: manual
 
 operator-generation:
   stage: integration
