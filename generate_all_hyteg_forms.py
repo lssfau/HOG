@@ -24,7 +24,6 @@ import sympy as sp
 from sympy.core.cache import clear_cache
 import re
 import quadpy
-from functools import total_ordering
 
 from hog.blending import GeometryMap, IdentityMap, ExternalMap, AnnulusMap
 from hog.element_geometry import (
@@ -110,7 +109,6 @@ def is_implemented_for_scalar_to_vector(row: int, col: int, dim: int) -> bool:
 
 
 @dataclass
-@total_ordering
 class FormInfo:
     form_name: str
     trial_degree: int
@@ -239,12 +237,6 @@ class FormInfo:
             )
         else:
             return geometry in self.supported_geometry_options
-
-    def __eq__(self, other):
-        return self.full_form_name() == other.full_form_name()
-
-    def __lt__(self, other):
-        return self.full_form_name() < other.full_form_name()
 
     def __repr__(self):
         return str(self)
@@ -1215,7 +1207,7 @@ def assemble_list_of_forms_to_generate(
         form_list = aux_list
 
     # sort alphabetically by full form name
-    form_list.sort()
+    form_list.sort(key=FormInfo.full_form_name)
 
     return form_list
 
