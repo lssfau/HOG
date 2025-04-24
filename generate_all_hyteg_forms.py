@@ -1317,9 +1317,9 @@ def main():
 
         target_geometries = []
         if args.geometry == "":
-            target_geometries = geometry_string_to_list(args.geometry)
-        else:
             target_geometries = form_info.supported_geometry_options
+        else:
+            target_geometries = geometry_string_to_list(args.geometry)
 
         if (
             "triangle" in target_geometries
