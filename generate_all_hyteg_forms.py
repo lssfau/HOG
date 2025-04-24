@@ -1214,8 +1214,8 @@ def assemble_list_of_forms_to_generate(
                 aux_list.remove(fi)
         form_list = aux_list
 
-        # sort alphabetically by full form name
-        form_list.sort()
+    # sort alphabetically by full form name
+    form_list.sort()
 
     return form_list
 
@@ -1264,7 +1264,7 @@ def main():
     if args.list:
         logger.info("Available forms:")
         for form_info in filtered_form_infos:
-            logger.info(f"- {form_info.full_form_name().sort()}")
+            logger.info(f"- {form_info.full_form_name()}")
         logger.info("Bye.")
         return
 
