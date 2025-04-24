@@ -53,7 +53,6 @@ def get_logger(level=logging.INFO):
 
 
 class TimedLogger:
-
     LOG_LEVEL = logging.INFO
 
     _CURRENT_DEPTH = 0

@@ -18,7 +18,6 @@ from hog.recipes.common import *
 
 
 def integrand(*, u, v, x, jac_a_boundary, jac_b, matrix, **_):
-
     space_dim = len(x)
 
     A = matrix("A", space_dim, space_dim)

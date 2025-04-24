@@ -919,8 +919,8 @@ def form_func(
             raise HOGException("Invalid call to epsilon form.")
         # the input parameters for the epsilon operators are intended to be switched below (col ~ trial component, row ~ test component)
         return epsilon(
-            TensorialVectorFunctionSpace(trial, single_component=col),
-            TensorialVectorFunctionSpace(test, single_component=row),
+            TrialSpace(TensorialVectorFunctionSpace(trial, single_component=col)),
+            TestSpace(TensorialVectorFunctionSpace(test, single_component=row)),
             geometry,
             symbolizer,
             blending=blending,
@@ -938,8 +938,8 @@ def form_func(
         if row not in [0, 1, 2] or col not in [0, 1, 2]:
             raise HOGException("Invalid call to epsilon form.")
         return full_stokes(
-            TensorialVectorFunctionSpace(trial, single_component=col),
-            TensorialVectorFunctionSpace(test, single_component=row),
+            TrialSpace(TensorialVectorFunctionSpace(trial, single_component=col)),
+            TestSpace(TensorialVectorFunctionSpace(test, single_component=row)),
             geometry,
             symbolizer,
             blending=blending,

@@ -78,6 +78,7 @@ class MultiAssignment(sp.Function):
 
         out_1_expr = MyFunc("alpha", out_idx, input_parameters)
     """
+
     unique_identifier: uuid.UUID
 
     @classmethod
@@ -101,7 +102,7 @@ class MultiAssignment(sp.Function):
     def implementation(self) -> str:
         """
         Should be overridden by subclass.
-        
+
         Returns the implementation (only code block) of the C-function.
         """
         raise HOGException("No implementation has been defined.")
@@ -126,15 +127,17 @@ class MultiAssignment(sp.Function):
 
     def variable_name(self) -> str:
         """
-        Returns the name of a specific instance of the function. 
-        If there are e.g. multiple scalar coefficients, both may have the same function_name() 
+        Returns the name of a specific instance of the function.
+        If there are e.g. multiple scalar coefficients, both may have the same function_name()
         but different variable_name() (e.g. 'alpha' and 'beta').
         """
         return self.args[0]
 
     def symbol_name(self, call_id: int, output_arg: int) -> str:
         """Returns a string that serves as a sympy symbol name."""
-        return f"{self.function_name()}_{self.variable_name()}_out{output_arg}_id{call_id}"
+        return (
+            f"{self.function_name()}_{self.variable_name()}_out{output_arg}_id{call_id}"
+        )
 
     def output_arg(self) -> int:
         return self.args[1]
@@ -160,7 +163,6 @@ class MultiAssignment(sp.Function):
         return self.unique_identifier.int
 
     def __new__(cls, *args):
-
         arg = args[0]
         if not isinstance(arg, sp.Symbol):
             raise HOGException("First argument of MultiAssignment must be a symbol.")

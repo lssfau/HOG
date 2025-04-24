@@ -31,4 +31,10 @@ def integrand(
 ):
     div_u = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
     div_v = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)).trace()
-    return (k["k"] if "k" in k else 1.0) * div_u * div_v * tabulate(jac_a_abs_det) * jac_b_abs_det
+    return (
+        (k["k"] if "k" in k else 1.0)
+        * div_u
+        * div_v
+        * tabulate(jac_a_abs_det)
+        * jac_b_abs_det
+    )

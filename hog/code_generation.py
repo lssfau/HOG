@@ -160,9 +160,9 @@ def replace_multi_assignments(
         # Actually filling the dict.
         for ma in multi_assignments:
             replacement_symbol = replacement_symbols[ma.output_arg()]
-            multi_assignments_replacement_symbols[ma.unique_identifier] = (
-                replacement_symbol
-            )
+            multi_assignments_replacement_symbols[
+                ma.unique_identifier
+            ] = replacement_symbol
 
     if multi_assignments_replacement_symbols:
         with TimedLogger(

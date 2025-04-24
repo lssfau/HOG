@@ -19,7 +19,6 @@ from hog.exception import HOGException
 
 class ElementGeometry:
     def __init__(self, dimensions: int, num_vertices: int, space_dimension: int):
-
         if space_dimension < dimensions:
             raise HOGException(
                 "The space dimension should be larger or equal to the dimension of the geometry."

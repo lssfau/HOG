@@ -35,7 +35,6 @@ from hog.function_space import (
     FunctionSpace,
     TrialSpace,
     TestSpace,
-    TensorialVectorFunctionSpace,
 )
 from hog.math_helpers import inv, det
 from hog.multi_assignment import MultiAssignment
@@ -54,8 +53,8 @@ from hog.dof_symbol import DoFSymbol
 
 
 def create_empty_element_matrix(
-    trial: Union[TrialSpace, TensorialVectorFunctionSpace],
-    test: Union[TestSpace, TensorialVectorFunctionSpace],
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
 ) -> sp.Matrix:
     """
@@ -79,8 +78,8 @@ class ElementMatrixData:
 
 
 def element_matrix_iterator(
-    trial: Union[TrialSpace, TensorialVectorFunctionSpace],
-    test: Union[TestSpace, TensorialVectorFunctionSpace],
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
 ) -> Iterator[ElementMatrixData]:
     """Call this to create a generator to conveniently fill the element matrix."""
