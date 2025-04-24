@@ -226,8 +226,8 @@ class IntegrandSymbols:
 
 def process_integrand(
     integrand: Callable[..., Any],
-    trial: TrialSpace,
-    test: TestSpace,
+    trial: Union[TrialSpace, TensorialVectorFunctionSpace],
+    test: Union[TestSpace, TensorialVectorFunctionSpace],
     volume_geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),

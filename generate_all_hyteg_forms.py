@@ -39,6 +39,7 @@ from hog.function_space import (
     P2PlusBubbleSpace,
     TrialSpace,
     TestSpace,
+    TensorialVectorFunctionSpace,
 )
 from hog.forms import (
     mass,
@@ -918,8 +919,8 @@ def form_func(
             raise HOGException("Invalid call to epsilon form.")
         # the input parameters for the epsilon operators are intended to be switched below (col ~ trial component, row ~ test component)
         return epsilon(
-            trial,
-            test,
+            TensorialVectorFunctionSpace(trial, single_component=col),
+            TensorialVectorFunctionSpace(test, single_component=row),
             geometry,
             symbolizer,
             blending=blending,
@@ -937,8 +938,8 @@ def form_func(
         if row not in [0, 1, 2] or col not in [0, 1, 2]:
             raise HOGException("Invalid call to epsilon form.")
         return full_stokes(
-            trial,
-            test,
+            TensorialVectorFunctionSpace(trial, single_component=col),
+            TensorialVectorFunctionSpace(test, single_component=row),
             geometry,
             symbolizer,
             blending=blending,
@@ -1263,7 +1264,7 @@ def main():
     if args.list:
         logger.info("Available forms:")
         for form_info in filtered_form_infos:
-            logger.info(f"- {form_info.full_form_name()}")
+            logger.info(f"- {form_info.full_form_name().sort()}")
         logger.info("Bye.")
         return
 

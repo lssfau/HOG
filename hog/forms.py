@@ -35,11 +35,12 @@ from hog.fem_helpers import (
 )
 from hog.function_space import (
     FunctionSpace,
+    LagrangianFunctionSpace,
     N1E1Space,
     P2PlusBubbleSpace,
-    TrialSpace,
     TestSpace,
-    LagrangianFunctionSpace,
+    TrialSpace,
+    TensorialVectorFunctionSpace,
 )
 from hog.math_helpers import dot, inv, abs, det, double_contraction
 from hog.quadrature import Quadrature, Tabulation
@@ -319,8 +320,8 @@ Note: :math:`a(k) = 1/8 + k^2` is currently hard-coded and the form is intended 
 
 
 def epsilon(
-    trial: TrialSpace,
-    test: TestSpace,
+    trial: TensorialVectorFunctionSpace,
+    test: TensorialVectorFunctionSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
@@ -631,8 +632,8 @@ def gradient(
 
 
 def full_stokes(
-    trial: TrialSpace,
-    test: TestSpace,
+    trial: TensorialVectorFunctionSpace,
+    test: TensorialVectorFunctionSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
