@@ -339,7 +339,6 @@ class BOUNDARY(LoopStrategy):
         self.element_loops: Dict[Union[FaceType, CellType], LoopOverCoordinate] = dict()
 
     def create_loop(self, dim, element_index, micro_edges_per_macro_edge):
-
         if dim == 2:
             if self.facet_id not in [0, 1, 2]:
                 raise HOGException("Invalid facet ID for BOUNDARY loop strategy in 2D.")

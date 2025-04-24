@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Tuple, Union
 import os
@@ -38,6 +38,7 @@ from hog.function_space import (
     P2PlusBubbleSpace,
     TrialSpace,
     TestSpace,
+    TensorialVectorFunctionSpace,
 )
 from hog.forms import (
     mass,
@@ -114,6 +115,9 @@ class FormInfo:
     test_degree: int
     trial_family: str = "Lagrange"
     test_family: str = "Lagrange"
+    supported_geometry_options: List[str] = field(
+        default_factory=lambda: ["triangle", "tetrahedron"]
+    )
     quad_schemes: Dict[int, Union[int, str]] = field(
         default_factory=lambda: {2: 2, 3: 2}
     )
@@ -138,24 +142,24 @@ class FormInfo:
             descr_string = "n1e1"
         elif self.trial_family == "P2 enhanced with Bubble":
             if self.test_family == "P2 enhanced with Bubble":
-                descr_string =  "p2_plus_bubble"
+                descr_string = "p2_plus_bubble"
             elif self.test_family == "DG":
-                descr_string =  f"p2_plus_bubble_to_dg{self.test_degree}"
+                descr_string = f"p2_plus_bubble_to_dg{self.test_degree}"
         elif self.trial_family == "Lagrange" and self.test_family == "Lagrange":
             if self.trial_degree == self.test_degree:
-                descr_string =  f"p{self.trial_degree}"
+                descr_string = f"p{self.trial_degree}"
             else:
-                descr_string =  f"p{self.trial_degree}_to_p{self.test_degree}"
+                descr_string = f"p{self.trial_degree}_to_p{self.test_degree}"
         elif self.trial_family == "DG":
             if self.test_family == "DG":
                 if self.trial_degree == self.test_degree:
-                    descr_string =  f"dg{self.trial_degree}"
+                    descr_string = f"dg{self.trial_degree}"
                 else:
-                    descr_string =  f"dg{self.trial_degree}_to_dg{self.test_degree}"
+                    descr_string = f"dg{self.trial_degree}_to_dg{self.test_degree}"
             elif self.test_family == "Lagrange":
-                descr_string =  f"dg{self.trial_degree}_to_p{self.test_degree}"
+                descr_string = f"dg{self.trial_degree}_to_p{self.test_degree}"
             elif self.test_family == "P2 enhanced with Bubble":
-                descr_string =  f"dg{self.trial_degree}_to_p2_plus_bubble"
+                descr_string = f"dg{self.trial_degree}_to_p2_plus_bubble"
             else:
                 raise HOGException(
                     f"Do not know how to name combination of DGFunctionSpace with {self.test_family}."
@@ -225,6 +229,15 @@ class FormInfo:
             f"quadrature schemes/degree (dimension): {self.quad_schemes}, blending: {self.blending}"
         )
 
+    def supports_geometry(self, geometry: str) -> bool:
+        """Check if form supports a certain type of geometric element."""
+        if geometry == "triangle+tetrahedron":
+            return ("triangle" in self.supported_geometry_options) and (
+                "tetrahedron" in self.supported_geometry_options
+            )
+        else:
+            return geometry in self.supported_geometry_options
+
     def __repr__(self):
         return str(self)
 
@@ -277,6 +290,7 @@ form_infos = [
         test_degree=2,
         trial_family="P2 enhanced with Bubble",
         test_family="P2 enhanced with Bubble",
+        supported_geometry_options=["triangle"],
         quad_schemes={2: "exact"},
         integrate_rows=[],
     ),
@@ -312,6 +326,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 2},
         integrate_rows=[],
     ),
@@ -321,6 +336,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: "exact"},
         integrate_rows=[],
     ),
@@ -330,6 +346,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 2},
         blending=ExternalMap(),
         integrate_rows=[],
@@ -340,6 +357,7 @@ form_infos = [
         test_degree=2,
         trial_family="P2 enhanced with Bubble",
         test_family="P2 enhanced with Bubble",
+        supported_geometry_options=["triangle"],
         quad_schemes={2: "exact"},
         integrate_rows=[],
     ),
@@ -349,6 +367,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 0},
         integrate_rows=[],
     ),
@@ -358,6 +377,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 2},
         blending=ExternalMap(),
         integrate_rows=[],
@@ -473,6 +493,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 6},
         description="Implements a linear form of type: (k(x), psi) where psi a test function and k = k(x) a vectorial, external function.",
         integrate_rows=[],
@@ -483,6 +504,7 @@ form_infos = [
         test_degree=1,
         trial_family="N1E1",
         test_family="N1E1",
+        supported_geometry_options=["tetrahedron"],
         quad_schemes={3: 6},
         blending=ExternalMap(),
         description="Implements a linear form of type: (k(x), psi) where psi a test function and k = k(x) a vectorial, external function.",
@@ -506,27 +528,36 @@ form_infos = [
         "laplace_beltrami",
         trial_degree=1,
         test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
         quad_schemes={3: 1},
     ),
     FormInfo(
         "laplace_beltrami",
         trial_degree=1,
         test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
         quad_schemes={3: 3},
         blending=ExternalMap(),
     ),
-    FormInfo("manifold_mass", trial_degree=1, test_degree=1, quad_schemes={2: 1}),
     FormInfo(
         "manifold_mass",
         trial_degree=1,
         test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
+        quad_schemes={2: 1},
+    ),
+    FormInfo(
+        "manifold_mass",
+        trial_degree=1,
+        test_degree=1,
+        supported_geometry_options=["embedded_triangle"],
         quad_schemes={2: 3},
         blending=ExternalMap(),
     ),
 ]
 
 for d in [1, 2]:
-    for epstype in ["cc", "var"]:
+    for epstype in ["var"]:
         form_infos.append(
             FormInfo(
                 f"epsilon{epstype}",
@@ -540,7 +571,7 @@ for d in [1, 2]:
         )
 
 for d in [1, 2]:
-    for epstype in ["cc", "var"]:
+    for epstype in ["var"]:
         form_infos.append(
             FormInfo(
                 f"epsilon{epstype}",
@@ -668,6 +699,7 @@ for trial_deg, test_deg, transpose in [
                     test_degree=test_deg,
                     trial_family="P2 enhanced with Bubble",
                     test_family="DG",
+                    supported_geometry_options=["triangle"],
                     quad_schemes={
                         2: 3 + test_deg - 1,
                         3: 4 + test_deg - 1,
@@ -686,6 +718,7 @@ for trial_deg, test_deg, transpose in [
                     test_degree=test_deg,
                     trial_family="DG",
                     test_family="P2 enhanced with Bubble",
+                    supported_geometry_options=["triangle"],
                     quad_schemes={
                         2: trial_deg + 3 - 1,
                         3: trial_deg + 4 - 1,
@@ -703,6 +736,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_vector_mass",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -716,6 +750,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_normal_penalty",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -729,6 +764,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_epsilon",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -742,6 +778,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "manifold_epsilon",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 6},
             row_dim=3,
             col_dim=3,
@@ -755,6 +792,7 @@ for blending in [IdentityMap(), ExternalMap()]:
             "vector_laplace_beltrami",
             trial_degree=2,
             test_degree=2,
+            supported_geometry_options=["embedded_triangle"],
             quad_schemes={2: 3},
             row_dim=3,
             col_dim=3,
@@ -771,6 +809,7 @@ for trial_deg, test_deg, transpose in [(1, 2, True), (2, 1, False)]:
                     "manifold_div",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=1,
                     col_dim=3,
@@ -784,6 +823,7 @@ for trial_deg, test_deg, transpose in [(1, 2, True), (2, 1, False)]:
                     "manifold_divt",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=3,
                     col_dim=1,
@@ -805,6 +845,7 @@ for trial_deg, test_deg, transpose in [
                     "manifold_vector_div",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=1,
                     col_dim=3,
@@ -818,6 +859,7 @@ for trial_deg, test_deg, transpose in [
                     "manifold_vector_divt",
                     trial_degree=trial_deg,
                     test_degree=test_deg,
+                    supported_geometry_options=["embedded_triangle"],
                     quad_schemes={2: 3},
                     row_dim=3,
                     col_dim=1,
@@ -869,8 +911,8 @@ def form_func(
             raise HOGException("Invalid call to epsilon form.")
         # the input parameters for the epsilon operators are intended to be switched below (col ~ trial component, row ~ test component)
         return epsilon(
-            trial,
-            test,
+            TrialSpace(TensorialVectorFunctionSpace(trial, single_component=col)),
+            TestSpace(TensorialVectorFunctionSpace(test, single_component=row)),
             geometry,
             symbolizer,
             blending=blending,
@@ -888,8 +930,8 @@ def form_func(
         if row not in [0, 1, 2] or col not in [0, 1, 2]:
             raise HOGException("Invalid call to epsilon form.")
         return full_stokes(
-            trial,
-            test,
+            TrialSpace(TensorialVectorFunctionSpace(trial, single_component=col)),
+            TestSpace(TensorialVectorFunctionSpace(test, single_component=row)),
             geometry,
             symbolizer,
             blending=blending,
@@ -1028,7 +1070,18 @@ def form_func(
 
 
 def parse_arguments():
-    parser = ArgumentParser(description="Generates all HyTeG forms.")
+    parser = ArgumentParser(
+        formatter_class=RawDescriptionHelpFormatter,
+        description="""Generates (selected) HyTeG forms
+
+Selection of forms to generate is based on the --filter and --geometry arguments:
+
+* if neither --geometry, nor --filter is given, we generate all defined forms
+* if only --filter is given, all forms matching the filter expression are generated
+* if only --geometry is given, all forms that support the given geometric element type are generated
+* if both --filter and --geometry are given, the intersection of both sets is generated""",
+    )
+
     parser.add_argument(
         "hyteg_base_path",
         type=str,
@@ -1041,23 +1094,28 @@ def parse_arguments():
         "-f",
         "--filter",
         type=str,
-        help="only generate forms that include the passed string (which can be a Python regular expression) (works in combination with --list to show all filtered forms and abort)",
+        help="only generate forms that include the passed string (which can be a Python regular expression)",
         default="",
     )
     parser.add_argument(
         "-g",
         "--geometry",
         type=str,
-        help="build form(s) only for triangle (2D) or tetrahedron (3D) elements; if not speficied we do both",
+        help="build form(s) only for triangle (2D), tetrahedron (3D) elements or embedded triangles (manifolds)",
         nargs="?",
-        choices=["triangle", "tetrahedron", "embedded_triangle", "both"],
-        default="both",
+        choices=[
+            "triangle",
+            "tetrahedron",
+            "triangle+tetrahedron",
+            "embedded_triangle",
+        ],
+        default="",
     )
     parser.add_argument(
         "-l",
         "--list",
         action="store_true",
-        help="list all available forms by name and abort (works in combination with --filter to show all filtered forms and abort)",
+        help="list all forms that would be generated for given values of --filter and --geometry; but do not generate anything",
     )
     parser.add_argument(
         "-o",
@@ -1092,6 +1150,78 @@ def valid_base_dir(hyteg_base_path):
     return True
 
 
+def assemble_list_of_forms_to_generate(
+    form_infos: List[FormInfo], logger: logging.Logger
+) -> List[FormInfo]:
+    """From the list of all defined forms extract those to generate.
+
+    The extraction works as follows, depending on the command-line
+    options given:
+
+    - if neither --geometry, nor --filter was given, we return all defined forms
+    - if only --filter was given, it is applied to the list of all defined forms
+    - if only --geometry was given, we extract all forms that support the given geometry element type
+    - if both --filter and --geometry was given, determine the intersection of both sets
+    """
+
+    form_list: List[FormInfo] = []
+
+    parser, args = parse_arguments()
+
+    if args.geometry == "" and args.filter == "":
+        form_list = form_infos
+        logger.info(
+            "No '--filter' and no '--geometry' given: selecting all forms available"
+        )
+
+    elif args.geometry != "" and args.filter == "":
+        logger.info(
+            f"No '--filter' given, extracting all forms supporting '--geometry {args.geometry}'"
+        )
+        for fi in form_infos:
+            if fi.supports_geometry(args.geometry):
+                form_list.append(fi)
+
+    elif args.geometry == "" and args.filter != "":
+        logger.info(f"Extracting forms based on '--filter {args.filter}'")
+        form_list = [
+            fi for fi in form_infos if re.search(args.filter, fi.full_form_name())
+        ]
+
+    else:
+        logger.info(f"Extracting forms based on '--filter {args.filter}'")
+        form_list = [
+            fi for fi in form_infos if re.search(args.filter, fi.full_form_name())
+        ]
+        logger.info(f"Found {len(form_list)} matching forms")
+        for fi in form_list:
+            logger.info(f"* {fi.full_form_name()}")
+
+        logger.info(f"Checking forms against '--geometry {args.geometry}'")
+
+        aux_list = form_list.copy()
+        for fi in form_list:
+            if not fi.supports_geometry(args.geometry):
+                logger.info(f"* deselecting '{fi.full_form_name()}' again")
+                aux_list.remove(fi)
+        form_list = aux_list
+
+    # sort alphabetically by full form name
+    form_list.sort(key=FormInfo.full_form_name)
+
+    return form_list
+
+
+def geometry_string_to_list(geometry_string: str) -> List[str]:
+    glist: List[str] = []
+    if geometry_string == "triangle+tetrahedron":
+        glist.append("triangle")
+        glist.append("tetrahedron")
+    else:
+        glist.append(geometry_string)
+    return glist
+
+
 def main():
     clear_cache()
 
@@ -1121,9 +1251,7 @@ def main():
     logger.info("### HyTeG Operator Generator ###")
     logger.info("################################")
 
-    filtered_form_infos = [
-        fi for fi in form_infos if re.search(args.filter, fi.full_form_name())
-    ]
+    filtered_form_infos = assemble_list_of_forms_to_generate(form_infos, logger)
 
     if args.list:
         logger.info("Available forms:")
@@ -1140,24 +1268,16 @@ def main():
 
     symbolizer = Symbolizer()
 
-    # determine geometries to use
-    geometries: List[ElementGeometry]
-    if args.geometry == "triangle":
-        logger.info(f"- selected geometry: triangle")
-        geometries = [TriangleElement()]
-    elif args.geometry == "tetrahedron":
-        logger.info(f"- selected geometry: tetrahedron")
-        geometries = [TetrahedronElement()]
-    elif args.geometry == "embedded_triangle":
-        logger.info(f"- selected geometry: embedded triangle")
-        geometries = [TriangleElement(space_dimension=3)]
-    else:
-        logger.info(f"- selected geometries: triangle, tetrahedron")
-        geometries = [TriangleElement(), TetrahedronElement()]
+    # no forms -> nothing to do
+    if len(filtered_form_infos) == 0:
+        logger.info(f"Found no matching forms to generate.")
+        logger.info(f"Bye.")
+        quit()
 
     logger.info(
         f"Generating {len(filtered_form_infos)} form{'s' if len(filtered_form_infos) > 1 else ''}:"
     )
+
     for form_info in filtered_form_infos:
         logger.info(f"- {form_info.full_form_name()}")
 
@@ -1184,6 +1304,30 @@ def main():
             test = TestSpace(LagrangianFunctionSpace(form_info.test_degree, symbolizer))
 
         form_classes = []
+
+        # determine geometries to use for this form
+        geometries: List[ElementGeometry] = []
+
+        target_geometries = []
+        if args.geometry == "":
+            target_geometries = form_info.supported_geometry_options
+        else:
+            target_geometries = geometry_string_to_list(args.geometry)
+
+        if (
+            "triangle" in target_geometries
+            or "triangle+tetrahedron" in target_geometries
+        ):
+            geometries.append(TriangleElement())
+
+        if (
+            "tetrahedron" in target_geometries
+            or "triangle+tetrahedron" in target_geometries
+        ):
+            geometries.append(TetrahedronElement())
+
+        if "embedded_triangle" in target_geometries:
+            geometries.append(TriangleElement(space_dimension=3))
 
         for row in range(0, form_info.row_dim):
             for col in range(0, form_info.col_dim):

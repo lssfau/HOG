@@ -746,7 +746,7 @@ def apply_clang_format(
         if not fail_if_no_binary:
             return
         else:
-            raise HOGException( f"Could not find clang-format binary '{binary}'.")
+            raise HOGException(f"Could not find clang-format binary '{binary}'.")
 
     cmd = [binary, "-i", cpp_file_path]
 

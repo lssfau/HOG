@@ -30,6 +30,9 @@ def integrand(
     tabulate,
     **_,
 ):
-    return dot(
-         (jac_b_inv.T * jac_a_inv.T * grad_k["rho"]) / k["rho"], u
-    ) * v * tabulate(jac_a_abs_det) * jac_b_abs_det
+    return (
+        dot((jac_b_inv.T * jac_a_inv.T * grad_k["rho"]) / k["rho"], u)
+        * v
+        * tabulate(jac_a_abs_det)
+        * jac_b_abs_det
+    )

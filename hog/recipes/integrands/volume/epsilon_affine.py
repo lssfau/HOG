@@ -27,7 +27,6 @@ def integrand(
     tabulate,
     **_,
 ):
-
     grad_u_chain = jac_a_inv.T * grad_u
     grad_v_chain = jac_a_inv.T * grad_v
 
