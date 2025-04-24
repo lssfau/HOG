@@ -564,7 +564,7 @@ form_infos = [
 ]
 
 for d in [1, 2]:
-    for epstype in ["cc", "var"]:
+    for epstype in ["var"]:
         form_infos.append(
             FormInfo(
                 f"epsilon{epstype}",
@@ -578,7 +578,7 @@ for d in [1, 2]:
         )
 
 for d in [1, 2]:
-    for epstype in ["cc", "var"]:
+    for epstype in ["var"]:
         form_infos.append(
             FormInfo(
                 f"epsilon{epstype}",
@@ -1178,34 +1178,33 @@ def assemble_list_of_forms_to_generate(
     if args.geometry == "" and args.filter == "":
         form_list = form_infos
         logger.info(
-            "no '--filter' and no '--geometry' given: selecting all forms available"
+            "No '--filter' and no '--geometry' given: selecting all forms available"
         )
 
     elif args.geometry != "" and args.filter == "":
         logger.info(
-            f"no '--filter' given, extracting all forms supporting '--geometry {args.geometry}'"
+            f"No '--filter' given, extracting all forms supporting '--geometry {args.geometry}'"
         )
         for fi in form_infos:
             if fi.supports_geometry(args.geometry):
                 form_list.append(fi)
 
     elif args.geometry == "" and args.filter != "":
-        logger.info(f"extracting forms based on '--filter {args.filter}'")
+        logger.info(f"Extracting forms based on '--filter {args.filter}'")
         form_list = [
             fi for fi in form_infos if re.search(args.filter, fi.full_form_name())
         ]
 
     else:
-        logger.info(f"extracting forms based on '--filter {args.filter}'")
-        logger.info(f"filtering for '{args.filter}'")
+        logger.info(f"Extracting forms based on '--filter {args.filter}'")
         form_list = [
             fi for fi in form_infos if re.search(args.filter, fi.full_form_name())
         ]
-        logger.info(f"found {len(form_list)} matching forms")
+        logger.info(f"Found {len(form_list)} matching forms")
         for fi in form_list:
             logger.info(f"* {fi.full_form_name()}")
 
-        logger.info(f"checking forms against '--geometry {args.geometry}'")
+        logger.info(f"Checking forms against '--geometry {args.geometry}'")
 
         aux_list = form_list.copy()
         for fi in form_list:
@@ -1215,7 +1214,7 @@ def assemble_list_of_forms_to_generate(
         form_list = aux_list
 
         # sort alphabetically by full form name
-        print(form_list.sort())
+        form_list.sort()
 
     return form_list
 
@@ -1275,6 +1274,12 @@ def main():
             )
 
     symbolizer = Symbolizer()
+
+    # no forms -> nothing to do
+    if len(filtered_form_infos) == 0:
+        logger.info(f"Found no matching forms to generate.")
+        logger.info(f"Bye.")
+        quit()
 
     logger.info(
         f"Generating {len(filtered_form_infos)} form{'s' if len(filtered_form_infos) > 1 else ''}:"
