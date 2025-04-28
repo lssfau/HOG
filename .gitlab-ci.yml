@@ -1,7 +1,6 @@
 stages:
   - test
   - integration
-  - form_generation
   - deploy
 
 default:
@@ -30,13 +29,13 @@ test:
     - pytest hog_tests -v
 
 generation-of-selected-forms:
-  stage: form_generation
+  stage: integration
   script:
     - python3 generate_all_hyteg_forms.py --output generated_forms1.cpp --filter p2_plus
     - python3 generate_all_hyteg_forms.py --output generated_forms2.cpp --geometry embedded_triangle --filter p2_vector_laplace_beltrami_affine_q3
-    - python3 generate_all_hyteg_forms.py --output generated_forms2.cpp --geometry embedded_triangle --filter "^p1_[lm]"
-    - python3 generate_all_hyteg_forms.py --output generated_forms3.cpp --filter p1_epsilonvar_blending_q1 --geometry tetrahedron
-    - python3 generate_all_hyteg_forms.py --output generated_forms4.cpp --filter p1_full_stokesvar_blending_q1 --geometry triangle
+    - python3 generate_all_hyteg_forms.py --output generated_forms3.cpp --geometry embedded_triangle --filter "^p1_[lm]"
+    - python3 generate_all_hyteg_forms.py --output generated_forms4.cpp --filter p1_epsilonvar_blending_q1 --geometry tetrahedron
+    - python3 generate_all_hyteg_forms.py --output generated_forms5.cpp --filter p1_full_stokesvar_blending_q1 --geometry triangle
 
 operator-generation:
   stage: integration
