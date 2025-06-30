@@ -554,8 +554,30 @@ def divergence(
     blending: GeometryMap = IdentityMap(),
     component_index: int = 0,
     rotation_wrapper: bool = False,
+    compressible: bool = False,
+    density_function_space: Optional[FunctionSpace] = None,
 ) -> Form:
-    docstring = f"""
+    if compressible:
+        docstring = f"""
+Divergence Compressible.
+
+Component:    {component_index}
+Geometry map: {blending}
+
+Weak formulation
+
+    u: trial function   (vectorial space: {trial})\n
+    v: test function    (scalar space:    {test})\n
+    𝜌: density function (scalar space:    {density_function_space})
+    
+    ∫ - ( ∇ · ( 𝜌u ) ) v
+
+    which can be then be written as,
+    
+    ∫ -( 𝜌 ∇·u + u · ∇𝜌 ) v
+"""
+    else:
+        docstring = f"""
 Divergence.
 
 Component:    {component_index}
@@ -563,29 +585,51 @@ Geometry map: {blending}
 
 Weak formulation
 
-    u: trial function (vectorial space: {trial})
-    v: test function  (scalar space:    {test})
+    u: trial function (vectorial space: {trial})\n
+    v: test function  (scalar space:    {test})\n
 
     ∫ - ( ∇ · u ) v
 """
 
     from hog.recipes.integrands.volume.divergence import integrand
+    from hog.recipes.integrands.volume.divergence import integrand_compressible
     from hog.recipes.integrands.volume.rotation import RotationType
 
-    return process_integrand(
-        integrand,
-        trial,
-        test,
-        geometry,
-        symbolizer,
-        blending=blending,
-        component_index=component_index,
-        is_symmetric=False,
-        docstring=docstring,
-        rot_type=RotationType.POST_MULTIPLY
-        if rotation_wrapper
-        else RotationType.NO_ROTATION,
-    )
+    if compressible:
+        if not trial.is_vectorial:
+            raise HOGException(
+                "Compressible version of divergence form only supports vectorial functions"
+            )
+
+        return process_integrand(
+            integrand_compressible,
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            is_symmetric=False,
+            docstring=docstring,
+            fe_coefficients={"rho": density_function_space},
+            rot_type=RotationType.POST_MULTIPLY
+            if rotation_wrapper
+            else RotationType.NO_ROTATION,
+        )
+    else:
+        return process_integrand(
+            integrand,
+            trial,
+            test,
+            geometry,
+            symbolizer,
+            blending=blending,
+            component_index=component_index,
+            is_symmetric=False,
+            docstring=docstring,
+            rot_type=RotationType.POST_MULTIPLY
+            if rotation_wrapper
+            else RotationType.NO_ROTATION,
+        )
 
 
 def gradient(
