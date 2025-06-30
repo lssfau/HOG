@@ -2,7 +2,7 @@
 
 islpy
 ndim @ https://github.com/sigma-py/ndim/archive/refs/tags/v0.1.6.tar.gz
-numpy==1.24.3
+numpy==1.26.4
 poly-cse-py
 pystencils @ git+https://i10git.cs.fau.de/hyteg/pystencils.git@4a790e1c48f32c07fc4058de9b20734bcea9cca0
 pytest==7.3.1
