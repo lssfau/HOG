@@ -44,3 +44,26 @@ def integrand(
             * tabulate(v * jac_a_abs_det)
             * jac_b_abs_det
         )
+
+
+def integrand_compressible(
+    *,
+    jac_a_inv,
+    jac_a_abs_det,
+    jac_b_inv,
+    jac_b_abs_det,
+    u,
+    grad_u,
+    v,
+    k,
+    grad_k,
+    tabulate,
+    **_,
+):
+    rho = k["rho"]
+    grad_rho = jac_b_inv.T * tabulate(jac_a_inv.T * grad_k["rho"])
+
+    div_u = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
+    div_rho_u = rho * div_u + dot(grad_rho, u)[0]
+
+    return (-div_rho_u) * tabulate(v * jac_a_abs_det) * jac_b_abs_det
