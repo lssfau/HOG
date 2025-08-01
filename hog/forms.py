@@ -684,6 +684,7 @@ def full_stokes(
     component_test: int = 0,
     variable_viscosity: bool = True,
     coefficient_function_space: Optional[FunctionSpace] = None,
+    rotation_wrapper: bool = False,
 ) -> Form:
     docstring = f"""
 Implements the fully coupled viscous operator of the Stokes problem.
@@ -715,6 +716,7 @@ where
     ε(w) := (1/2) (∇w + (∇w)ᵀ)
 """
 
+    from hog.recipes.integrands.volume.rotation import RotationType
     from hog.recipes.integrands.volume.full_stokes import integrand
 
     return process_integrand(
@@ -727,6 +729,9 @@ where
         is_symmetric=trial == test,
         docstring=docstring,
         fe_coefficients={"mu": coefficient_function_space},
+        rot_type=RotationType.PRE_AND_POST_MULTIPLY
+        if rotation_wrapper
+        else RotationType.NO_ROTATION,
     )
 
 
