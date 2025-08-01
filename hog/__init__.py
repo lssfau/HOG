@@ -27,6 +27,7 @@ __all__ = [
     "forms_facets",
     "forms_facets_vectorial",
     "forms",
+    "forms_boundary",
     "forms_vectorial",
     "function_space",
     "hyteg_code_generation",
