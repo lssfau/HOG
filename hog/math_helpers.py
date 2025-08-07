@@ -45,6 +45,17 @@ def det(mat: sp.Matrix) -> sp.Expr:
 def abs(expr: sp.Expr) -> sp.Expr:
     return sp.Abs(expr)
 
+def padRows(vec: sp.Matrix, expectedDim: int, defaultValue: float) -> sp.Matrix:
+    if vec.shape[0] >= expectedDim:
+        return vec
+    else:
+        return vec.col_join(sp.ones(expectedDim-vec.shape[0], vec.shape[1])*defaultValue)
+    
+def padCols(vec: sp.Matrix, expectedDim: int, defaultValue: float) -> sp.Matrix:
+    if vec.shape[1] >= expectedDim:
+        return vec
+    else:
+        return vec.row_join(sp.ones(vec.shape[0], expectedDim-vec.shape[1])*defaultValue)    
 
 def grad(f: Union[sp.Expr, sp.MatrixBase], symbols: List[sp.Symbol]) -> sp.MatrixBase:
     """Returns the gradient of the passed sympy expression with respect to the passed symbols."""
@@ -190,8 +201,154 @@ def vol(vertices: List[sp.Matrix]) -> sp.Expr:
         return sp.sqrt(dd[0, 0])
     elif len(vertices) == 3:
         # a triangle
-        ab = vertices[1] - vertices[0]
-        ac = vertices[2] - vertices[0]
-        return 0.5 * norm(cross(ab, ac))
+        ab = padRows(vertices[1] - vertices[0], 3, 0)
+        ac = padRows(vertices[2] - vertices[0], 3, 0)
+        return sp.Rational(1,2) * norm(cross(ab, ac))
+    elif len(vertices) == 4:
+        # a tetrahedron
+        ad = vertices[0]-vertices[3]
+        bd = vertices[1]-vertices[3]
+        cd = vertices[2]-vertices[3]
+
+        return sp.Abs(ad.dot(bd.cross(cd))) * sp.Rational(1,6)  
     else:
         raise HOGException(f"Not implemented for {len(vertices)} vertices")
+    
+def diameter(vertices: List[sp.Matrix]) -> sp.Expr:
+    """Returns the diameter of the passed simplex, calculated as double the circumcircle / circumsphere radius."""
+    if len(vertices) == 2:
+        # a line
+        return norm(vertices[1]-vertices[0])
+    elif len(vertices) == 3:
+        # a triangle
+        a = norm(vertices[1]-vertices[2])
+        b = norm(vertices[2]-vertices[0])
+        c = norm(vertices[0]-vertices[1])
+
+        return 2 * ( a * b * c / (4 * vol(vertices)) )
+    elif len(vertices) == 4:
+        # a tetrahedron
+        a       = norm(vertices[0]-vertices[3])
+        b       = norm(vertices[1]-vertices[3])
+        c       = norm(vertices[2]-vertices[3])
+        a_tilde = norm(vertices[1]-vertices[2])
+        b_tilde = norm(vertices[2]-vertices[0])
+        c_tilde = norm(vertices[0]-vertices[1])
+
+        # heron type formula (from Cayley Menger determinant)
+        s = (a*a_tilde + b*b_tilde + c*c_tilde) * sp.Rational(1,2)
+
+        return 2 * ( sp.sqrt(s * (s - a*a_tilde) * (s- b*b_tilde) * (s - c*c_tilde)) / (6 * vol(vertices)) ) 
+    else:
+        raise HOGException(f"Not implemented for {len(vertices)} vertices")    
+
+def deltaSUPG(abs_u: sp.Expr, h: sp.Expr, k: sp. Expr, approximateXi: bool = True) -> sp.Expr:
+    """
+    Returns an expression for the SUPG scaling delta.
+    The exp function cannot be vectorized in pystencils yet.
+    If approximateXi is True this returns an approximation that can be vectorized.
+    """
+    Pe = abs_u * h / ( 2 * k )
+    
+    if approximateXi:
+        # Taylor near 0, Cubic spline in a second region, 1 - 1/Pe for the rest
+        xi = sp.Piecewise(
+            (Pe / sp.S(3) - Pe**3 / sp.S(45)                                                                   , Pe <= 0.58999997807912),
+            (-0.00415539574874170*Pe**3 - 0.0357573472773785*Pe**2 + 0.359398130738144*Pe - 0.00649542596882084, Pe <= 1.50796949894352),
+            ( 0.00608120216343659*Pe**3 - 0.0820667795509200*Pe**2 + 0.429231342120035*Pe - 0.04159754356120940, Pe <= 3.3717174059858 ),
+            ( 0.00311255780252234*Pe**3 - 0.0520384899592918*Pe**2 + 0.327984435431960*Pe + 0.07219444229959040, Pe <= 4.85000000293136),
+            ((sp.S(1) - sp.S(1)/Pe)                                                                            , sp.sympify(True)      )
+        )
+    else:
+        xi = sp.S(1) + sp.S(2) / ( sp.exp( 2 * Pe ) - sp.S(1) ) - sp.S(1) / Pe
+
+    return h / ( 2 * abs_u ) * xi 
+
+def simpleViscosityProfile(x: sp.Expr) -> sp.Expr:
+    """
+    Returns a simple viscosity profile with jumps. 
+    Viscosity profile similar to the one used in
+     
+    Lin, Yi-An and Colli, Lorenzo and Wu, Jonny
+    NW Pacific-Panthalassa Intra-Oceanic Subduction During Mesozoic Times From Mantle Convection and Geoid Models
+    Geochemistry, Geophysics, Geosystems, Volume 23, Number 11, Pages e2022GC010514, 2022
+    https://doi.org/10.1029/2022GC010514
+       
+    but with constant viscosity in the lower mantle.
+
+    Can be used to compare to TERRA (https://doi.org/10.1126/science.280.5360.91) models.
+    """
+
+    etaSimple = sp.Piecewise(
+        (1.25e+23, x <= 0.75),
+        (3.54619628745821e+26*x**2 - 5.43063135866058e+26*x + 2.07948810730019e+26, x <= 0.758405172413793),
+        (1.86568634321297e+26*x**2 - 2.88161649064377e+26*x + 1.11289507706839e+26, x <= 0.764008620689655),
+        (1.06929133385375e+26*x**2 - 1.66471118539444e+26*x + 6.48032005181657e+25, x <= 0.772413793103448),
+        (1.5e+22 , x <= 0.85172414),
+        (3.85797403183421e+25*x**2 - 6.69652358427785e+25*x + 2.90638521562008e+25, x <= 0.85948275862069),
+        (2.2385551110116e+25*x**2 - 3.91279830141555e+25*x + 1.71010327294176e+25 , x <= 0.864655172413793),
+        (1.38463307937214e+25*x**2 - 2.43610209842523e+25*x + 1.07168676794207e+25, x <= 0.872413793103448),
+        (2.5e+21, x <= 0.93793103),
+        (1.95514620595374e+25*x**2 - 3.65353225743697e+25*x + 1.70704057747143e+25, x <= 0.953448275862069),
+        (5.10752322498446e+25*x**2 - 9.66478912476108e+25*x + 4.57275182542852e+25, x <= 0.963793103448276),
+        (1.28735188889197e+26*x**2 - 2.46344152493811e+26*x + 1.17865630354825e+26, x <= 0.974137931034483),
+        (2.75420301084874e+26*x**2 - 5.32127215909528e+26*x + 2.57061691415066e+26, x <= 0.98448275862069),
+        (8.78545671271681e+26*x**2 - 1.71966027238079e+27*x + 8.41614601109111e+26, True)
+    )
+
+    return etaSimple
+
+def expAppox(x: sp.Expr, betterApprox: bool = False) -> sp.Expr:
+    """
+    Returns a piecewise polynomial approximation of order 5 or lower for the exp function on the interval [-5,5].
+    Do not use this approximation on any other value range!
+    
+    This can to be used for a Frank-Kamenetskii flow, 
+    see e.g.
+    
+    D.A. May and J. Brown and L. Le Pourhiet,
+    A scalable, matrix-free multigrid preconditioner for finite element discretizations of heterogeneous Stokes flow,
+    Computer Methods in Applied Mechanics and Engineering, Volume 290, p.496-523, 2015,
+    https://doi.org/10.1016/j.cma.2015.03.014
+    
+    or
+    
+    Lin, Yi-An and Colli, Lorenzo and Wu, Jonny
+    NW Pacific-Panthalassa Intra-Oceanic Subduction During Mesozoic Times From Mantle Convection and Geoid Models
+    Geochemistry, Geophysics, Geosystems, Volume 23, Number 11, Pages e2022GC010514,
+    https://doi.org/10.1029/2022GC010514
+    """
+
+    if betterApprox:
+        # The absolute approximation error is < 1e-6 on [-10, 10].
+        expApprox = sp.Piecewise(
+            (7.25210133510516e-6*x**4 + 0.000282942334426625*x**3 + 0.0041745133816066*x**2 + 0.0276563994532016*x + 0.0695796376930537, (x <= -7.5)),
+            (1.75106244595648e-5*x**5 + 0.000634293514527288*x**4 + 0.00933736479006806*x**3 + 0.0701247329226285*x**2 + 0.270099538417808*x + 0.429574895170266, (x >= -7.5) & (x <= -5.0)),
+            (3.44438559712425e-5*x**6 + 0.000983924751952837*x**5 + 0.0121609784800846*x**4 + 0.0842879213906417*x**3 + 0.350611974210844*x**2 + 0.842800345781279*x + 0.927398687928547, (x >= -5.0) & (x <= -2.5)),
+            (5.98991880319994e-5*x**7 + 0.000944797334515148*x**6 + 0.0075043607939413*x**5 + 0.0407686155561299*x**4 + 0.166127564540268*x**3 + 0.499840761384455*x**2 + 0.99998268968172*x + 0.999999721711981, (x >= -2.5) & (x <= 0.0)),
+            (0.0026500400085104*x**6 + 0.00589484232125402*x**5 + 0.0438758284577314*x**4 + 0.165665610174163*x**3 + 0.500210697231479*x**2 + 0.999984340972463*x + 1.00000010932421, (x >= 0.0) & (x <= 1.25)),
+            (0.00132406706306152*x**7 - 0.00819082089596664*x**6 + 0.0487176322377378*x**5 - 0.0586015490288259*x**4 + 0.32065944421455*x**3 + 0.355622838212876*x**2 + 1.0759463571123*x + 0.9827889619419, (x >= 1.25) & (x <= 2.5)),
+            (0.00457383493682491*x**7 - 0.0679898561858632*x**6 + 0.526463877350017*x**5 - 2.20371451832871*x**4 + 6.15815530999186*x**3 - 9.2578966190885*x**2 + 9.93494996343822*x - 2.53665485746765, (x >= 2.5) & (x <= 3.75)),
+            (0.0159988772939167*x**7 - 0.378007670093177*x**6 + 4.15380984197933*x**5 - 25.9167207358983*x**4 + 99.6572759882102*x**3 - 231.511741716953*x**2 + 304.706068019523*x - 170.730876497915, (x >= 3.75) & (x <= 5.0)),
+            (0.28304672901609*x**6 - 7.32423576117582*x**5 + 83.1772935362035*x**4 - 515.374669099028*x**3 + 1829.96482993567*x**2 - 3505.67116251976*x + 2829.30501341813, (x >= 5.0) & (x <= 5.625)),
+            (0.0756394354170271*x**7 - 2.61545104309386*x**6 + 40.3352976275334*x**5 - 352.740006988615*x**4 + 1880.034848318*x**3 - 6078.56320604615*x**2 + 11020.3104345257*x - 8621.62805346233, (x >= 5.625) & (x <= 6.25)),
+            (0.984390925509542*x**6 - 32.8357987212767*x**5 + 471.01362058624*x**4 - 3669.13970668305*x**3 + 16296.1647904057*x**2 - 38991.0139914872*x + 39191.5336961241, (x >= 6.25) & (x <= 6.875)),
+            (0.264786524967526*x**7 - 11.4783860803262*x**6 + 218.771142782824*x**5 - 2353.44533689661*x**4 + 15371.774396392*x**3 - 60792.5713795176*x**2 + 134561.549298232*x - 128423.620324519, (x >= 6.875) & (x <= 7.5)),
+            (0.491899673679648*x**7 - 23.4563456258799*x**6 + 489.623601053712*x**5 - 5757.48746236456*x**4 + 41051.5626841241*x**3 - 177076.740661143*x**2 + 427217.110968214*x - 444210.251905855, (x >= 7.5) & (x <= 8.125)),
+            (0.915875896543658*x**7 - 47.6590510587373*x**6 + 1081.96248546365*x**5 - 13814.3070074952*x**4 + 106827.435257423*x**3 - 499389.764359219*x**2 + 1304969.78174018*x - 1469021.13720182, (x >= 8.125) & (x <= 8.75)),
+            (1.70077487181909*x**7 - 95.8705823356372*x**6 + 2351.50779693372*x**5 - 32392.7367538162*x**4 + 270003.374783309*x**3 - 1359568.15741888*x**2 + 3824858.54827785*x - 4633696.71688371, (x >= 8.75) & (x <= 9.375)),
+            (3.2435880276896*x**7 - 197.491525035967*x**6 + 5221.01244864561*x**5 - 77421.2779642087*x**4 + 694084.420142809*x**3 - 3756683.18331828*x**2 + 11354652.3415925*x - 14773419.2245149, True)
+        )      
+    else:
+        # The absolute approximation error is < 1e-5 on [-5,5].
+        expApprox = sp.Piecewise(
+            (0.000210799310036196*x**5 + 0.00501190078696588*x**4 + 0.0494402419981363*x**3 + 0.256198878294768*x**2 + 0.708019277890397*x + 0.848198640564163, (x <= -2.5)),
+            (0.00042229066167372*x**6 + 0.00571373198524667*x**5 + 0.0377262341425878*x**4 + 0.163477078891512*x**3 + 0.49874653174446*x**2 + 0.999816711696631*x + 0.999996312029598, (x >= -2.5) & (x <= 0.0)),
+            (0.0156585460585765*x**5 + 0.030456484353984*x**4 + 0.174117960503455*x**3 + 0.497815769030432*x**2 + 1.00023114817759*x + 0.999996256406322, (x >= 0.0) & (x <= 1.25)),
+            (0.00919017664768228*x**6 - 0.0481169944065158*x**5 + 0.238134656591533*x**4 - 0.219386056681326*x**3 + 0.9392688549289*x**2 + 0.729152335884409*x + 1.0701841156343, (x >= 1.25) & (x <= 2.5)),
+            (0.0319292326734341*x**6 - 0.405841148550303*x**5 + 2.61245893835647*x**4 - 8.71819053684828*x**3 + 18.2169577645378*x**2 - 18.15777498739*x + 9.73119878687425, (x >= 2.5) & (x <= 3.75)),
+            (0.484334107122001*x**5 - 7.40404535751216*x**4 + 50.0684690859892*x**3 - 172.708281678359*x**2 + 308.465883701428*x - 220.837411495519, (x >= 3.75) & (x <= 4.375)),
+            (0.151551246308766*x**6 - 3.35366863270683*x**5 + 33.1760064840383*x**4 - 179.24929535351*x**3 + 557.837525873006*x**2 - 935.639594566522*x + 664.057105334284, True)
+        )
+
+    return expApprox

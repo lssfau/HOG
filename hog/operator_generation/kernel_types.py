@@ -168,12 +168,13 @@ class Apply(KernelType):
     ) -> List[ps.astnodes.Node]:
         tmp_symbols = sp.numbered_symbols(self.result_prefix)
 
+        scaling = sp.Symbol("operatorScaling")
+
         # Add and store result to destination.
         store_dst_vecs = [
-            SympyAssignment(a, a + s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
+            SympyAssignment(a, a + scaling*s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
         ]
         return store_dst_vecs
-
 
 class AssembleDiagonal(KernelType):
     def __init__(self):
@@ -208,12 +209,13 @@ class AssembleDiagonal(KernelType):
     ) -> List[ps.astnodes.Node]:
         tmp_symbols = sp.numbered_symbols(self.result_prefix)
 
+        scaling = sp.Symbol("diagScaling")
+
         # Add and store result to destination.
         store_dst_vecs = [
-            SympyAssignment(a, a + s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
+            SympyAssignment(a, a + scaling*s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
         ]
         return store_dst_vecs
-
 
 class Assemble(KernelType):
     def __init__(
@@ -233,8 +235,9 @@ class Assemble(KernelType):
         mat: sp.MatrixBase,
         rows: int,
     ) -> List[SympyAssignment]:
+        scaling = sp.Symbol("toMatrixScaling")
         return [
-            SympyAssignment(sp.Symbol(f"{self.result_prefix}{r}_{c}"), mat[r, c])
+            SympyAssignment(sp.Symbol(f"{self.result_prefix}{r}_{c}"), scaling*mat[r, c])
             for r in range(mat.shape[0])
             for c in range(mat.shape[1])
         ]
@@ -381,7 +384,7 @@ class ApplyWrapper(KernelWrapperType):
         type_descriptor: HOGType,
         dims: List[int] = [2, 3],
     ):
-        self.name = "apply"
+        self.name = "applyScaled"
         self.src: FunctionSpaceImpl = create_impl(src_space, "src", type_descriptor)
         self.dst: FunctionSpaceImpl = create_impl(dst_space, "dst", type_descriptor)
         self.src_fields = [self.src]
@@ -483,6 +486,10 @@ class ApplyWrapper(KernelWrapperType):
             f'this->stopTiming( "{self.name}" );'
         )
 
+        self._applyTemplate = Template(
+            f'return applyScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ), src, dst, level, flag, updateType );\n'
+        )
+
     @property
     def kernel_type(self) -> KernelType:
         return Apply()
@@ -502,6 +509,7 @@ class ApplyWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
+                    CppVariable(name="operatorScaling", type=f"{self.dst.type_descriptor.pystencils_type}"),
                     CppVariable(
                         name=self.src.name,
                         type=self.src.func_type_string(),
@@ -524,6 +532,32 @@ class ApplyWrapper(KernelWrapperType):
                 return_type="void",
                 is_const=True,
                 content=self._template.template,
+            ),
+            CppMethod(
+                name="apply",
+                arguments=[
+                    CppVariable(
+                        name=self.src.name,
+                        type=self.src.func_type_string(),
+                        is_const=True,
+                        is_reference=True,
+                    ),
+                    CppVariable(
+                        name=self.dst.name,
+                        type=self.dst.func_type_string(),
+                        is_const=True,
+                        is_reference=True,
+                    ),
+                    CppVariable(name="level", type="uint_t"),
+                    CppVariable(name="flag", type="DoFType"),
+                    CppDefaultArgument(
+                        variable=CppVariable(name="updateType", type="UpdateType"),
+                        default_value="Replace",
+                    ),
+                ],
+                return_type="void",
+                is_const=True,
+                content=self._applyTemplate.template,
             )
         ]
 
@@ -562,7 +596,7 @@ class AssembleDiagonalWrapper(KernelWrapperType):
         dst_field: str = "invDiag_",
         dims: List[int] = [2, 3],
     ):
-        self.name = "computeInverseDiagonalOperatorValues"
+        self.name = "computeInverseDiagonalOperatorValuesScaled"
         self.dst: FunctionSpaceImpl = create_impl(
             fe_space, dst_field, type_descriptor, is_pointer=True
         )
@@ -641,6 +675,10 @@ class AssembleDiagonalWrapper(KernelWrapperType):
             f'this->stopTiming( "{self.name}" );'
         )
 
+        self._diagTemplate = Template(
+            f'return computeInverseDiagonalOperatorValuesScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ) );\n'
+        )
+
     @property
     def kernel_type(self) -> KernelType:
         return AssembleDiagonal()
@@ -657,10 +695,18 @@ class AssembleDiagonalWrapper(KernelWrapperType):
         return [
             CppMethod(
                 name=self.name,
-                arguments=[],
+                arguments=[
+                    CppVariable(name="diagScaling", type=f"{self.dst.type_descriptor.pystencils_type}")
+                ],
                 return_type="void",
                 content=self._template.template,
             ),
+            CppMethod(
+                name="computeInverseDiagonalOperatorValues",
+                arguments=[],
+                return_type="void",
+                content=self._diagTemplate.template,
+            ),            
             CppMethod(
                 name="getInverseDiagonalValues",
                 arguments=[],
@@ -679,8 +725,6 @@ class AssembleDiagonalWrapper(KernelWrapperType):
                 )
             ),
         ]
-
-
 class AssembleWrapper(KernelWrapperType):
     def __init__(
         self,
@@ -690,7 +734,7 @@ class AssembleWrapper(KernelWrapperType):
         dims: List[int] = [2, 3],
     ):
         idx_t = HOGType("idx_t", np.int64)
-        self.name = "toMatrix"
+        self.name = "toMatrixScaled"
         self.src: FunctionSpaceImpl = create_impl(src_space, "src", idx_t)
         self.dst: FunctionSpaceImpl = create_impl(dst_space, "dst", idx_t)
 
@@ -756,6 +800,10 @@ class AssembleWrapper(KernelWrapperType):
             f'this->stopTiming( "{self.name}" );'
         )
 
+        self._toMatrixTemplate = Template(
+            f'return toMatrixScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ), mat, src, dst, level, flag );\n'
+        )        
+
     @property
     def kernel_type(self) -> KernelType:
         return Assemble(self.src, self.dst)
@@ -780,6 +828,7 @@ class AssembleWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
+                    CppVariable(name="toMatrixScaling", type=f"{self.dst.type_descriptor.pystencils_type}"),
                     CppVariable(
                         name="mat",
                         type="std::shared_ptr< SparseMatrixProxy >",
@@ -804,6 +853,34 @@ class AssembleWrapper(KernelWrapperType):
                 return_type="void",
                 is_const=True,
                 content=self._template.template,
+            ),
+            CppMethod(
+                name="toMatrix",
+                arguments=[
+                    CppVariable(
+                        name="mat",
+                        type="std::shared_ptr< SparseMatrixProxy >",
+                        is_const=True,
+                        is_reference=True,
+                    ),
+                    CppVariable(
+                        name=self.src.name,
+                        type=self.src.func_type_string(),
+                        is_const=True,
+                        is_reference=True,
+                    ),
+                    CppVariable(
+                        name=self.dst.name,
+                        type=self.dst.func_type_string(),
+                        is_const=True,
+                        is_reference=True,
+                    ),
+                    CppVariable(name="level", type="uint_t"),
+                    CppVariable(name="flag", type="DoFType"),
+                ],
+                return_type="void",
+                is_const=True,
+                content=self._toMatrixTemplate.template,
             )
         ]
 

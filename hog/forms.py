@@ -22,6 +22,7 @@ from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
 from hog.fem_helpers import (
     trafo_ref_to_affine,
+    trafo_ref_to_physical,    
     jac_ref_to_affine,
     jac_affine_to_physical,
     hessian_shape_affine_ref_pullback,
@@ -32,6 +33,7 @@ from hog.fem_helpers import (
     vector_space_dependent_coefficient,
     fem_function_on_element,
     fem_function_gradient_on_element,
+    fem_function_on_element_AHFC_compatibility_helper
 )
 from hog.function_space import (
     FunctionSpace,
@@ -41,7 +43,7 @@ from hog.function_space import (
     TestSpace,
     TrialSpace,
 )
-from hog.math_helpers import dot, inv, abs, det, double_contraction
+from hog.math_helpers import dot, grad, inv, abs, det, double_contraction, e_vec, diameter, deltaSUPG, expAppox, simpleViscosityProfile
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
 from hog.logger import TimedLogger
