@@ -304,7 +304,7 @@ def simpleViscosityProfile(x: sp.Expr) -> sp.Expr:
 
     return etaSimple
 
-def expAppox(x: sp.Expr, betterApprox: bool = False) -> sp.Expr:
+def expApprox(x: sp.Expr, betterApprox: bool = False) -> sp.Expr:
     """
     Returns a piecewise polynomial approximation of order 5 or lower for the exp function on the interval [-5,5].
     Do not use this approximation on any other value range!
@@ -358,3 +358,32 @@ def expAppox(x: sp.Expr, betterApprox: bool = False) -> sp.Expr:
         )
 
     return expApprox
+
+def sinApprox(y: sp.Expr) -> sp.Expr:
+    """
+    Returns a piecewise polynomial approximation of order 5 or lower for the sin function on the interval [0,2*pi].
+    """
+
+    x = sp.Mod(y,2*sp.pi)
+
+    # The absolute approximation error is < 1e-6 on [0,2*pi].
+    sinApprox = sp.Piecewise(
+        (0.00773818879926878*x**5 + 0.000663917492157654*x**4 - 0.166960828483897*x**3 + 5.7434780036691e-5*x**2 + 0.999995926533202*x + 1.7994603566393e-8, (x >= 0.0) & (x <= 0.698131700797732)),
+        (0.00420170714734027*x**5 + 0.0138578225244834*x**4 - 0.187465420963805*x**3 + 0.0165054340051712*x**2 + 0.993247160594985*x + 0.00112423649240849, (x >= 0.698131700797732) & (x <= 1.39626340159546)),
+        (-0.00143824992707594*x**5 + 0.0533165312740673*x**4 - 0.29946605531422*x**3 + 0.177607398472308*x**2 + 0.875945336819296*x + 0.0356650994670281, (x >= 1.39626340159546) & (x <= 2.0943951023932)),
+        (-0.00633799362383502*x**5 + 0.104045320588459*x**4 - 0.510842932361512*x**3 + 0.620702661340308*x**2 + 0.408705828295634*x + 0.233911060187348, (x >= 2.0943951023932) & (x <= 2.79252680319093)),
+        (-0.00828950249413584*x**5 + 0.130211435475182*x**4 - 0.651480159639251*x**3 + 0.99950976677439*x**2 - 0.102673348874465*x + 0.510739296173431, (x >= 2.79252680319093) & (x <= 3.49065850398866)),
+        (-0.00634152261425901*x**5 + 0.0951275765135822*x**4 - 0.398422670612051*x**3 + 0.0858090634662075*x**2 + 1.54866111221362*x - 0.684281519676061, (x >= 3.49065850398866) & (x <= 4.18879020478639)),
+        (-0.00143231347720746*x**5 - 0.00829114212991957*x**4 + 0.474379799339795*x**3 - 3.60280116003682*x**2 + 9.35465413943443*x - 7.30170174500153, (x >= 4.18879020478639) & (x <= 4.88692190558412)),
+        (0.0041878724649904*x**5 - 0.145503556088125*x**4 + 1.81595032939344*x**3 - 10.1690919186447*x**2 + 25.4429812545492*x - 23.0877026710384, (x >= 4.88692190558412) & (x <= 5.58505360638185)),
+        (0.00774243943485163*x**5 - 0.243882227305696*x**4 + 2.90589581738653*x**3 - 16.2115250644173*x**2 + 42.2049589169532*x - 41.7016057269896, True),
+    )
+
+    return sinApprox
+
+def cosApprox(y: sp.Expr) -> sp.Expr:
+    """
+    Returns a piecewise polynomial approximation of order 5 or lower for the cos function on the interval [0,2*pi].
+    """
+
+    return sinApprox(y+sp.pi/2)

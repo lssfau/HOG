@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from hog.recipes.common import *
-from hog.math_helpers import simpleViscosityProfile, expAppox
+from hog.math_helpers import simpleViscosityProfile, expApprox
 
 
 def integrand(
@@ -71,7 +71,7 @@ def integrand(
         
         exp_input = -rockChemicalCompositionParameter * T_mod + depthDependency * pos  + additiveOffSet
         
-        exp_approx = expAppox(exp_input)
+        exp_approx = expApprox(exp_input)
         
         eta = etaSimple * exp_approx
     else: # viscosity == "general"

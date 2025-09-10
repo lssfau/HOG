@@ -43,7 +43,7 @@ from hog.function_space import (
     TestSpace,
     TrialSpace,
 )
-from hog.math_helpers import dot, grad, inv, abs, det, double_contraction, e_vec, diameter, deltaSUPG, expAppox, simpleViscosityProfile
+from hog.math_helpers import dot, grad, inv, abs, det, double_contraction, e_vec, diameter, deltaSUPG, expApprox, simpleViscosityProfile
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
 from hog.logger import TimedLogger
