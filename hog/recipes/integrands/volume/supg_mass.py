@@ -18,26 +18,34 @@ from hog.recipes.common import *
 
 def integrand(
     *,
-    v,
     jac_a_inv,
     jac_a_abs_det,
     jac_b_inv,
     jac_b_abs_det,
-    grad_u,
+    u,
     grad_v,
     k,
-    scalars,
     volume_geometry,
     tabulate,
+    scalars,
+    xRef,
+    affine_diameter,
     **_,
 ):
     if volume_geometry.dimensions > 2:
-        u = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+        uVec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
     else:
-        u = sp.Matrix([[k["ux"]], [k["uy"]]])
+        uVec = sp.Matrix([[k["ux"]], [k["uy"]]])
+
+    # delta function
+    if "delta" in k.keys():
+        delta = k["delta"]
+    else:
+        delta = deltaSUPG(xRef, uVec, affine_diameter, scalars("thermalConductivity"), True)
 
     return (
-        dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u), u)
-        * tabulate(v * jac_a_abs_det)
+        delta
+        * dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_v), uVec)
+        * tabulate(u * jac_a_abs_det)
         * jac_b_abs_det
     )

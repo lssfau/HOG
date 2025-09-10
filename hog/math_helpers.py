@@ -242,13 +242,19 @@ def diameter(vertices: List[sp.Matrix]) -> sp.Expr:
     else:
         raise HOGException(f"Not implemented for {len(vertices)} vertices")    
 
-def deltaSUPG(abs_u: sp.Expr, h: sp.Expr, k: sp. Expr, approximateXi: bool = True) -> sp.Expr:
+def deltaSUPG(xRef: sp.Matrix, uVec: sp.Matrix, h: sp.Expr, k: sp. Expr, approximateXi: bool = True) -> sp.Expr:
     """
     Returns an expression for the SUPG scaling delta.
     The exp function cannot be vectorized in pystencils yet.
     If approximateXi is True this returns an approximation that can be vectorized.
     """
-    Pe = abs_u * h / ( 2 * k )
+    dim = uVec.shape[0]
+
+    centroid = {xRef[i]: sp.Rational(1,dim+1) for i in range(dim)}
+    uCentroid = [sp.simplify(uVec[i].subs(centroid)) for i in range(dim)]
+    abs_u_centroid = sp.sqrt(sum([uCentroid[i]*uCentroid[i] for i in range(dim)]))
+
+    Pe = abs_u_centroid * h / ( 2 * k )
     
     if approximateXi:
         # Taylor near 0, Cubic spline in a second region, 1 - 1/Pe for the rest
@@ -262,7 +268,7 @@ def deltaSUPG(abs_u: sp.Expr, h: sp.Expr, k: sp. Expr, approximateXi: bool = Tru
     else:
         xi = sp.S(1) + sp.S(2) / ( sp.exp( 2 * Pe ) - sp.S(1) ) - sp.S(1) / Pe
 
-    return h / ( 2 * abs_u ) * xi 
+    return h / ( 2 * abs_u_centroid ) * xi 
 
 def simpleViscosityProfile(x: sp.Expr) -> sp.Expr:
     """

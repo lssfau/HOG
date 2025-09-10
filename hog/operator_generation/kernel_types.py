@@ -509,7 +509,7 @@ class ApplyWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
-                    CppVariable(name="operatorScaling", type=f"{self.dst.type_descriptor.pystencils_type}"),
+                    CppVariable(name="operatorScaling", type=f"{self.dst.type_descriptor.pystencils_type}", is_const=True, is_reference=True),
                     CppVariable(
                         name=self.src.name,
                         type=self.src.func_type_string(),
@@ -696,7 +696,7 @@ class AssembleDiagonalWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
-                    CppVariable(name="diagScaling", type=f"{self.dst.type_descriptor.pystencils_type}")
+                    CppVariable(name="diagScaling", type=f"{self.dst.type_descriptor.pystencils_type}", is_const=True, is_reference=True)
                 ],
                 return_type="void",
                 content=self._template.template,
@@ -801,7 +801,7 @@ class AssembleWrapper(KernelWrapperType):
         )
 
         self._toMatrixTemplate = Template(
-            f'return toMatrixScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ), mat, src, dst, level, flag );\n'
+            f'return toMatrixScaled( static_cast< {type_descriptor.pystencils_type} >( 1 ), mat, src, dst, level, flag );\n'
         )        
 
     @property
@@ -828,7 +828,7 @@ class AssembleWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
-                    CppVariable(name="toMatrixScaling", type=f"{self.dst.type_descriptor.pystencils_type}"),
+                    CppVariable(name="toMatrixScaling", type=f"{self.type_descriptor.pystencils_type}", is_const=True, is_reference=True),
                     CppVariable(
                         name="mat",
                         type="std::shared_ptr< SparseMatrixProxy >",

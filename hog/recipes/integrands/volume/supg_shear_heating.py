@@ -17,37 +17,54 @@
 from hog.recipes.common import *
 from hog.math_helpers import simpleViscosityProfile, expAppox
 
-
 def integrand(
+    include_inv_rho_scaling,
     use_dim,
     viscosity,
+    surface_cutoff,
     *,
     jac_a_inv,
-    jac_a_abs_det,
     jac_b_inv,
+    jac_a_abs_det,
     jac_b_abs_det,
-    grad_u,
-    grad_v,
+    u,
     k,
-    tabulate,
+    grad_k,
+    grad_v,
     volume_geometry,
-    scalars,
+    tabulate,
     x,
+    scalars,
+    xRef,
+    affine_diameter,
     **_,
 ):
-    grad_u_chain = jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)
-    grad_v_chain = jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)
+    dim = volume_geometry.dimensions
 
-    def symm_grad(w):
-        return 0.5 * (w + w.T)
+    if dim > 2:
+        uVec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+    else:
+        uVec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
-    symm_grad_u = symm_grad(grad_u_chain)
-    symm_grad_v = symm_grad(grad_v_chain)
+    # delta function
+    if "delta" in k.keys():
+        delta = k["delta"]
+    else:
+        delta = deltaSUPG(xRef, uVec, affine_diameter, scalars("thermalConductivity"), True)
 
-    div_u = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
-    div_v = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)).trace()
+    inv_rho_scaling = (sp.S(1) / k["rho"] if include_inv_rho_scaling else sp.S(1))
+    divdiv_scaling = sp.Rational(1, dim) if use_dim else sp.Rational(1, 3)
 
-    divdiv_scaling = sp.Rational(2, volume_geometry.dimensions) if use_dim else sp.Rational(2, 3)
+    if surface_cutoff:
+        norm = x.norm()
+        pos = scalars("radiusSurface") - norm
+
+        pos_scaling = sp.Piecewise(
+            (0.0, pos < scalars("cutoff") ),
+            (1.0, sp.sympify(True) )
+        )
+    else:
+        pos_scaling = sp.S(1)
 
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
         etaRef = scalars("etaRef")
@@ -75,13 +92,29 @@ def integrand(
         
         eta = etaSimple * exp_approx
     else: # viscosity == "general"
-        eta = k["mu"]
+        eta = k["eta"]        
 
-    return eta * (
-        (
-            double_contraction(2 * symm_grad_u, symm_grad_v)
-            * tabulate(jac_a_abs_det)
-            * jac_b_abs_det
-        )
-        - divdiv_scaling * div_u * div_v * tabulate(jac_a_abs_det) * jac_b_abs_det
+    grad_ux = jac_b_inv.T * jac_a_inv.T * grad_k["ux"]
+    grad_uy = jac_b_inv.T * jac_a_inv.T * grad_k["uy"]
+    
+    grad_u = grad_ux.row_join(grad_uy)
+    if dim == 3:
+        grad_uz = jac_b_inv.T * jac_a_inv.T * grad_k["uz"]
+        grad_u = grad_u.row_join(grad_uz)
+
+    sym_grad_w = sp.Rational(1,2) * (grad_u + grad_u.T)
+
+    divdiv = grad_u.trace() * sp.eye(dim)
+
+    tau = 2 * (sym_grad_w - divdiv_scaling * divdiv)
+
+    return (
+        pos_scaling
+        * delta
+        * inv_rho_scaling
+        * eta
+        * (double_contraction(tau, grad_u)[0])
+        * tabulate(jac_a_abs_det * u)
+        * dot(uVec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
+        * jac_b_abs_det
     )

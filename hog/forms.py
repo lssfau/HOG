@@ -17,6 +17,7 @@
 import logging
 import sympy as sp
 from typing import Optional, Callable, Any
+from functools import partial
 
 from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
@@ -33,7 +34,6 @@ from hog.fem_helpers import (
     vector_space_dependent_coefficient,
     fem_function_on_element,
     fem_function_gradient_on_element,
-    fem_function_on_element_AHFC_compatibility_helper
 )
 from hog.function_space import (
     FunctionSpace,
@@ -684,10 +684,14 @@ def full_stokes(
     blending: GeometryMap = IdentityMap(),
     component_trial: int = 0,
     component_test: int = 0,
-    variable_viscosity: bool = True,
     coefficient_function_space: Optional[FunctionSpace] = None,
     rotation_wrapper: bool = False,
+    use_dim: bool = False,
+    viscosity: str = "general"
 ) -> Form:
+    newline = "\n"
+    dimstring = "(2/dim)" if use_dim else "(2/3)"
+    pseudo_note = f"{newline}Note that the factor 2/3 means that for 2D this is the pseudo-3D form of the operator.{newline}" if not use_dim else ""
     docstring = f"""
 Implements the fully coupled viscous operator of the Stokes problem.
 The latter is the extension of the Epsilon operator to the case where
@@ -696,11 +700,8 @@ in the (truncated) anelastic liquid approximation of mantle convection.
 
 The strong representation of the operator is given by:
 
-   - div[ μ (grad(u)+grad(u)ᵀ) ] + 2/3 grad[ μ div(u) ]
-
-Note that the factor 2/3 means that for 2D this is the pseudo-3D form
-of the operator.
-
+   - div[ μ (grad(u)+grad(u)ᵀ) ] + {dimstring} grad[ μ div(u) ]
+{pseudo_note}
 Component trial: {component_trial}
 Component test:  {component_test}
 Geometry map:    {blending}
@@ -711,7 +712,7 @@ Weak formulation
     v: test function  (vectorial space: {test})
     μ: coefficient    (scalar space:    {coefficient_function_space})
 
-    ∫ μ {{ ( 2 ε(u) : ε(v) ) - (2/3) [ ( ∇ · u ) · ( ∇ · v ) ] }}
+    ∫ μ {{ ( 2 ε(u) : ε(v) ) - {dimstring} [ ( ∇ · u ) · ( ∇ · v ) ] }}
     
 where
     
@@ -721,8 +722,16 @@ where
     from hog.recipes.integrands.volume.rotation import RotationType
     from hog.recipes.integrands.volume.full_stokes import integrand
 
+    # supported viscosities are
+    #   "general" (as a FEM function coefficient)
+    #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
+
+    FEM_functions = {"mu": coefficient_function_space}
+    if viscosity == "frank_kamenetskii_type1_simple_viscosity":
+        FEM_functions = {"T_extra": coefficient_function_space}    
+
     return process_integrand(
-        integrand,
+        partial(integrand, use_dim, viscosity),
         trial,
         test,
         geometry,
@@ -730,7 +739,7 @@ where
         blending=blending,
         is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients={"mu": coefficient_function_space},
+        fe_coefficients=FEM_functions,
         rot_type=RotationType.PRE_AND_POST_MULTIPLY
         if rotation_wrapper
         else RotationType.NO_ROTATION,
@@ -743,12 +752,24 @@ def shear_heating(
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
-    component_trial: int = 0,
-    component_test: int = 0,
-    variable_viscosity: bool = True,
     viscosity_function_space: Optional[FunctionSpace] = None,
     velocity_function_space: Optional[FunctionSpace] = None,
+    density_function_space: Optional[FunctionSpace] = None,
+    coefficient_function_space: Optional[FunctionSpace] = None,
+    use_dim: bool = False,
+    viscosity: str = "general",
+    include_inv_rho_scaling: bool = False,
+    surface_cutoff: bool = False,
 ) -> Form:
+    newline = "\n"
+    dimstring = "1/dim" if use_dim else "1/3"
+    rhostring_scaling_string = "1/rho " if include_inv_rho_scaling else ""
+    rhostring_coeff_string = f"rho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho_scaling else ""
+    pseudo_note = f"{newline}Note that the factor 1/3 means that for 2D this is the pseudo-3D form of the operator.{newline}" if not use_dim else "" 
+    cufoff_note = f"""
+This operator was designed for annulus and spherical shell use and includes a scaling factor of 0 close to the surface.
+Define the (usually nondimensional) surface radius and cutoff distance to the surface via the constructor.     
+""" if surface_cutoff else ""
     docstring = f"""
 Implements the fully coupled viscous operator for the shear heating term.
 The latter is the extension of the Epsilon operator to the case where
@@ -761,88 +782,168 @@ https://doi.org/10.1111/j.1365-246X.2009.04413.x
 https://doi.org/10.5194/gmd-15-5127-2022
 Listing 2
 
-The strong representation of the operator is given by:
+Intended for RHS use.
 
-    𝜏(w) : grad(w)
-    2 {{[ μ (grad(w)+grad(w)ᵀ) / 2 ] - 1/dim [ μ div(w) ]I}} : grad(w)
-
-Note that the factor 1/dim means that for 2D this is the pseudo-3D form
-of the operator.
-
-Component trial: {component_trial}
-Component test:  {component_test}
-Geometry map:    {blending}
+Geometry map: {blending}
 
 Weak formulation
 
-    T: trial function (scalar space:    {trial})
-    s: test function  (scalar space:    {test})
-    μ: coefficient    (scalar space:    {viscosity_function_space})
-    w: velocity       (vectorial space: {velocity_function_space})
+    T: trial function (scalar space: {trial})
+    w: test function (scalar space: {test})
+    u: coefficient (vector space: {velocity_function_space})
+    eta: coefficient (scalar space: {viscosity_function_space})
+    {rhostring_coeff_string}
+    ∫ {rhostring_scaling_string}( tau(u,eta) : ∇u ) T * w
 
-    ∫ {{ 2 {{[ μ (grad(w)+grad(w)ᵀ) / 2 ] - 1/dim [ μ div(w) ]I}} : grad(w) }} T_h s_h
+    or equivalently
     
-The resulting matrix must be multiplied with a vector of ones to be used as the shear heating term in the RHS
+    ∫ {rhostring_scaling_string}( tau(u,eta) : eps(u) ) T * w
+
+    with
+
+    tau(u,eta) = 2 eta eps(u)
+    eps(u) := 1/2 ∇u + 1/2 (∇u)^T - {dimstring} (∇ · u) I
+    I := Identity Matrix      
+{pseudo_note}{cufoff_note}    
+Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
 """
 
-    def integrand(
-        *,
-        jac_a_inv,
-        jac_b_inv,
-        jac_a_abs_det,
-        jac_b_abs_det,
-        u,
-        v,
-        k,
-        grad_k,
-        volume_geometry,
-        tabulate,
-        **_,
-    ):
-        """First function: mu, other functions: ux, uy, uz."""
+    from hog.recipes.integrands.volume.shear_heating import integrand
 
-        mu = k["mu"]
+    # supported viscosities are
+    #   "general" (as a FEM function coefficient)
+    #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
-        # grad_k[0] is grad_mu_ref
-        grad_wx = jac_b_inv.T * jac_a_inv.T * grad_k["wx"]
-        grad_wy = jac_b_inv.T * jac_a_inv.T * grad_k["wy"]
-        grad_wz = jac_b_inv.T * jac_a_inv.T * grad_k["wz"]
+    FEM_functions = {
+        "ux": velocity_function_space,
+        "uy": velocity_function_space,
+        "uz": velocity_function_space,
+    }
 
-        grad_w = grad_wx.row_join(grad_wy)
-        dim = volume_geometry.dimensions
-        if dim == 3:
-            grad_w = grad_w.row_join(grad_wz)
+    if viscosity == "frank_kamenetskii_type1_simple_viscosity":
+        FEM_functions.update({"T_extra": coefficient_function_space})  
+    else: # viscosity == "general"
+        FEM_functions.update({"eta": viscosity_function_space})  
 
-        sym_grad_w = 0.5 * (grad_w + grad_w.T)
-
-        divdiv = grad_w.trace() * sp.eye(dim)
-
-        tau = 2 * (sym_grad_w - sp.Rational(1, dim) * divdiv)
-
-        return (
-            mu
-            * (double_contraction(tau, grad_w)[0])
-            * jac_b_abs_det
-            * tabulate(jac_a_abs_det * u * v)
-        )
+    if include_inv_rho_scaling:
+        FEM_functions.update({"rho": density_function_space})  
 
     return process_integrand(
-        integrand,
+        partial(integrand, include_inv_rho_scaling, use_dim, viscosity, surface_cutoff),
         trial,
         test,
         geometry,
         symbolizer,
         blending=blending,
-        fe_coefficients={
-            "mu": viscosity_function_space,
-            "wx": velocity_function_space,
-            "wy": velocity_function_space,
-            "wz": velocity_function_space,
-        },
+        fe_coefficients=FEM_functions,
         is_symmetric=trial == test,
         docstring=docstring,
     )
 
+def supg_shear_heating(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
+    viscosity_function_space: Optional[FunctionSpace] = None,
+    velocity_function_space: Optional[FunctionSpace] = None,
+    density_function_space: Optional[FunctionSpace] = None,
+    coefficient_function_space: Optional[FunctionSpace] = None,
+    delta_function_space: Optional[FunctionSpace] = None,
+    use_dim: bool = False,
+    viscosity: str = "general",
+    include_inv_rho_scaling: bool = False,
+    surface_cutoff: bool = False,
+    coefficient_delta: bool = False,
+) -> Form:
+    newline = "\n"
+    dimstring = "1/dim" if use_dim else "1/3"
+    rhostring_scaling_string = "1/rho " if include_inv_rho_scaling else ""
+    rhostring_coeff_string = f"rho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho_scaling else ""
+    pseudo_note = f"{newline}Note that the factor 1/3 means that for 2D this is the pseudo-3D form of the operator.{newline}" if not use_dim else "" 
+    cufoff_note = f"""
+This operator was designed for annulus and spherical shell use and includes a scaling factor of 0 close to the surface.
+Define the (usually nondimensional) surface radius and cutoff distance to the surface via the constructor.     
+""" if surface_cutoff else ""
+    deltastring = f"""
+The scaling function for the supg stabilisation is hard coded into the form.
+
+delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
+
+with:
+    xi( Pe ) :=  ( 1 + 2 / ( exp( 2* Pe ) - 1 ) - 1 / Pe ) = coth( Pe ) - 1 / Pe
+    Pe := u_abs * h / ( 2 * k ) as the local Peclet number
+    h as the element diameter
+    k as the thermal conductivity coefficient
+    u_abs as the norm of the velocity vector at the element centroid
+
+Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
+""" if not coefficient_delta else ""   
+    coefficientstring = f"    delta: coefficient (scalar space: {delta_function_space}){newline}" if coefficient_delta else "" 
+    docstring = f"""
+Shear heating SUPG operator for the TALA
+
+Intended for RHS use.
+{deltastring}
+Geometry map: {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    w: test function (scalar space: {test})
+    u: coefficient (vector space: {velocity_function_space})
+    eta: coefficient (scalar space: {viscosity_function_space})
+    {rhostring_coeff_string}{coefficientstring}
+    ∫ delta {rhostring_scaling_string}( tau(u,eta) : ∇u ) T * ( u · ∇w )
+
+    or equivalently
+    
+    ∫ delta {rhostring_scaling_string}( tau(u,eta) : eps(u) ) T * ( u · ∇w )
+
+    with
+
+    tau(u,eta) = 2 eta eps(u)
+    eps(u) := 1/2 ∇u + 1/2 (∇u)^T - {dimstring} (∇ · u) I
+    I := Identity Matrix      
+{pseudo_note}{cufoff_note}    
+Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
+"""
+
+    from hog.recipes.integrands.volume.supg_shear_heating import integrand
+
+    # supported viscosities are
+    #   "general" (as a FEM function coefficient)
+    #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
+
+    FEM_functions = {
+        "ux": velocity_function_space,
+        "uy": velocity_function_space,
+        "uz": velocity_function_space,
+    }
+
+    if coefficient_delta:
+        FEM_functions.update({"delta": delta_function_space})
+
+    if viscosity == "frank_kamenetskii_type1_simple_viscosity":
+        FEM_functions.update({"T_extra": coefficient_function_space})  
+    else: # viscosity == "general"
+        FEM_functions.update({"eta": viscosity_function_space})  
+
+    if include_inv_rho_scaling:
+        FEM_functions.update({"rho": density_function_space})  
+
+    return process_integrand(
+        partial(integrand, include_inv_rho_scaling, use_dim, viscosity, surface_cutoff),
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        fe_coefficients=FEM_functions,
+        is_symmetric=False,
+        docstring=docstring,
+    )
 
 def divdiv(
     trial: TrialSpace,
@@ -924,6 +1025,118 @@ Weak formulation
         fe_coefficients={"k": coefficient_function_space},
     )
 
+def adiabatic_heating(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    blending: GeometryMap = IdentityMap(),
+) -> Form:
+    docstring = f"""
+Adiabatic heating operator for the TALA
+
+Intended for LHS use.
+
+The gravity vector is hard coded for annulus and icosahedral shell,
+i.e. g := -x / norm(x).
+
+Geometry map: {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    w: test function (scalar space: {test})
+    u: velocity function (vectorial space: {velocity_function_space})
+
+    - ∫ T(u · g) w
+    """
+
+    from hog.recipes.integrands.volume.adiabatic_heating import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=(trial == test),
+        docstring=docstring,
+        fe_coefficients={
+            "ux": velocity_function_space,
+            "uy": velocity_function_space,
+            "uz": velocity_function_space,
+        },
+    )
+
+def supg_adiabatic_heating(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    coefficient_function_space: FunctionSpace,
+    blending: GeometryMap = IdentityMap(),
+    coefficient_delta: bool = False,
+) -> Form:
+    newline = "\n"
+    deltastring = f"""
+The scaling function for the supg stabilisation is hard coded into the form.
+
+delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
+
+with:
+    xi( Pe ) :=  ( 1 + 2 / ( exp( 2* Pe ) - 1 ) - 1 / Pe ) = coth( Pe ) - 1 / Pe
+    Pe := u_abs * h / ( 2 * k ) as the local Peclet number
+    h as the element diameter
+    k as the thermal conductivity coefficient
+    u_abs as the norm of the velocity vector at the element centroid
+
+Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
+""" if not coefficient_delta else ""
+    coefficientstring = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+    docstring = f"""
+Adiabatic heating SUPG operator for the TALA
+
+Intended for LHS use.
+
+The gravity vector is hard coded for annulus and icosahedral shell,
+i.e. g := -x / norm(x).
+{deltastring}
+Geometry map: {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    w: test function (scalar space: {test})
+    u: coefficient (vector space: {velocity_function_space})
+    {coefficientstring}
+    - ∫ delta T (u · g) ( u · ∇w )
+    """
+
+    FEM_functions = {
+        "ux": velocity_function_space,
+        "uy": velocity_function_space,
+        "uz": velocity_function_space,
+    }
+    if coefficient_delta:
+        FEM_functions.update({"delta": coefficient_function_space})
+
+    from hog.recipes.integrands.volume.supg_adiabatic_heating import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=False,
+        docstring=docstring,
+        fe_coefficients=FEM_functions,
+    )     
+
 
 def advection(
     trial: TrialSpace,
@@ -932,11 +1145,13 @@ def advection(
     symbolizer: Symbolizer,
     velocity_function_space: FunctionSpace,
     coefficient_function_space: FunctionSpace,
-    constant_cp: bool = False,
     blending: GeometryMap = IdentityMap(),
 ) -> Form:
     docstring = f"""
-advection operator which needs to be used in combination with SUPG
+Advection operator for the TALA.
+Can be used in combination with SUPG.
+
+Intended for LHS use.
 
 Geometry map:    {blending}
 
@@ -946,7 +1161,7 @@ Weak formulation
     s: test function  (scalar space: {test})
     u: velocity function (vectorial space: {velocity_function_space})
 
-    ∫ cp ( u · ∇T ) s
+    ∫ ( u · ∇T ) s
 """
 
     from hog.recipes.integrands.volume.advection import integrand
@@ -964,16 +1179,8 @@ Weak formulation
             "ux": velocity_function_space,
             "uy": velocity_function_space,
             "uz": velocity_function_space,
-        }
-        if constant_cp
-        else {
-            "ux": velocity_function_space,
-            "uy": velocity_function_space,
-            "uz": velocity_function_space,
-            "cp": coefficient_function_space,
         },
     )
-
 
 def supg_advection(
     trial: TrialSpace,
@@ -983,20 +1190,48 @@ def supg_advection(
     velocity_function_space: FunctionSpace,
     coefficient_function_space: FunctionSpace,
     blending: GeometryMap = IdentityMap(),
+    coefficient_delta: bool = False,
 ) -> Form:
-    docstring = f"""
-advection operator which needs to be used in combination with SUPG
+    newline = "\n"
+    deltastring = f"""
+The scaling function for the supg stabilisation is hard coded into the form.
 
-Geometry map:    {blending}
+delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
+
+with:
+    xi( Pe ) :=  ( 1 + 2 / ( exp( 2* Pe ) - 1 ) - 1 / Pe ) = coth( Pe ) - 1 / Pe
+    Pe := u_abs * h / ( 2 * k ) as the local Peclet number
+    h as the element diameter
+    k as the thermal conductivity coefficient
+    u_abs as the norm of the velocity vector at the element centroid
+
+Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
+""" if not coefficient_delta else ""
+    coefficientstring = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+
+    docstring = f"""
+Advection SUPG operator for the TALA
+
+Intended for LHS use.
+{deltastring}
+Geometry map: {blending}
 
 Weak formulation
 
     T: trial function (scalar space: {trial})
-    s: test function  (scalar space: {test})
-    u: velocity function (vectorial space: {velocity_function_space})
-
-    ∫ cp ( u · ∇T ) 𝛿(u · ∇s)
+    w: test function (scalar space: {test})
+    u: coefficient (vector space: {velocity_function_space})
+    {coefficientstring}
+    ∫ delta (u · ∇T) (u · ∇w)
 """
+    
+    FEM_functions = {
+        "ux": velocity_function_space,
+        "uy": velocity_function_space,
+        "uz": velocity_function_space,
+    }
+    if coefficient_delta:
+        FEM_functions.update({"delta": coefficient_function_space})    
 
     from hog.recipes.integrands.volume.supg_advection import integrand
 
@@ -1007,112 +1242,36 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
-        is_symmetric=False,
+        is_symmetric=trial == test,
         docstring=docstring,
-        fe_coefficients={
-            "ux": velocity_function_space,
-            "uy": velocity_function_space,
-            "uz": velocity_function_space,
-            "cp_times_delta": coefficient_function_space,
-        },
+        fe_coefficients=FEM_functions,
     )
 
-
-def supg_diffusion(
-    trial: TrialSpace,
-    test: TestSpace,
+def diffusion_inv_rho(
+    trial: FunctionSpace,
+    test: FunctionSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
-    velocity_function_space: FunctionSpace,
-    diffusivityXdelta_function_space: FunctionSpace,
     blending: GeometryMap = IdentityMap(),
+    coefficient_function_space: Optional[FunctionSpace] = None
 ) -> Form:
     docstring = f"""
-Form for SUPGDiffusion operator used for SUPG stabilisation
-
-Geometry map: {blending}
-
-Weak formulation
-
-    T: trial function (space: {trial})
-    s: test function  (space: {test})
-    w: velocity function (space: {velocity_function_space})
-   k𝛿: FE function representing k·𝛿 (space: {diffusivityXdelta_function_space})
+    Diffusion inv rho operator for the TALA
     
-    For OpGen,
+    Intended for LHS use.
 
-    ∫ k(ΔT) · 𝛿(w · ∇s)
+    Geometry map: {blending}
 
-    -------------------
+    Weak formulation
 
-    For ExternalMap (only for testing, currently not supported),
+        T: trial function (scalar space: {trial})
+        w: test function (scalar space: {test})
+        rho: coefficient (scalar space: {coefficient_function_space})
 
-    ∫ (ΔT) s
-"""
+        - ∫ w/(rho*rho) ∇T · ∇rho         
+    """
 
-    def integrand(
-        *,
-        jac_a_inv,
-        jac_b_inv,
-        hessian_b,
-        jac_a_abs_det,
-        jac_b_abs_det,
-        grad_u,
-        grad_v,
-        hessian_u,
-        k,
-        volume_geometry,
-        tabulate,
-        **_,
-    ):
-        """First function: k𝛿, other functions: ux, uy, uz."""
-
-        k_times_delta = k["diffusivity_times_delta"]
-        wx = k["wx"]
-        wy = k["wy"]
-        wz = k["wz"]
-
-        dim = volume_geometry.dimensions
-        if dim == 2:
-            w = sp.Matrix([[wx], [wy]])
-        elif dim == 3:
-            w = sp.Matrix([[wx], [wy], [wz]])
-
-        if isinstance(blending, IdentityMap):
-            hessian_affine = hessian_shape_affine_ref_pullback(hessian_u, jac_a_inv)
-
-            laplacian = sum([hessian_affine[i, i] for i in range(geometry.dimensions)])
-
-            form = (
-                k_times_delta
-                * tabulate(laplacian)
-                * dot(w, tabulate(jac_a_inv.T * grad_v))
-                * jac_a_abs_det
-            )
-
-        else:
-            hessian_blending = hessian_shape_blending_ref_pullback(
-                geometry,
-                grad_u,
-                hessian_u,
-                jac_a_inv,
-                hessian_b,
-                jac_b_inv,
-            )
-
-            laplacian = sum(
-                [hessian_blending[i, i] for i in range(geometry.dimensions)]
-            )
-
-            form = (
-                laplacian
-                * dot(w, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
-                * k_times_delta
-                * jac_a_abs_det
-                * jac_b_abs_det
-            )
-
-        return form
+    from hog.recipes.integrands.volume.diffusion_inv_rho import integrand
 
     return process_integrand(
         integrand,
@@ -1121,12 +1280,87 @@ Weak formulation
         geometry,
         symbolizer,
         blending=blending,
+        is_symmetric=False,
+        docstring=docstring,
         fe_coefficients={
-            "diffusivity_times_delta": diffusivityXdelta_function_space,
-            "wx": velocity_function_space,
-            "wy": velocity_function_space,
-            "wz": velocity_function_space,
+            "rho": coefficient_function_space
         },
+    )
+
+def supg_diffusion(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    coefficient_function_space: FunctionSpace,
+    density_function_space: FunctionSpace,
+    blending: GeometryMap = IdentityMap(),
+    coefficient_delta: bool = False,
+    include_invrho: bool = True,
+) -> Form:
+    newline = "\n"
+    deltastring = f"""
+We make some assumptions here:
+    - k is constant
+    - T is in H^2 on each element ( trivially fulfilled for polynomial elements )
+
+The scaling function for the supg stabilisation is hard coded into the form.
+
+delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
+
+with:
+    xi( Pe ) :=  ( 1 + 2 / ( exp( 2* Pe ) - 1 ) - 1 / Pe ) = coth( Pe ) - 1 / Pe
+    Pe := u_abs * h / ( 2 * k ) as the local Peclet number
+    h as the element diameter
+    k as the thermal conductivity coefficient
+    u_abs as the norm of the velocity vector at the element centroid
+
+Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
+    """ if not coefficient_delta else ""    
+    coefficientstring_delta = f"rho: coefficient (scalar space: {density_function_space}){newline}" if include_invrho else ""
+    coefficientstring_rho = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+    weakstring_rho = f" 1/rho" if include_invrho else ""
+    docstring = f"""
+SUPG diffusion operator for the TALA.
+
+This corresponds to the SUPG bilinear form for both div_k_grad and diffusion_inv_rho.
+
+Intended for LHS use.
+{deltastring}
+Geometry map: {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    w: test function (scalar space: {test})
+    u: velocity function (vector space: {velocity_function_space})
+    {coefficientstring_delta}{coefficientstring_rho}
+    -∫ delta{weakstring_rho} (∇ · ∇T) (u · ∇w)
+"""
+
+    FEM_functions = {
+        "ux": velocity_function_space,
+        "uy": velocity_function_space,
+        "uz": velocity_function_space,
+    }
+    if coefficient_delta:
+        FEM_functions.update({"delta": coefficient_function_space})
+    if include_invrho:
+        FEM_functions.update({"rho": density_function_space})        
+
+    from hog.recipes.integrands.volume.supg_diffusion import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=False,
+        docstring=docstring,
+        fe_coefficients=FEM_functions,
     )
 
 
@@ -1137,9 +1371,15 @@ def grad_rho_by_rho_dot_u(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     density_function_space: Optional[FunctionSpace] = None,
+    include_inv_rho: bool = False,
+    component_index: int = 0,
 ) -> Form:
+    newline = "\n"
+    coefficientstring = f"invRho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho else ""
     docstring = f"""
-RHS operator for the frozen velocity approach.
+Operator for the frozen velocity approach.
+
+Intended for RHS use.
 
 Geometry map: {blending}
 
@@ -1148,11 +1388,134 @@ Weak formulation
     u: trial function (vectorial space: {trial})
     v: test function  (space: {test})
     rho: coefficient    (space: {density_function_space})
-
-    ∫ ((∇ρ / ρ) · u) v
+    {coefficientstring}
+    ∫ ((∇rho / rho) · u) v
 """
 
     from hog.recipes.integrands.volume.frozen_velocity import integrand
+
+    FEM_functions = {
+        "rho": density_function_space,
+    }
+    if include_inv_rho:
+        FEM_functions.update({"invRho": density_function_space})
+
+    return process_integrand(
+        partial(integrand, include_inv_rho),
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        component_index=component_index,
+        is_symmetric=False,
+        docstring=docstring,
+        fe_coefficients=FEM_functions,
+    )   
+
+def grad_rho_by_rho_dot_u_divergence(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
+    density_function_space: Optional[FunctionSpace] = None,
+    include_inv_rho: bool = False,
+    component_index: int = 0,
+) -> Form:
+    newline = "\n"
+    coefficientstring = f"invRho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho else ""
+    docstring = f"""
+Divergence + Rho stokes operator for the compressible case.
+
+Can be used as a B Block if we want the grad_rho_rho term to be implicit.
+
+Intended for LHS use.
+
+Geometry map: {blending}
+
+Weak formulation
+
+    u: trial function (vectorial space: {trial})
+    v: test function  (space: {test})
+    rho: coefficient    (space: {density_function_space})
+    {coefficientstring}
+    - ∫ ( ∇ · u ) v - ∫ ( ∇rho/rho · u ) v
+"""
+
+    from hog.recipes.integrands.volume.grad_rho_rho_divergence import integrand
+
+    FEM_functions = {
+        "rho": density_function_space,
+    }
+    if include_inv_rho:
+        FEM_functions.update({"invRho": density_function_space})
+
+    return process_integrand(
+        partial(integrand, include_inv_rho),
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        component_index=component_index,
+        is_symmetric=False,
+        docstring=docstring,
+        fe_coefficients=FEM_functions,
+    )   
+
+def supg_mass(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    velocity_function_space: FunctionSpace,
+    coefficient_function_space: FunctionSpace,
+    blending: GeometryMap = IdentityMap(),
+    coefficient_delta: bool = False,
+) -> Form:
+    newline = "\n"
+    deltastring = f"""
+The scaling function for the supg stabilisation is hard coded into the form.
+
+delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
+
+with:
+    xi( Pe ) :=  ( 1 + 2 / ( exp( 2* Pe ) - 1 ) - 1 / Pe ) = coth( Pe ) - 1 / Pe
+    Pe := u_abs * h / ( 2 * k ) as the local Peclet number
+    h as the element diameter
+    k as the thermal conductivity coefficient
+    u_abs as the norm of the velocity vector at the element centroid
+
+Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
+""" if not coefficient_delta else ""
+    coefficientstring = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+
+    docstring = f"""
+SUPG mass operator for the TALA
+
+Intended for LHS use.
+{deltastring}
+Geometry map: {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    w: test function (scalar space: {test})
+    u: coefficient (vector space: {velocity_function_space})
+    {coefficientstring}
+    ∫ delta T ( u · ∇w )
+"""
+    
+    FEM_functions = {
+        "ux": velocity_function_space,
+        "uy": velocity_function_space,
+        "uz": velocity_function_space,
+    }
+    if coefficient_delta:
+        FEM_functions.update({"delta": coefficient_function_space})    
+
+    from hog.recipes.integrands.volume.supg_mass import integrand
 
     return process_integrand(
         integrand,
@@ -1163,11 +1526,55 @@ Weak formulation
         blending=blending,
         is_symmetric=False,
         docstring=docstring,
-        fe_coefficients={
-            "rho": density_function_space,
-        },
+        fe_coefficients=FEM_functions,
     )
 
+def rho_g_mass(
+    trial: TrialSpace,
+    test: TestSpace,
+    geometry: ElementGeometry,
+    symbolizer: Symbolizer,
+    blending: GeometryMap = IdentityMap(),
+    density_function_space: Optional[FunctionSpace] = None,
+    component_index: int = 0
+) -> Form:
+    docstring = f"""
+Density scaled mass operator for the TALA
+    
+Intended for RHS use in case of the TALA RHS.
+Intended for LHS use in case of the additional ALA pressure term.
+
+In the second case the trial function T would act as the pressure and
+we would generate a P1ToP2Vector operator.
+
+The gravity vector is hard coded for annulus and icosahedral shell,
+i.e. g := -x / norm(x).
+
+Geometry map: {blending}
+
+Weak formulation
+
+    T: trial function (scalar space: {trial})
+    v: test function (vector space: {test})
+    rho: coefficient (scalar space: {density_function_space})
+
+    - ∫ rho T (g · v)
+"""
+
+    from hog.recipes.integrands.volume.rho_g_mass import integrand
+
+    return process_integrand(
+        integrand,
+        trial,
+        test,
+        geometry,
+        symbolizer,
+        blending=blending,
+        is_symmetric=False,
+        fe_coefficients={"rho": density_function_space},
+        component_index=component_index,
+        docstring=docstring,
+    )
 
 def zero_form(
     trial: TrialSpace,

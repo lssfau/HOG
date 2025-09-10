@@ -654,3 +654,131 @@ class AffineMap2D(GeometryMap):
             ]
 
         return "\n".join(code)
+
+class PolarCoordsMap(GeometryMap):
+    """
+    Geometry mapping based on polar coordinates. Convention is x[0] = r, x[1] = phi. Vectorization currently not supported for this map.
+    """
+
+    def supported_geometries(self) -> List[ElementGeometry]:
+        return [TriangleElement()]
+
+    def evaluate(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the geometry map at the passed point."""
+
+        xnew = sp.zeros(2, 1)
+        xnew[0] = x[0] * sp.cos( x[1] )
+        xnew[1] = x[0] * sp.sin( x[1] )
+        return xnew
+
+    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (2, 1):
+            raise HOGException(f"Invalid input shape {sp.shape(x)} for PolarCoordsMap.")
+
+        jac = sp.Matrix(
+            [
+                [ sp.cos( x[1] ), -x[0] * sp.sin( x[1] ) ],
+                [ sp.sin( x[1] ),  x[0] * sp.cos( x[1] ) ],
+            ]
+        )
+
+        return jac
+
+    def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
+        """Evaluates the derivatives of the inverse Jacobian matrix of the geometry map at the passed point."""
+
+        if sp.shape(x) != (2, 1):
+            raise HOGException("Invalid input shape for PolarCoordsMap.")
+        
+        xSymbol, ySymbol = sp.symbols("x y")
+
+        jac = sp.Matrix(
+            [
+                [ sp.cos( ySymbol ), -xSymbol * sp.sin( ySymbol ) ],
+                [ sp.sin( ySymbol ),  xSymbol * sp.cos( ySymbol ) ],
+            ]
+        ).T
+
+        hess = [
+            sp.diff(jac, xSymbol).subs([(xSymbol, x[0]), (ySymbol, x[1])]),
+            sp.diff(jac, ySymbol).subs([(xSymbol, x[0]), (ySymbol, x[1])]),
+        ]
+
+        return hess
+
+    def coupling_includes(self) -> List[str]:
+        return ["hyteg/geometry/PolarCoordsMap.hpp"]
+
+    def parameter_coupling_code(self) -> str:
+        return ""
+    
+class SphericalCoordsMap(GeometryMap):
+    """
+    Geometry mapping based on spherical coordinates, x[0] = r, x[1] = theta, x[2] = phi. Vectorization currently not supported for this map.
+    """
+
+    def supported_geometries(self) -> List[ElementGeometry]:
+        return [TetrahedronElement()]
+
+    def evaluate(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the geometry map at the passed point."""
+
+        xnew = sp.zeros(3, 1)
+        xnew[0] = x[0] * sp.sin( x[1] ) * sp.cos( x[2] )
+        xnew[1] = x[0] * sp.sin( x[1] ) * sp.sin( x[2] )
+        xnew[2] = x[0] * sp.cos( x[1] )
+        return xnew
+
+    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (3, 1):
+            raise HOGException(f"Invalid input shape {sp.shape(x)} for SphericalCoordsMap.")
+        
+        jac = sp.Matrix(
+            [
+                [ sp.sin( x[1] ) * sp.cos( x[2] ), x[0] * sp.cos( x[1] ) * sp.cos( x[2] ), -x[0] * sp.sin( x[1] ) * sp.sin( x[2] ) ],
+                [ sp.sin( x[1] ) * sp.sin( x[2] ), x[0] * sp.cos( x[1] ) * sp.sin( x[2] ),  x[0] * sp.sin( x[1] ) * sp.cos( x[2] ) ],
+                [ sp.cos( x[1] )                 ,-x[0] * sp.sin( x[1] )                 ,  0                                      ],
+            ]
+        )
+
+        return jac
+
+    def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
+        """Evaluates the derivatives of the inverse Jacobian matrix of the geometry map at the passed point."""
+
+        if sp.shape(x) != (3, 1):
+            raise HOGException("Invalid input shape for SphericalCoordsMap.")
+        
+        xSymbol, ySymbol, zSymbol = sp.symbols("x y z")
+
+        jac = sp.Matrix(
+            [
+                [ sp.sin( ySymbol ) * sp.cos( zSymbol ), xSymbol * sp.cos( ySymbol ) * sp.cos( zSymbol ), -xSymbol * sp.sin( ySymbol ) * sp.sin( zSymbol ) ],
+                [ sp.sin( ySymbol ) * sp.sin( zSymbol ), xSymbol * sp.cos( ySymbol ) * sp.sin( zSymbol ),  xSymbol * sp.sin( ySymbol ) * sp.cos( zSymbol ) ],
+                [ sp.cos( ySymbol )                    ,-xSymbol * sp.sin( ySymbol )                    ,  0                                               ],
+            ]
+        ).T
+
+        hess = [
+            sp.diff(jac, xSymbol).subs(
+                [(xSymbol, x[0]), (ySymbol, x[1]), (zSymbol, x[2])]
+            ),
+            sp.diff(jac, ySymbol).subs(
+                [(xSymbol, x[0]), (ySymbol, x[1]), (zSymbol, x[2])]
+            ),
+            sp.diff(jac, zSymbol).subs(
+                [(xSymbol, x[0]), (ySymbol, x[1]), (zSymbol, x[2])]
+            ),
+        ]
+
+        return hess
+
+    def coupling_includes(self) -> List[str]:
+        return ["hyteg/geometry/SphericalCoordsMap.hpp"]
+
+    def parameter_coupling_code(self) -> str:
+        return ""    

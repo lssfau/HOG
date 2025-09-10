@@ -14,9 +14,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from hog.recipes.common import *
 
-# Collects common imports for forming integrand and operator recipes.
-import sympy as sp
-from hog.math_helpers import dot, abs, det, inv, double_contraction, diameter, deltaSUPG
+def integrand(
+    *,
+    u,
+    v,
+    jac_a_abs_det,
+    jac_b_abs_det,
+    k,
+    volume_geometry,
+    tabulate,
+    x,
+    **_,
+):
+    if volume_geometry.dimensions > 2:
+        uVec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+    else:
+        uVec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
-__all__ = ["sp", "dot", "abs", "det", "inv", "double_contraction", "diameter", "deltaSUPG"]
+    g = -x/x.norm()
+
+    return (- dot(uVec, g) *  tabulate(u * v * jac_a_abs_det) * jac_b_abs_det)
