@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from hog.recipes.common import *
-from functools import partial
 
 def integrand_recipe(
     use_dim,
@@ -90,14 +89,14 @@ def integrand_recipe(
         * jac_b_abs_det
     )
 
-def integrand():
-    return partial(integrand_recipe(True, False))
+def integrand(**kwargs):
+    return integrand_recipe(True, False, **kwargs)
 
-def integrand_pseudo_3D():
-    return partial(integrand_recipe(False, False))
+def integrand_pseudo_3D(**kwargs):
+    return integrand_recipe(False, False, **kwargs)
 
-def integrand_with_cutoff():
-    return partial(integrand_recipe(True, True))
+def integrand_with_cutoff(**kwargs):
+    return integrand_recipe(True, True, **kwargs)
 
-def integrand_with_cutoff_pseudo_3D():
-    return partial(integrand_recipe(False, True))
+def integrand_with_cutoff_pseudo_3D(**kwargs):
+    return integrand_recipe(False, True, **kwargs)

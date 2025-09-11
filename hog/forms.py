@@ -17,7 +17,6 @@
 import logging
 import sympy as sp
 from typing import Optional, Callable, Any
-from functools import partial
 
 from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException

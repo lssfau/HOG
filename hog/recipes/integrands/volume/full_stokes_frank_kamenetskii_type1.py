@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from hog.recipes.common import *
-from functools import partial
 
 def integrand_recipe(
     use_dim,
@@ -83,8 +82,8 @@ def integrand_recipe(
         - divdiv_scaling * div_u * div_v * tabulate(jac_a_abs_det) * jac_b_abs_det
     )
 
-def integrand():
-    return partial(integrand_recipe(True))
+def integrand(**kwargs):
+    return integrand_recipe(True, **kwargs)
 
-def integrand_pseudo_3D():
-    return partial(integrand_recipe(False))
+def integrand_pseudo_3D(**kwargs):
+    return integrand_recipe(False, **kwargs)
