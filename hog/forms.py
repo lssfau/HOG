@@ -727,7 +727,7 @@ where
     #   "general" (as a FEM function coefficient)
     #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
-    FEM_functions : dict[str, FunctionSpace | None] = None
+    FEM_functions : dict[str, FunctionSpace | None] = {}
 
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
         FEM_functions = {"T_extra": coefficient_function_space}    
