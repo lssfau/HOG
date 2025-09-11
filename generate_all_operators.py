@@ -640,7 +640,7 @@ def all_operators(
                             form=diffusion, type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
 
     ops.append(OperatorInfo("P2", "SUPGDiffusion", TrialSpace(P2), TestSpace(P2), 
-                            form=partial(supg_diffusion, velocity_function_space=P2, coefficient_function_space=P2), 
+                            form=partial(supg_diffusion, velocity_function_space=P2, coefficient_function_space=P2, density_function_space=P1), 
                             type_descriptor=type_descriptor, geometries=list(geometries), opts=opts, blending=blending))
     
     ops.append(OperatorInfo("P2", "Advection", TrialSpace(P2), TestSpace(P2), 
