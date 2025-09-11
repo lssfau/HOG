@@ -725,13 +725,13 @@ where
     #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
-        FEM_functions = {"T_extra": coefficient_function_space}    
+        FEM_functions : dict[str, FunctionSpace | None] = {"T_extra": coefficient_function_space}    
         if use_dim:
             from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand
         else:
             from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
     else: # "general"
-        FEM_functions = {"mu": coefficient_function_space}
+        FEM_functions : dict[str, FunctionSpace | None] = {"mu": coefficient_function_space}
         if use_dim:
             from hog.recipes.integrands.volume.full_stokes import integrand
         else:
@@ -814,7 +814,7 @@ Weak formulation
 {pseudo_note}{cufoff_note}    
 Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
 """
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -933,7 +933,7 @@ Weak formulation
 {pseudo_note}{cufoff_note}    
 Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
 """
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -1156,7 +1156,7 @@ Weak formulation
     - ∫ delta T (u · g) ( u · ∇w )
     """
 
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -1265,7 +1265,7 @@ Weak formulation
     ∫ delta (u · ∇T) (u · ∇w)
 """
     
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -1379,7 +1379,7 @@ Weak formulation
     -∫ delta{weakstring_rho} (∇ · ∇T) (u · ∇w)
 """
 
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -1434,7 +1434,7 @@ Weak formulation
 
     from hog.recipes.integrands.volume.frozen_velocity import integrand
 
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "rho": density_function_space,
     }
     if include_inv_rho:
@@ -1485,7 +1485,7 @@ Weak formulation
 
     from hog.recipes.integrands.volume.grad_rho_rho_divergence import integrand
 
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "rho": density_function_space,
     }
     if include_inv_rho:
@@ -1547,7 +1547,7 @@ Weak formulation
     ∫ delta T ( u · ∇w )
 """
     
-    FEM_functions = {
+    FEM_functions : dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
