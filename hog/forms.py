@@ -686,7 +686,8 @@ def full_stokes(
     coefficient_function_space: Optional[FunctionSpace] = None,
     rotation_wrapper: bool = False,
     use_dim: bool = False,
-    viscosity: str = "general"
+    viscosity: str = "general",
+    variable_viscosity: bool = True,
 ) -> Form:
     newline = "\n"
     dimstring = "(2/dim)" if use_dim else "(2/3)"
@@ -717,6 +718,8 @@ where
     
     ε(w) := (1/2) (∇w + (∇w)ᵀ)
 """
+    if not variable_viscosity:
+        raise HOGException("Constant viscosity currently not supported.")
 
     from hog.recipes.integrands.volume.rotation import RotationType
     
@@ -724,14 +727,16 @@ where
     #   "general" (as a FEM function coefficient)
     #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
+    FEM_functions : dict[str, FunctionSpace | None] = None
+
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
-        FEM_functions : dict[str, FunctionSpace | None] = {"T_extra": coefficient_function_space}    
+        FEM_functions = {"T_extra": coefficient_function_space}    
         if use_dim:
             from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand
         else:
             from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
     else: # "general"
-        FEM_functions : dict[str, FunctionSpace | None] = {"mu": coefficient_function_space}
+        FEM_functions = {"mu": coefficient_function_space}
         if use_dim:
             from hog.recipes.integrands.volume.full_stokes import integrand
         else:
@@ -1288,8 +1293,8 @@ Weak formulation
     )
 
 def diffusion_inv_rho(
-    trial: FunctionSpace,
-    test: FunctionSpace,
+    trial: TrialSpace,
+    test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),

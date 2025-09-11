@@ -85,9 +85,9 @@ def integrand_recipe(
     
     exp_input = -rock_chemical_composition_parameter * T_mod + depth_dependency * pos  + additive_offset
     
-    exp_approx = exp_approx(exp_input)
+    exp_val = exp_approx(exp_input)
     
-    eta = eta_simple * exp_approx
+    eta = eta_simple * exp_val
 
     # build form
     grad_ux = jac_b_inv.T * jac_a_inv.T * grad_k["ux"]
