@@ -26,16 +26,29 @@ def integrand_recipe(
     jac_a_abs_det,
     jac_b_abs_det,
     u,
-    v,
     k,
     grad_k,
+    grad_v,
     volume_geometry,
     tabulate,
     x,
     scalars,
+    x_ref,
+    affine_diameter,
     **_,
 ):
     dim = volume_geometry.dimensions
+
+    if dim > 2:
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+    else:
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
+
+    # delta function
+    if "delta" in k.keys():
+        delta = k["delta"]
+    else:
+        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)
 
     inv_rho_scaling = (sp.S(1) / k["rho"] if ("rho" in k.keys()) else sp.S(1))
     divdiv_scaling = sp.Rational(1, dim) if use_dim else sp.Rational(1, 3)
@@ -49,7 +62,33 @@ def integrand_recipe(
             (1.0, sp.sympify(True) )
         )
     else:
-        pos_scaling = sp.S(1) 
+        pos_scaling = sp.S(1)
+
+    # define specific viscosity
+    eta_ref = scalars("eta_ref")
+    temperature_surface = scalars("temperature_surface")
+    rock_chemical_composition_parameter = scalars("rock_chemical_composition_parameter")
+    depth_dependency = scalars("depth_dependency")
+    radius_surface = scalars("radius_surface")
+    radius_CMB = scalars("radius_CMB")
+    additive_offset = scalars("additive_offset")
+
+    # pos = ( radius_surface - norm(x) );
+    # x_01 = ( norm - radius_CMB );
+    # eta = eta0(x_01) * exp( -rock_chemical_composition_parameter * temperature + depth_dependency * pos + additive_offset );
+    norm = x.norm()
+    x_01 = norm - radius_CMB
+
+    eta_simple = simple_viscosity_profile(x_01) / eta_ref
+    
+    T_mod = k["T_extra"] - temperature_surface
+    pos = radius_surface - norm
+    
+    exp_input = -rock_chemical_composition_parameter * T_mod + depth_dependency * pos  + additive_offset
+    
+    exp_approx = exp_approx(exp_input)
+    
+    eta = eta_simple * exp_approx
 
     # build form
     grad_ux = jac_b_inv.T * jac_a_inv.T * grad_k["ux"]
@@ -68,11 +107,13 @@ def integrand_recipe(
 
     return (
         pos_scaling
+        * delta
         * inv_rho_scaling
-        * k["eta"] 
+        * eta
         * (double_contraction(tau, grad_u)[0])
+        * tabulate(jac_a_abs_det * u)
+        * dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
         * jac_b_abs_det
-        * tabulate(jac_a_abs_det * u * v)
     )
 
 def integrand():

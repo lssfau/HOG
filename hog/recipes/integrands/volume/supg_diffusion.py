@@ -32,21 +32,21 @@ def integrand(
     volume_geometry,
     tabulate,
     blending,
-    xRef,
+    x_ref,
     affine_diameter,
     scalars,
     **_,
 ):
     if volume_geometry.dimensions > 2:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
     else:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]]])    
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])    
 
     # delta function
     if "delta" in k.keys():
         delta = k["delta"]
     else:
-        delta = deltaSUPG(xRef, uVec, affine_diameter, scalars("thermalConductivity"), True)        
+        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)        
 
     # scaling with 1/rho
     if "rho" in k.keys():
@@ -59,7 +59,7 @@ def integrand(
 
         laplacian = sum([hessian_affine[i, i] for i in range(volume_geometry.dimensions)])
 
-        supg = dot(uVec, tabulate(jac_a_inv.T * grad_v))
+        supg = dot(u_vec, tabulate(jac_a_inv.T * grad_v))
 
         form = (
             -delta * scaling * tabulate(laplacian) * supg * tabulate(jac_a_abs_det)
@@ -78,7 +78,7 @@ def integrand(
             [hessian_blending[i, i] for i in range(volume_geometry.dimensions)]
         )
 
-        supg = dot(uVec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
+        supg = dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
 
         form = (
             -delta * scaling * laplacian * supg * tabulate(jac_a_abs_det) * jac_b_abs_det

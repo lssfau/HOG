@@ -17,7 +17,7 @@
 import sympy as sp
 from typing import Any, List
 from hog.exception import HOGException
-from hog.math_helpers import sinApprox, cosApprox
+from hog.approximation_functions import sin_approx, cos_approx
 from hog.element_geometry import (
     ElementGeometry,
     LineElement,
@@ -673,8 +673,8 @@ class PolarCoordsMap(GeometryMap):
 
         if self.approx:
             xnew = sp.zeros(2, 1)
-            xnew[0] = x[0] * cosApprox( x[1] )
-            xnew[1] = x[0] * sinApprox( x[1] )
+            xnew[0] = x[0] * cos_approx( x[1] )
+            xnew[1] = x[0] * sin_approx( x[1] )
             return xnew
         else:
             xnew = sp.zeros(2, 1)
@@ -691,8 +691,8 @@ class PolarCoordsMap(GeometryMap):
         if self.approx:
             jac = sp.Matrix(
                 [
-                    [ cosApprox( x[1] ), -x[0] * sinApprox( x[1] ) ],
-                    [ sinApprox( x[1] ),  x[0] * cosApprox( x[1] ) ],
+                    [ cos_approx( x[1] ), -x[0] * sin_approx( x[1] ) ],
+                    [ sin_approx( x[1] ),  x[0] * cos_approx( x[1] ) ],
                 ]
             )
             return jac
@@ -715,14 +715,14 @@ class PolarCoordsMap(GeometryMap):
             return [
                 sp.Matrix(
                     [
-                        [  0              , 0               ],
-                        [ -sinApprox(x[1]), cosApprox(x[1]) ]
+                        [  0               , 0                ],
+                        [ -sin_approx(x[1]), cos_approx(x[1]) ]
                     ]
                 ),
                 sp.Matrix(
                     [
-                        [ -sinApprox(x[1])     ,  cosApprox(x[1])      ],
-                        [ -x[0]*cosApprox(x[1]), -x[0]*sinApprox(x[1]) ]
+                        [ -sin_approx(x[1])     ,  cos_approx(x[1])      ],
+                        [ -x[0]*cos_approx(x[1]), -x[0]*sin_approx(x[1]) ]
                     ]
                 ),
             ]
@@ -765,9 +765,9 @@ class SphericalCoordsMap(GeometryMap):
 
         if self.approx:
             xnew = sp.zeros(3, 1)
-            xnew[0] = x[0] * sinApprox( x[1] ) * cosApprox( x[2] )
-            xnew[1] = x[0] * sinApprox( x[1] ) * sinApprox( x[2] )
-            xnew[2] = x[0] * cosApprox( x[1] )
+            xnew[0] = x[0] * sin_approx( x[1] ) * cos_approx( x[2] )
+            xnew[1] = x[0] * sin_approx( x[1] ) * sin_approx( x[2] )
+            xnew[2] = x[0] * cos_approx( x[1] )
             return xnew
         else:
             xnew = sp.zeros(3, 1)
@@ -785,9 +785,9 @@ class SphericalCoordsMap(GeometryMap):
         if self.approx:
             jac = sp.Matrix(
                 [
-                    [ sinApprox( x[1] ) * cosApprox( x[2] ), x[0] * cosApprox( x[1] ) * cosApprox( x[2] ), -x[0] * sinApprox( x[1] ) * sinApprox( x[2] ) ],
-                    [ sinApprox( x[1] ) * sinApprox( x[2] ), x[0] * cosApprox( x[1] ) * sinApprox( x[2] ),  x[0] * sinApprox( x[1] ) * cosApprox( x[2] ) ],
-                    [ cosApprox( x[1] )                    ,-x[0] * sinApprox( x[1] )                    ,  0                                            ],
+                    [ sin_approx( x[1] ) * cos_approx( x[2] ), x[0] * cos_approx( x[1] ) * cos_approx( x[2] ), -x[0] * sin_approx( x[1] ) * sin_approx( x[2] ) ],
+                    [ sin_approx( x[1] ) * sin_approx( x[2] ), x[0] * cos_approx( x[1] ) * sin_approx( x[2] ),  x[0] * sin_approx( x[1] ) * cos_approx( x[2] ) ],
+                    [ cos_approx( x[1] )                     ,-x[0] * sin_approx( x[1] )                     ,  0                                              ],
                 ]
             )
             return jac
@@ -811,23 +811,23 @@ class SphericalCoordsMap(GeometryMap):
             return [
                 sp.Matrix(
                     [
-                        [  0                              , 0                              ,  0               ],
-                        [  cosApprox(x[1])*cosApprox(x[2]), sinApprox(x[2])*cosApprox(x[1]), -sinApprox(x[1]) ],
-                        [ -sinApprox(x[1])*sinApprox(x[2]), sinApprox(x[1])*cosApprox(x[2]),  0               ]
+                        [  0                                , 0                                ,  0                ],
+                        [  cos_approx(x[1])*cos_approx(x[2]), sin_approx(x[2])*cos_approx(x[1]), -sin_approx(x[1]) ],
+                        [ -sin_approx(x[1])*sin_approx(x[2]), sin_approx(x[1])*cos_approx(x[2]),  0                ]
                     ]
                 ),
                 sp.Matrix(
                     [
-                        [  cosApprox(x[1])*cosApprox(x[2])     ,  sinApprox(x[2])*cosApprox(x[1])     , -sinApprox(x[1])      ],
-                        [ -x[0]*sinApprox(x[1])*cosApprox(x[2]), -x[0]*sinApprox(x[1])*sinApprox(x[2]), -x[0]*cosApprox(x[1]) ],
-                        [ -x[0]*sinApprox(x[2])*cosApprox(x[1]),  x[0]*cosApprox(x[1])*cosApprox(x[2]),  0                    ]
+                        [  cos_approx(x[1])*cos_approx(x[2])     ,  sin_approx(x[2])*cos_approx(x[1])     , -sin_approx(x[1])      ],
+                        [ -x[0]*sin_approx(x[1])*cos_approx(x[2]), -x[0]*sin_approx(x[1])*sin_approx(x[2]), -x[0]*cos_approx(x[1]) ],
+                        [ -x[0]*sin_approx(x[2])*cos_approx(x[1]),  x[0]*cos_approx(x[1])*cos_approx(x[2]),  0                     ]
                     ]
                 ),
                 sp.Matrix(
                     [
-                        [ -sinApprox(x[1])*sinApprox(x[2])     ,  sinApprox(x[1])*cosApprox(x[2])     , 0 ],
-                        [ -x[0]*sinApprox(x[2])*cosApprox(x[1]),  x[0]*cosApprox(x[1])*cosApprox(x[2]), 0 ],
-                        [ -x[0]*sinApprox(x[1])*cosApprox(x[2]), -x[0]*sinApprox(x[1])*sinApprox(x[2]), 0 ]
+                        [ -sin_approx(x[1])*sin_approx(x[2])     ,  sin_approx(x[1])*cos_approx(x[2])     , 0 ],
+                        [ -x[0]*sin_approx(x[2])*cos_approx(x[1]),  x[0]*cos_approx(x[1])*cos_approx(x[2]), 0 ],
+                        [ -x[0]*sin_approx(x[1])*cos_approx(x[2]), -x[0]*sin_approx(x[1])*sin_approx(x[2]), 0 ]
                     ]
                 ),
             ]

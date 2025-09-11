@@ -163,7 +163,7 @@ class IntegrandSymbols:
     x: sp.Matrix | None = None
 
     # The coordinate symbols on the reference element
-    xRef: sp.Matrix | None = None
+    x_ref: sp.Matrix | None = None
 
     # A dict of finite element functions that can be used as function parameters.
     # The keys are specified by the strings that are passed to process_integrand.
@@ -238,7 +238,8 @@ class IntegrandSymbols:
     # symbolizer
     symbolizer: Symbolizer | None = None
 
-    # affine diameter
+    # Affine diameter, i.e. the diameter of the passed simplex, calculated as double the circumcircle / circumsphere radius.
+    # Currently only usable with triangle and tetrahedron elements.
     affine_diameter: sp.Expr | None = None
 
     # trial is vectorial
@@ -519,8 +520,8 @@ def process_integrand(
     if not isinstance(blending, ParametricMap):
         s.x = trafo_ref_to_physical(volume_geometry, symbolizer, blending)
 
-    xRef = symbolizer.ref_coords_as_list(dimensions=volume_geometry.dimensions)
-    s.xRef = sp.Matrix([[xRef[i]] for i in range(volume_geometry.dimensions)])
+    x_ref = symbolizer.ref_coords_as_list(dimensions=volume_geometry.dimensions)
+    s.x_ref = sp.Matrix([[x_ref[i]] for i in range(volume_geometry.dimensions)])
 
     #######################################
     # Assembling the local element matrix #

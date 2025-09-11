@@ -17,6 +17,7 @@
 
 # Collects common imports for forming integrand and operator recipes.
 import sympy as sp
-from hog.math_helpers import dot, abs, det, inv, double_contraction, diameter, deltaSUPG
+from hog.math_helpers import dot, abs, det, inv, double_contraction, diameter
+from hog.approximation_functions import delta_supg, exp_approx, sin_approx, cos_approx, simple_viscosity_profile
 
-__all__ = ["sp", "dot", "abs", "det", "inv", "double_contraction", "diameter", "deltaSUPG"]
+__all__ = ["sp", "dot", "abs", "det", "inv", "double_contraction", "diameter", "delta_supg", "exp_approx", "sin_approx", "cos_approx", "simple_viscosity_profile"]

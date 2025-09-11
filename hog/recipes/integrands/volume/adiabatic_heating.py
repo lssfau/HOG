@@ -29,10 +29,10 @@ def integrand(
     **_,
 ):
     if volume_geometry.dimensions > 2:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
     else:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]]])
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
     g = -x/x.norm()
 
-    return (- dot(uVec, g) *  tabulate(u * v * jac_a_abs_det) * jac_b_abs_det)
+    return (- dot(u_vec, g) *  tabulate(u * v * jac_a_abs_det) * jac_b_abs_det)

@@ -26,7 +26,7 @@ def integrand(
     volume_geometry,
     tabulate,
     x,
-    xRef,
+    x_ref,
     scalars,
     affine_diameter,
     jac_a_inv,
@@ -34,9 +34,9 @@ def integrand(
     **_,
 ):
     if volume_geometry.dimensions > 2:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
     else:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]]])
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
     g = -x/x.norm()
 
@@ -45,6 +45,6 @@ def integrand(
     if "delta" in k.keys():
         delta = k["delta"]
     else:
-        delta = deltaSUPG(xRef, uVec, affine_diameter, scalars("thermalConductivity"), True)
+        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)
 
-    return (- delta * dot(uVec, g) * dot(uVec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)) *  tabulate(u * jac_a_abs_det) * jac_b_abs_det)
+    return (- delta * dot(u_vec, g) * dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)) *  tabulate(u * jac_a_abs_det) * jac_b_abs_det)

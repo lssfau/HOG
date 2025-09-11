@@ -43,7 +43,7 @@ from hog.function_space import (
     TestSpace,
     TrialSpace,
 )
-from hog.math_helpers import dot, grad, inv, abs, det, double_contraction, e_vec, diameter, deltaSUPG, expApprox, simpleViscosityProfile
+from hog.math_helpers import dot, grad, inv, abs, det, double_contraction
 from hog.quadrature import Quadrature, Tabulation
 from hog.symbolizer import Symbolizer
 from hog.logger import TimedLogger
@@ -720,18 +720,26 @@ where
 """
 
     from hog.recipes.integrands.volume.rotation import RotationType
-    from hog.recipes.integrands.volume.full_stokes import integrand
-
+    
     # supported viscosities are
     #   "general" (as a FEM function coefficient)
     #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
-    FEM_functions = {"mu": coefficient_function_space}
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
         FEM_functions = {"T_extra": coefficient_function_space}    
+        if use_dim:
+            from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand
+        else:
+            from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
+    else: # "general"
+        FEM_functions = {"mu": coefficient_function_space}
+        if use_dim:
+            from hog.recipes.integrands.volume.full_stokes import integrand
+        else:
+            from hog.recipes.integrands.volume.full_stokes import integrand_pseudo_3D as integrand
 
     return process_integrand(
-        partial(integrand, use_dim, viscosity),
+        integrand,
         trial,
         test,
         geometry,
@@ -807,29 +815,46 @@ Weak formulation
 {pseudo_note}{cufoff_note}    
 Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
 """
-
-    from hog.recipes.integrands.volume.shear_heating import integrand
-
-    # supported viscosities are
-    #   "general" (as a FEM function coefficient)
-    #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
-
     FEM_functions = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
     }
 
+    # supported viscosities are
+    #   "general" (as a FEM function coefficient)
+    #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
+
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
         FEM_functions.update({"T_extra": coefficient_function_space})  
-    else: # viscosity == "general"
+        if use_dim:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff as integrand
+            else:
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand
+        else:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff_pseudo_3D as integrand
+            else:
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
+    else: # "general"
         FEM_functions.update({"eta": viscosity_function_space})  
+        if use_dim:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.shear_heating import integrand_with_cutoff as integrand
+            else:
+                from hog.recipes.integrands.volume.shear_heating import integrand
+        else:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.shear_heating import integrand_with_cutoff_pseudo_3D as integrand
+            else:
+                from hog.recipes.integrands.volume.shear_heating import integrand_pseudo_3D as integrand
 
     if include_inv_rho_scaling:
         FEM_functions.update({"rho": density_function_space})  
 
     return process_integrand(
-        partial(integrand, include_inv_rho_scaling, use_dim, viscosity, surface_cutoff),
+        integrand,
         trial,
         test,
         geometry,
@@ -909,13 +934,6 @@ Weak formulation
 {pseudo_note}{cufoff_note}    
 Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
 """
-
-    from hog.recipes.integrands.volume.supg_shear_heating import integrand
-
-    # supported viscosities are
-    #   "general" (as a FEM function coefficient)
-    #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
-
     FEM_functions = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
@@ -925,16 +943,40 @@ Typical usage sets T = 1, i.e. applying the operator to a function containing on
     if coefficient_delta:
         FEM_functions.update({"delta": delta_function_space})
 
+    # supported viscosities are
+    #   "general" (as a FEM function coefficient)
+    #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
+
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
         FEM_functions.update({"T_extra": coefficient_function_space})  
-    else: # viscosity == "general"
+        if use_dim:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff as integrand
+            else:
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand
+        else:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff_pseudo_3D as integrand
+            else:
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
+    else: # "general"
         FEM_functions.update({"eta": viscosity_function_space})  
+        if use_dim:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.supg_shear_heating import integrand_with_cutoff as integrand
+            else:
+                from hog.recipes.integrands.volume.supg_shear_heating import integrand
+        else:
+            if surface_cutoff:
+                from hog.recipes.integrands.volume.supg_shear_heating import integrand_with_cutoff_pseudo_3D as integrand
+            else:
+                from hog.recipes.integrands.volume.supg_shear_heating import integrand_pseudo_3D as integrand
 
     if include_inv_rho_scaling:
         FEM_functions.update({"rho": density_function_space})  
 
     return process_integrand(
-        partial(integrand, include_inv_rho_scaling, use_dim, viscosity, surface_cutoff),
+        integrand,
         trial,
         test,
         geometry,
@@ -1144,7 +1186,6 @@ def advection(
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     velocity_function_space: FunctionSpace,
-    coefficient_function_space: FunctionSpace,
     blending: GeometryMap = IdentityMap(),
 ) -> Form:
     docstring = f"""
@@ -1375,7 +1416,7 @@ def grad_rho_by_rho_dot_u(
     component_index: int = 0,
 ) -> Form:
     newline = "\n"
-    coefficientstring = f"invRho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho else ""
+    coefficientstring = f"inv_rho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho else ""
     docstring = f"""
 Operator for the frozen velocity approach.
 
@@ -1398,10 +1439,10 @@ Weak formulation
         "rho": density_function_space,
     }
     if include_inv_rho:
-        FEM_functions.update({"invRho": density_function_space})
+        FEM_functions.update({"inv_rho": density_function_space})
 
     return process_integrand(
-        partial(integrand, include_inv_rho),
+        integrand,
         trial,
         test,
         geometry,
@@ -1449,10 +1490,10 @@ Weak formulation
         "rho": density_function_space,
     }
     if include_inv_rho:
-        FEM_functions.update({"invRho": density_function_space})
+        FEM_functions.update({"inv_rho": density_function_space})
 
     return process_integrand(
-        partial(integrand, include_inv_rho),
+        integrand,
         trial,
         test,
         geometry,

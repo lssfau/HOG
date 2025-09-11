@@ -15,12 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from hog.recipes.common import *
-from hog.math_helpers import simpleViscosityProfile, expApprox
+from functools import partial
 
-def integrand(
-    include_inv_rho_scaling,
+def integrand_recipe(
     use_dim,
-    viscosity,
     surface_cutoff,
     *,
     jac_a_inv,
@@ -35,29 +33,29 @@ def integrand(
     tabulate,
     x,
     scalars,
-    xRef,
+    x_ref,
     affine_diameter,
     **_,
 ):
     dim = volume_geometry.dimensions
 
     if dim > 2:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
     else:
-        uVec = sp.Matrix([[k["ux"]], [k["uy"]]])
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
     # delta function
     if "delta" in k.keys():
         delta = k["delta"]
     else:
-        delta = deltaSUPG(xRef, uVec, affine_diameter, scalars("thermalConductivity"), True)
+        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)
 
-    inv_rho_scaling = (sp.S(1) / k["rho"] if include_inv_rho_scaling else sp.S(1))
+    inv_rho_scaling = (sp.S(1) / k["rho"] if ("rho" in k.keys()) else sp.S(1))
     divdiv_scaling = sp.Rational(1, dim) if use_dim else sp.Rational(1, 3)
 
     if surface_cutoff:
         norm = x.norm()
-        pos = scalars("radiusSurface") - norm
+        pos = scalars("radius_surface") - norm
 
         pos_scaling = sp.Piecewise(
             (0.0, pos < scalars("cutoff") ),
@@ -66,34 +64,7 @@ def integrand(
     else:
         pos_scaling = sp.S(1)
 
-    if viscosity == "frank_kamenetskii_type1_simple_viscosity":
-        etaRef = scalars("etaRef")
-        temperatureSurface = scalars("temperatureSurface")
-        rockChemicalCompositionParameter = scalars("rockChemicalCompositionParameter")
-        depthDependency = scalars("depthDependency")
-        radiusSurface = scalars("radiusSurface")
-        radiusCMB = scalars("radiusCMB")
-        additiveOffSet = scalars("additiveOffSet")
-
-        # pos = ( radiusSurface - norm(x) );
-        # x01 = ( norm - radiusCMB );
-        # eta = eta0(x01) * exp( -rockChemicalCompositionParameter * temperature + depthDependency * pos + additiveOffSet );
-        norm = x.norm()
-        x01 = norm - radiusCMB
-
-        etaSimple = simpleViscosityProfile(x01) / etaRef
-        
-        T_mod = k["T_extra"]-temperatureSurface
-        pos = radiusSurface - norm
-        
-        exp_input = -rockChemicalCompositionParameter * T_mod + depthDependency * pos  + additiveOffSet
-        
-        exp_approx = expApprox(exp_input)
-        
-        eta = etaSimple * exp_approx
-    else: # viscosity == "general"
-        eta = k["eta"]        
-
+    # build form
     grad_ux = jac_b_inv.T * jac_a_inv.T * grad_k["ux"]
     grad_uy = jac_b_inv.T * jac_a_inv.T * grad_k["uy"]
     
@@ -112,9 +83,21 @@ def integrand(
         pos_scaling
         * delta
         * inv_rho_scaling
-        * eta
+        * k["eta"]
         * (double_contraction(tau, grad_u)[0])
         * tabulate(jac_a_abs_det * u)
-        * dot(uVec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
+        * dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
         * jac_b_abs_det
     )
+
+def integrand():
+    return partial(integrand_recipe(True, False))
+
+def integrand_pseudo_3D():
+    return partial(integrand_recipe(False, False))
+
+def integrand_with_cutoff():
+    return partial(integrand_recipe(True, True))
+
+def integrand_with_cutoff_pseudo_3D():
+    return partial(integrand_recipe(False, True))

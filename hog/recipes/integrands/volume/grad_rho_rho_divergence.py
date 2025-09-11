@@ -18,7 +18,6 @@ from hog.recipes.common import *
 
 
 def integrand(
-    include_inv_rho,
     *,
     jac_a_inv,
     jac_a_abs_det,
@@ -34,7 +33,7 @@ def integrand(
     component_index,
     **_,
 ):
-    inv_rho_scaling = (sp.S(1) / k["rho"] if not include_inv_rho else k["invRho"])
+    inv_rho_scaling = (sp.S(1) / k["rho"] if not ("inv_rho" in k.keys()) else k["inv_rho"])
 
     # the parentheses here are a deliberate choice, since otherwise the HOG throws an error 
     if trial_is_vectorial:
