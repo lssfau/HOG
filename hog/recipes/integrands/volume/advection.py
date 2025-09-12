@@ -16,7 +16,6 @@
 
 from hog.recipes.common import *
 
-
 def integrand(
     *,
     v,
@@ -37,15 +36,8 @@ def integrand(
     else:
         u = sp.Matrix([[k["ux"]], [k["uy"]]])
 
-    if "cp" in k.keys():
-        coeff = k["cp"]
-    else:
-        coeff = scalars("cp")
-
     return (
-        coeff
-        * dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u), u)
-        * v
-        * tabulate(jac_a_abs_det)
+        dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u), u)
+        * tabulate(v * jac_a_abs_det)
         * jac_b_abs_det
     )

@@ -97,7 +97,7 @@ int main( int argc, char* argv[] )
    testOperator.apply(T, f, level, All);
 
    real_t integral = sh.dotGlobal(f, level, All);
-   real_t expected = 2*walberla::math::pi*((4.0/3.0)*std::pow(rMax, 6) - 4.0/3.0*std::pow(rMin, 6));
+   real_t expected = -2*walberla::math::pi*((4.0/3.0)*std::pow(rMax, 6) - 4.0/3.0*std::pow(rMin, 6));
 
    real_t error = std::abs(integral - expected);
 

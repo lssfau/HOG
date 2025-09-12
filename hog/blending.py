@@ -17,6 +17,7 @@
 import sympy as sp
 from typing import Any, List
 from hog.exception import HOGException
+from hog.approximation_functions import sin_approx, cos_approx
 from hog.element_geometry import (
     ElementGeometry,
     LineElement,
@@ -654,3 +655,209 @@ class AffineMap2D(GeometryMap):
             ]
 
         return "\n".join(code)
+
+class PolarCoordsMap(GeometryMap):
+    """
+    Geometry mapping based on polar coordinates. Convention is x[0] = r, x[1] = phi.
+    Vectorization currently only supported with approximate sin/cos functions for this map.
+    """
+
+    def __init__(self, useApprox: bool = False):
+        self.approx = useApprox    
+
+    def supported_geometries(self) -> List[ElementGeometry]:
+        return [TriangleElement()]
+
+    def evaluate(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the geometry map at the passed point."""
+
+        if self.approx:
+            xnew = sp.zeros(2, 1)
+            xnew[0] = x[0] * cos_approx( x[1] )
+            xnew[1] = x[0] * sin_approx( x[1] )
+            return xnew
+        else:
+            xnew = sp.zeros(2, 1)
+            xnew[0] = x[0] * sp.cos( x[1] )
+            xnew[1] = x[0] * sp.sin( x[1] )
+            return xnew 
+
+    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (2, 1):
+            raise HOGException(f"Invalid input shape {sp.shape(x)} for PolarCoordsMap.")
+
+        if self.approx:
+            jac = sp.Matrix(
+                [
+                    [ cos_approx( x[1] ), -x[0] * sin_approx( x[1] ) ],
+                    [ sin_approx( x[1] ),  x[0] * cos_approx( x[1] ) ],
+                ]
+            )
+            return jac
+        else:
+            jac = sp.Matrix(
+                [
+                    [ sp.cos( x[1] ), -x[0] * sp.sin( x[1] ) ],
+                    [ sp.sin( x[1] ),  x[0] * sp.cos( x[1] ) ],
+                ]
+            )
+            return jac                    
+
+    def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
+        """Evaluates the derivatives of the inverse Jacobian matrix of the geometry map at the passed point."""
+
+        if sp.shape(x) != (2, 1):
+            raise HOGException("Invalid input shape for PolarCoordsMap.")
+        
+        if self.approx:
+            return [
+                sp.Matrix(
+                    [
+                        [  0               , 0                ],
+                        [ -sin_approx(x[1]), cos_approx(x[1]) ]
+                    ]
+                ),
+                sp.Matrix(
+                    [
+                        [ -sin_approx(x[1])     ,  cos_approx(x[1])      ],
+                        [ -x[0]*cos_approx(x[1]), -x[0]*sin_approx(x[1]) ]
+                    ]
+                ),
+            ]
+        else:
+            return [
+                sp.Matrix(
+                    [
+                        [  0           , 0            ],
+                        [ -sp.sin(x[1]), sp.cos(x[1]) ]
+                    ]
+                ),
+                sp.Matrix(
+                    [
+                        [ -sp.sin(x[1])     ,  sp.cos(x[1])      ],
+                        [ -x[0]*sp.cos(x[1]), -x[0]*sp.sin(x[1]) ]
+                    ]
+                ),
+            ]                    
+
+    def coupling_includes(self) -> List[str]:
+        return ["hyteg/geometry/PolarCoordsMap.hpp"]
+
+    def parameter_coupling_code(self) -> str:
+        return ""
+    
+class SphericalCoordsMap(GeometryMap):
+    """
+    Geometry mapping based on spherical coordinates, x[0] = r, x[1] = theta, x[2] = phi.
+    Vectorization currently only supported with approximate sin/cos functions for this map.
+    """
+
+    def __init__(self, useApprox: bool = False):
+        self.approx = useApprox        
+
+    def supported_geometries(self) -> List[ElementGeometry]:
+        return [TetrahedronElement()]
+
+    def evaluate(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the geometry map at the passed point."""
+
+        if self.approx:
+            xnew = sp.zeros(3, 1)
+            xnew[0] = x[0] * sin_approx( x[1] ) * cos_approx( x[2] )
+            xnew[1] = x[0] * sin_approx( x[1] ) * sin_approx( x[2] )
+            xnew[2] = x[0] * cos_approx( x[1] )
+            return xnew
+        else:
+            xnew = sp.zeros(3, 1)
+            xnew[0] = x[0] * sp.sin( x[1] ) * sp.cos( x[2] )
+            xnew[1] = x[0] * sp.sin( x[1] ) * sp.sin( x[2] )
+            xnew[2] = x[0] * sp.cos( x[1] )
+            return xnew            
+
+    def jacobian(self, x: sp.Matrix) -> sp.Matrix:
+        """Evaluates the Jacobian of the geometry map at the passed point."""
+
+        if sp.shape(x) != (3, 1):
+            raise HOGException(f"Invalid input shape {sp.shape(x)} for SphericalCoordsMap.")
+        
+        if self.approx:
+            jac = sp.Matrix(
+                [
+                    [ sin_approx( x[1] ) * cos_approx( x[2] ), x[0] * cos_approx( x[1] ) * cos_approx( x[2] ), -x[0] * sin_approx( x[1] ) * sin_approx( x[2] ) ],
+                    [ sin_approx( x[1] ) * sin_approx( x[2] ), x[0] * cos_approx( x[1] ) * sin_approx( x[2] ),  x[0] * sin_approx( x[1] ) * cos_approx( x[2] ) ],
+                    [ cos_approx( x[1] )                     ,-x[0] * sin_approx( x[1] )                     ,  0                                              ],
+                ]
+            )
+            return jac
+        else:
+            jac = sp.Matrix(
+                [
+                    [ sp.sin( x[1] ) * sp.cos( x[2] ), x[0] * sp.cos( x[1] ) * sp.cos( x[2] ), -x[0] * sp.sin( x[1] ) * sp.sin( x[2] ) ],
+                    [ sp.sin( x[1] ) * sp.sin( x[2] ), x[0] * sp.cos( x[1] ) * sp.sin( x[2] ),  x[0] * sp.sin( x[1] ) * sp.cos( x[2] ) ],
+                    [ sp.cos( x[1] )                 ,-x[0] * sp.sin( x[1] )                 ,  0                                      ],
+                ]
+            )
+            return jac            
+
+    def hessian(self, x: sp.Matrix) -> List[sp.Matrix]:
+        """Evaluates the derivatives of the inverse Jacobian matrix of the geometry map at the passed point."""
+
+        if sp.shape(x) != (3, 1):
+            raise HOGException("Invalid input shape for SphericalCoordsMap.")
+        
+        if self.approx:
+            return [
+                sp.Matrix(
+                    [
+                        [  0                                , 0                                ,  0                ],
+                        [  cos_approx(x[1])*cos_approx(x[2]), sin_approx(x[2])*cos_approx(x[1]), -sin_approx(x[1]) ],
+                        [ -sin_approx(x[1])*sin_approx(x[2]), sin_approx(x[1])*cos_approx(x[2]),  0                ]
+                    ]
+                ),
+                sp.Matrix(
+                    [
+                        [  cos_approx(x[1])*cos_approx(x[2])     ,  sin_approx(x[2])*cos_approx(x[1])     , -sin_approx(x[1])      ],
+                        [ -x[0]*sin_approx(x[1])*cos_approx(x[2]), -x[0]*sin_approx(x[1])*sin_approx(x[2]), -x[0]*cos_approx(x[1]) ],
+                        [ -x[0]*sin_approx(x[2])*cos_approx(x[1]),  x[0]*cos_approx(x[1])*cos_approx(x[2]),  0                     ]
+                    ]
+                ),
+                sp.Matrix(
+                    [
+                        [ -sin_approx(x[1])*sin_approx(x[2])     ,  sin_approx(x[1])*cos_approx(x[2])     , 0 ],
+                        [ -x[0]*sin_approx(x[2])*cos_approx(x[1]),  x[0]*cos_approx(x[1])*cos_approx(x[2]), 0 ],
+                        [ -x[0]*sin_approx(x[1])*cos_approx(x[2]), -x[0]*sin_approx(x[1])*sin_approx(x[2]), 0 ]
+                    ]
+                ),
+            ]
+        else:
+            return [
+                sp.Matrix(
+                    [
+                        [  0                        , 0                        ,  0            ],
+                        [  sp.cos(x[1])*sp.cos(x[2]), sp.sin(x[2])*sp.cos(x[1]), -sp.sin(x[1]) ],
+                        [ -sp.sin(x[1])*sp.sin(x[2]), sp.sin(x[1])*sp.cos(x[2]),  0            ]
+                    ]
+                ),
+                sp.Matrix(
+                    [
+                        [  sp.cos(x[1])*sp.cos(x[2])     ,  sp.sin(x[2])*sp.cos(x[1])     , -sp.sin(x[1])      ],
+                        [ -x[0]*sp.sin(x[1])*sp.cos(x[2]), -x[0]*sp.sin(x[1])*sp.sin(x[2]), -x[0]*sp.cos(x[1]) ],
+                        [ -x[0]*sp.sin(x[2])*sp.cos(x[1]),  x[0]*sp.cos(x[1])*sp.cos(x[2]),  0                 ]
+                    ]
+                ),
+                sp.Matrix(
+                    [
+                        [ -sp.sin(x[1])*sp.sin(x[2])     ,  sp.sin(x[1])*sp.cos(x[2])     , 0 ],
+                        [ -x[0]*sp.sin(x[2])*sp.cos(x[1]),  x[0]*sp.cos(x[1])*sp.cos(x[2]), 0 ],
+                        [ -x[0]*sp.sin(x[1])*sp.cos(x[2]), -x[0]*sp.sin(x[1])*sp.sin(x[2]), 0 ]
+                    ]
+                ),
+            ]            
+
+    def coupling_includes(self) -> List[str]:
+        return ["hyteg/geometry/SphericalCoordsMap.hpp"]
+
+    def parameter_coupling_code(self) -> str:
+        return ""    

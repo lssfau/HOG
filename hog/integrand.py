@@ -72,7 +72,13 @@ from hog.fem_helpers import (
     jac_affine_to_physical,
     trafo_ref_to_physical,
 )
-from hog.math_helpers import inv, det
+from hog.element_geometry import (
+    ElementGeometry,
+    TriangleElement,
+    TetrahedronElement,
+    LineElement,
+)
+from hog.math_helpers import inv, det, diameter
 from hog.recipes.integrands.volume.rotation import RotationType
 
 
@@ -156,6 +162,9 @@ class IntegrandSymbols:
     # The physical coordinates.
     x: sp.Matrix | None = None
 
+    # The coordinate symbols on the reference element
+    x_ref: sp.Matrix | None = None
+
     # A dict of finite element functions that can be used as function parameters.
     # The keys are specified by the strings that are passed to process_integrand.
     k: Dict[str, sp.Symbol] | None = None
@@ -222,6 +231,22 @@ class IntegrandSymbols:
 
     # For backward compatibility with (sub-)form generation this integer allows to select a component
     component_index: int | None = None
+
+    # blending map
+    blending: GeometryMap | None = None
+
+    # symbolizer
+    symbolizer: Symbolizer | None = None
+
+    # Affine diameter, i.e. the diameter of the passed simplex, calculated as double the circumcircle / circumsphere radius.
+    # Currently only usable with triangle and tetrahedron elements.
+    affine_diameter: sp.Expr | None = None
+
+    # trial is vectorial
+    trial_is_vectorial: bool | None = None
+
+    # test is vectorial
+    test_is_vectorial: bool | None = None
 
 
 def process_integrand(
@@ -307,6 +332,11 @@ def process_integrand(
 
     s = IntegrandSymbols()
 
+    s.symbolizer = symbolizer
+
+    s.trial_is_vectorial = trial.is_vectorial
+    s.test_is_vectorial = test.is_vectorial
+
     ####################
     # Element geometry #
     ####################
@@ -324,6 +354,8 @@ def process_integrand(
             raise HOGException("All geometries must be embedded in the same space.")
 
         s.boundary_geometry = boundary_geometry
+
+    s.blending = blending
 
     ##############
     # Tabulation #
@@ -406,7 +438,7 @@ def process_integrand(
                 function_id=name,
                 basis_eval=tabulation.register_phi_evals(
                     coefficient_function_space.shape(volume_geometry)
-                ),
+                ) if isinstance(blending, IdentityMap) else "default",
             )
 
             if isinstance(k, sp.Matrix) and k.shape == (1, 1):
@@ -422,6 +454,15 @@ def process_integrand(
             )
         s.k[name] = k
         s.grad_k[name] = grad_k
+
+    ###########################
+    # Affine element diameter #
+    ###########################
+
+    if isinstance(volume_geometry, LineElement) or isinstance(volume_geometry, TriangleElement) or isinstance(volume_geometry, TetrahedronElement):
+        # diameter of the affine simplex, calculated as double the circumcircle / circumsphere radius
+        affine_points = symbolizer.affine_vertices_as_vectors(volume_geometry.dimensions, volume_geometry.num_vertices)
+        s.affine_diameter = diameter(affine_points)  
 
     ##############################
     # Jacobians and determinants #
@@ -478,6 +519,9 @@ def process_integrand(
 
     if not isinstance(blending, ParametricMap):
         s.x = trafo_ref_to_physical(volume_geometry, symbolizer, blending)
+
+    x_ref = symbolizer.ref_coords_as_list(dimensions=volume_geometry.dimensions)
+    s.x_ref = sp.Matrix([[x_ref[i]] for i in range(volume_geometry.dimensions)])
 
     #######################################
     # Assembling the local element matrix #

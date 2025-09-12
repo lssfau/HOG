@@ -45,6 +45,19 @@ def det(mat: sp.Matrix) -> sp.Expr:
 def abs(expr: sp.Expr) -> sp.Expr:
     return sp.Abs(expr)
 
+def pad_rows(vec: sp.Matrix, expected_dim: int, default_value: float) -> sp.Matrix:
+    """Makes sure that a given matrix has an expected amount of rows. If not, new rows initialized with default_value will be added."""
+    if vec.shape[0] >= expected_dim:
+        return vec
+    else:
+        return vec.col_join(sp.ones(expected_dim-vec.shape[0], vec.shape[1])*default_value)
+    
+def pad_cols(vec: sp.Matrix, expected_dim: int, default_value: float) -> sp.Matrix:
+    """Makes sure that a given matrix has an expected amount of columns. If not, new columns initialized with default_value will be added."""
+    if vec.shape[1] >= expected_dim:
+        return vec
+    else:
+        return vec.row_join(sp.ones(vec.shape[0], expected_dim-vec.shape[1])*default_value)    
 
 def grad(f: Union[sp.Expr, sp.MatrixBase], symbols: List[sp.Symbol]) -> sp.MatrixBase:
     """Returns the gradient of the passed sympy expression with respect to the passed symbols."""
@@ -190,8 +203,43 @@ def vol(vertices: List[sp.Matrix]) -> sp.Expr:
         return sp.sqrt(dd[0, 0])
     elif len(vertices) == 3:
         # a triangle
-        ab = vertices[1] - vertices[0]
-        ac = vertices[2] - vertices[0]
-        return 0.5 * norm(cross(ab, ac))
+        ab = pad_rows(vertices[1] - vertices[0], 3, 0)
+        ac = pad_rows(vertices[2] - vertices[0], 3, 0)
+        return sp.Rational(1,2) * norm(cross(ab, ac))
+    elif len(vertices) == 4:
+        # a tetrahedron
+        ad = vertices[0]-vertices[3]
+        bd = vertices[1]-vertices[3]
+        cd = vertices[2]-vertices[3]
+
+        return sp.Abs(ad.dot(bd.cross(cd))) * sp.Rational(1,6)  
     else:
         raise HOGException(f"Not implemented for {len(vertices)} vertices")
+    
+def diameter(vertices: List[sp.Matrix]) -> sp.Expr:
+    """Returns the diameter of the passed simplex, calculated as double the circumcircle / circumsphere radius."""
+    if len(vertices) == 2:
+        # a line
+        return norm(vertices[1]-vertices[0])
+    elif len(vertices) == 3:
+        # a triangle
+        a = norm(vertices[1]-vertices[2])
+        b = norm(vertices[2]-vertices[0])
+        c = norm(vertices[0]-vertices[1])
+
+        return 2 * ( a * b * c / (4 * vol(vertices)) )
+    elif len(vertices) == 4:
+        # a tetrahedron
+        a       = norm(vertices[0]-vertices[3])
+        b       = norm(vertices[1]-vertices[3])
+        c       = norm(vertices[2]-vertices[3])
+        a_tilde = norm(vertices[1]-vertices[2])
+        b_tilde = norm(vertices[2]-vertices[0])
+        c_tilde = norm(vertices[0]-vertices[1])
+
+        # heron type formula (from Cayley Menger determinant)
+        s = (a*a_tilde + b*b_tilde + c*c_tilde) * sp.Rational(1,2)
+
+        return 2 * ( sp.sqrt(s * (s - a*a_tilde) * (s- b*b_tilde) * (s - c*c_tilde)) / (6 * vol(vertices)) ) 
+    else:
+        raise HOGException(f"Not implemented for {len(vertices)} vertices")    

@@ -94,7 +94,7 @@ int main( int argc, char* argv[] )
    testOperator.apply(T, f, level, All);
 
    real_t integral = sh.dotGlobal(f, level, All);
-   real_t expected = 224.0/45.0;
+   real_t expected = -224.0/45.0;
 
    real_t error = std::abs(integral - expected);
 

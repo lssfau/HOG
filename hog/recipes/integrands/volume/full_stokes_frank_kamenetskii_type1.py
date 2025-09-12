@@ -28,8 +28,11 @@ def integrand_recipe(
     k,
     tabulate,
     volume_geometry,
+    scalars,
+    x,
     **_,
 ):
+    # setup
     grad_u_chain = jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)
     grad_v_chain = jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)
 
@@ -44,7 +47,33 @@ def integrand_recipe(
 
     divdiv_scaling = sp.Rational(2, volume_geometry.dimensions) if use_dim else sp.Rational(2, 3)
 
-    return k["mu"] * (
+    # define specific viscosity
+    eta_ref = scalars("eta_ref")
+    temperature_surface = scalars("temperature_surface")
+    rock_chemical_composition_parameter = scalars("rock_chemical_composition_parameter")
+    depth_dependency = scalars("depth_dependency")
+    radius_surface = scalars("radius_surface")
+    radius_CMB = scalars("radius_CMB")
+    additive_offset = scalars("additive_offset")
+
+    # pos = ( radius_surface - norm(x) );
+    # x_01 = ( norm - radius_CMB );
+    # eta = eta0(x_01) * exp( -rock_chemical_composition_parameter * temperature + depth_dependency * pos + additive_offset );
+    norm = x.norm()
+    x_01 = norm - radius_CMB
+
+    eta_simple = simple_viscosity_profile(x_01) / eta_ref
+    
+    T_mod = k["T_extra"] - temperature_surface
+    pos = radius_surface - norm
+    
+    exp_input = -rock_chemical_composition_parameter * T_mod + depth_dependency * pos  + additive_offset
+    
+    exp_val = exp_approx(exp_input)
+    
+    eta = eta_simple * exp_val
+
+    return eta * (
         (
             double_contraction(2 * symm_grad_u, symm_grad_v)
             * tabulate(jac_a_abs_det)

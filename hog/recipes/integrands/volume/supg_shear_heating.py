@@ -1,0 +1,102 @@
+# HyTeG Operator Generator
+# Copyright (C) 2024  HyTeG Team
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from hog.recipes.common import *
+
+def integrand_recipe(
+    use_dim,
+    surface_cutoff,
+    *,
+    jac_a_inv,
+    jac_b_inv,
+    jac_a_abs_det,
+    jac_b_abs_det,
+    u,
+    k,
+    grad_k,
+    grad_v,
+    volume_geometry,
+    tabulate,
+    x,
+    scalars,
+    x_ref,
+    affine_diameter,
+    **_,
+):
+    dim = volume_geometry.dimensions
+
+    if dim > 2:
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
+    else:
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
+
+    # delta function
+    if "delta" in k.keys():
+        delta = k["delta"]
+    else:
+        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)
+
+    inv_rho_scaling = (sp.S(1) / k["rho"] if ("rho" in k.keys()) else sp.S(1))
+    divdiv_scaling = sp.Rational(1, dim) if use_dim else sp.Rational(1, 3)
+
+    if surface_cutoff:
+        norm = x.norm()
+        pos = scalars("radius_surface") - norm
+
+        pos_scaling = sp.Piecewise(
+            (0.0, pos < scalars("cutoff") ),
+            (1.0, sp.sympify(True) )
+        )
+    else:
+        pos_scaling = sp.S(1)
+
+    # build form
+    grad_ux = jac_b_inv.T * jac_a_inv.T * grad_k["ux"]
+    grad_uy = jac_b_inv.T * jac_a_inv.T * grad_k["uy"]
+    
+    grad_u = grad_ux.row_join(grad_uy)
+    if dim == 3:
+        grad_uz = jac_b_inv.T * jac_a_inv.T * grad_k["uz"]
+        grad_u = grad_u.row_join(grad_uz)
+
+    sym_grad_w = sp.Rational(1,2) * (grad_u + grad_u.T)
+
+    divdiv = grad_u.trace() * sp.eye(dim)
+
+    tau = 2 * (sym_grad_w - divdiv_scaling * divdiv)
+
+    return (
+        pos_scaling
+        * delta
+        * inv_rho_scaling
+        * k["eta"]
+        * (double_contraction(tau, grad_u)[0])
+        * tabulate(jac_a_abs_det * u)
+        * dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
+        * jac_b_abs_det
+    )
+
+def integrand(**kwargs):
+    return integrand_recipe(True, False, **kwargs)
+
+def integrand_pseudo_3D(**kwargs):
+    return integrand_recipe(False, False, **kwargs)
+
+def integrand_with_cutoff(**kwargs):
+    return integrand_recipe(True, True, **kwargs)
+
+def integrand_with_cutoff_pseudo_3D(**kwargs):
+    return integrand_recipe(False, True, **kwargs)

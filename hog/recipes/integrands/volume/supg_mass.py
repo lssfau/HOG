@@ -22,7 +22,7 @@ def integrand(
     jac_a_abs_det,
     jac_b_inv,
     jac_b_abs_det,
-    grad_u,
+    u,
     grad_v,
     k,
     volume_geometry,
@@ -45,8 +45,7 @@ def integrand(
 
     return (
         delta
-        * dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u), u_vec)
         * dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_v), u_vec)
-        * tabulate(jac_a_abs_det)
+        * tabulate(u * jac_a_abs_det)
         * jac_b_abs_det
     )
