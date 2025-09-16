@@ -730,7 +730,7 @@ where
     FEM_functions : dict[str, FunctionSpace | None] = {}
 
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
-        FEM_functions = {"T_extra": coefficient_function_space}    
+        FEM_functions = {"T": coefficient_function_space}    
         if use_dim:
             from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand
         else:

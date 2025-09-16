@@ -64,7 +64,7 @@ def integrand_recipe(
 
     eta_simple = simple_viscosity_profile(x_01) / eta_ref
     
-    T_mod = k["T_extra"] - temperature_surface
+    T_mod = k["T"] - temperature_surface
     pos = radius_surface - norm
     
     exp_input = -rock_chemical_composition_parameter * T_mod + depth_dependency * pos  + additive_offset
