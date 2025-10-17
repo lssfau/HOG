@@ -11,9 +11,11 @@ For more information visit the [full documentation](https://hyteg.pages.i10git.c
 
 To cite us, please use the following reference:
 
-* Böhm, F., Bauer, D., Kohl, N., Alappat, C., Thönnes, D., Mohr, M., Köstler, H. & Rüde, U. (2024). 
-  _Code Generation and Performance Engineering for Matrix-Free Finite Element Methods on Hybrid Tetrahedral Grids_. 
-  Submitted. arXiv preprint [arXiv:2404.08371](https://arxiv.org/abs/2404.08371).
+* Böhm, F., Bauer, D., Kohl, N., Alappat, C., Thönnes, D., Mohr, M., Köstler, H. & Rüde, U., 
+  _Code Generation and Performance Engineering for Matrix-Free Finite Element Methods on Hybrid Tetrahedral Grids_,
+  SIAM Journal on Scientific Computing, 2025, 47, B131–B159,
+  [doi: 10.1137/24m1653756](https://dx.doi.org/10.1137/24m1653756) (preprint available at
+  [arXiv:2404.08371](https://arxiv.org/abs/2404.08371)).
 
 # How to generate operators
 
