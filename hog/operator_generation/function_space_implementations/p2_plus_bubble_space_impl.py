@@ -121,7 +121,7 @@ class P2PlusBubbleFunctionSpaceImpl(FunctionSpaceImpl):
         return f"P2PlusBubbleFunction< {self.type_descriptor.pystencils_type} >"
 
     def includes(self) -> Set[str]:
-        return {f"hyteg/p2functionspace/P2PlusBubbleFunction.hpp"}
+        return {f"hyteg/ccrfunctionspace/P2PlusBubbleFunction.hpp"}
 
     def dof_transformation(
         self,
