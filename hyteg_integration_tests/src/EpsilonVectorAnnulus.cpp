@@ -1,6 +1,6 @@
 /*
  * HyTeG Operator Generator
- * Copyright (C) 2017-2024  Nils Kohl, Fabian Böhm, Daniel Bauer
+ * Copyright (C) 2017-2026  Nils Kohl, Fabian Böhm, Daniel Bauer, Marcus Mohr
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,8 @@
 
 #include "core/DataTypes.h"
 
+#include "hyteg/elementwiseoperators/P2ElementwiseEpsilonOperator.hpp"
 #include "hyteg/elementwiseoperators/P2ElementwiseOperator.hpp"
-#include "constant_stencil_operator/P2ConstantEpsilonOperator.hpp"
 #include "hyteg/forms/form_hyteg_generated/p2/p2_epsilonvar_affine_q4.hpp"
 #include "hyteg/p2functionspace/P2Function.hpp"
 
