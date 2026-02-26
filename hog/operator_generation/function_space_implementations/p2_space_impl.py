@@ -1,5 +1,5 @@
 # HyTeG Operator Generator
-# Copyright (C) 2024  HyTeG Team
+# Copyright (C) 2024-2026 HyTeG Team
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -109,17 +109,14 @@ class P2FunctionSpaceImpl(FunctionSpaceImpl):
     ) -> str:
         if dim == 2:
             return (
-                f"{self._deref()}.getVertexDoFFunction().communicateAdditively< Face, Edge >( {params} );\n"
-                f"{self._deref()}.getVertexDoFFunction().communicateAdditively< Face, Vertex >( {params} );\n"
-                f"{self._deref()}.getEdgeDoFFunction().communicateAdditively< Face, Edge >( {params} );"
+                f"{self._deref()}.communicateAdditively< Face, Edge >( {params} );\n"
+                f"{self._deref()}.communicateAdditively< Face, Vertex >( {params} );\n"
             )
         else:
             return (
-                f"{self._deref()}.getVertexDoFFunction().communicateAdditively< Cell, Face >( {params} );\n"
-                f"{self._deref()}.getVertexDoFFunction().communicateAdditively< Cell, Edge >( {params} );\n"
-                f"{self._deref()}.getVertexDoFFunction().communicateAdditively< Cell, Vertex >( {params} );\n"
-                f"{self._deref()}.getEdgeDoFFunction().communicateAdditively< Cell, Face >( {params} );\n"
-                f"{self._deref()}.getEdgeDoFFunction().communicateAdditively< Cell, Edge >( {params} );"
+                f"{self._deref()}.communicateAdditively< Cell, Face >( {params} );\n"
+                f"{self._deref()}.communicateAdditively< Cell, Edge >( {params} );\n"
+                f"{self._deref()}.communicateAdditively< Cell, Vertex >( {params} );\n"
             )
 
     def pointer_retrieval(self, dim: int) -> str:
@@ -266,20 +263,17 @@ class P2VectorFunctionSpaceImpl(FunctionSpaceImpl):
             ret_str = ""
             for i in range(dim):
                 ret_str += (
-                    f"{self._deref()}[{i}].getVertexDoFFunction().communicateAdditively< Face, Edge >( {params} );\n"
-                    f"{self._deref()}[{i}].getVertexDoFFunction().communicateAdditively< Face, Vertex >( {params} );\n"
-                    f"{self._deref()}[{i}].getEdgeDoFFunction().communicateAdditively< Face, Edge >( {params} );"
+                    f"{self._deref()}[{i}].communicateAdditively< Face, Edge >( {params} );\n"
+                    f"{self._deref()}[{i}].communicateAdditively< Face, Vertex >( {params} );\n"
                 )
             return ret_str
         else:
             ret_str = ""
             for i in range(dim):
                 ret_str += (
-                    f"{self._deref()}[{i}].getVertexDoFFunction().communicateAdditively< Cell, Face >( {params} );\n"
-                    f"{self._deref()}[{i}].getVertexDoFFunction().communicateAdditively< Cell, Edge >( {params} );\n"
-                    f"{self._deref()}[{i}].getVertexDoFFunction().communicateAdditively< Cell, Vertex >( {params} );\n"
-                    f"{self._deref()}[{i}].getEdgeDoFFunction().communicateAdditively< Cell, Face >( {params} );\n"
-                    f"{self._deref()}[{i}].getEdgeDoFFunction().communicateAdditively< Cell, Edge >( {params} );"
+                    f"{self._deref()}[{i}].communicateAdditively< Cell, Face >( {params} );\n"
+                    f"{self._deref()}[{i}].communicateAdditively< Cell, Edge >( {params} );\n"
+                    f"{self._deref()}[{i}].communicateAdditively< Cell, Vertex >( {params} );\n"
                 )
             return ret_str
 
