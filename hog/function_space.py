@@ -152,8 +152,8 @@ class LagrangianFunctionSpace(FunctionSpace):
         :param degree: the order of the shape functions
         :param symbolizer: a Symbolizer instance
         """
-        if degree not in [0, 1, 2]:
-            raise HOGException("Only degree 0, 1 and 2 are supported.")
+        if degree not in [0, 1, 2, 3]:
+            raise HOGException("Only degree 0, 1, 2 and 3 are supported.")
 
         self._degree = degree
         self._symbolizer = symbolizer
@@ -228,6 +228,27 @@ class LagrangianFunctionSpace(FunctionSpace):
                     4 * x * y,
                     -4 * x * y - 4 * y**2 + 4 * y,
                     -4 * x**2 - 4 * x * y + 4 * x,
+                ]
+
+            elif (
+                isinstance(geometry, TriangleElement)
+                and self.family in ["Lagrange"]
+                and self._degree == 3
+            ):
+                L1 = 1 - symbols[0] - symbols[1]
+                L2 = symbols[0]
+                L3 = symbols[1]
+                basis_functions = [
+                    (0.5 * L1 * (3 * L1 - 1) * (3 * L1 - 2)),
+                    (0.5 * L2 * (3 * L2 - 1) * (3 * L2 - 2)),
+                    (0.5 * L3 * (3 * L3 - 1) * (3 * L3 - 2)),
+                    (4.5 * L2 * L3 * (3 * L2 - 1)),
+                    (4.5 * L3 * L1 * (3 * L1 - 1)),
+                    (4.5 * L1 * L2 * (3 * L1 - 1)),
+                    (4.5 * L2 * L3 * (3 * L3 - 1)),
+                    (4.5 * L3 * L1 * (3 * L3 - 1)),
+                    (4.5 * L1 * L2 * (3 * L2 - 1)),
+                    (27 * L1 * L2 * L3),
                 ]
 
             elif (
