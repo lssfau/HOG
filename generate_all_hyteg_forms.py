@@ -1,5 +1,5 @@
 # HyTeG Operator Generator
-# Copyright (C) 2024  HyTeG Team
+# Copyright (C) 2024-2026 HyTeG Team
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -285,6 +285,14 @@ form_infos = [
     ),
     FormInfo(
         "diffusion",
+        trial_degree=3,
+        test_degree=3,
+        supported_geometry_options=["triangle"],
+        quad_schemes={2: 4},
+        integrate_rows=[],
+    ),
+    FormInfo(
+        "diffusion",
         trial_degree=2,
         test_degree=2,
         trial_family="P2 enhanced with Bubble",
@@ -324,6 +332,14 @@ form_infos = [
         test_degree=2,
         quad_schemes={2: 4, 3: 4},
         blending=ExternalMap(),
+    ),
+    FormInfo(
+        "mass",
+        trial_degree=3,
+        test_degree=3,
+        supported_geometry_options=["triangle"],
+        quad_schemes={2: "exact"},
+        integrate_rows=[],
     ),
     FormInfo(
         "mass",
