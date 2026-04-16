@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 COPYRIGHT_COMMENT = f"""/*
-* Copyright (c) 2017-2024 Nils Kohl, Daniel Bauer, Fabian Böhm.
+* Copyright (c) 2017-2026 Nils Kohl, Daniel Bauer, Fabian Böhm, Marcus Mohr.
 *
 * This file is part of HyTeG
 * (see https://i10git.cs.fau.de/hyteg/hyteg).
