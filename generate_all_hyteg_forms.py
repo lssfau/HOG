@@ -295,6 +295,12 @@ form_infos = [
     ),
     FormInfo(
         "mass",
+        trial_degree=0,
+        test_degree=0,
+        quad_schemes={2: "exact", 3: "exact"},
+    ),
+    FormInfo(
+        "mass",
         trial_degree=1,
         test_degree=1,
         quad_schemes={2: "exact", 3: "exact"},

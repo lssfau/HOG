@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand(
     *,
     v,

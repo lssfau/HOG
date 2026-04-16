@@ -470,7 +470,8 @@ Weak formulation
                 phi_vec = (
                     projection_mat
                     * (
-                        e_vec(geometry.space_dimension, component_index) * data.trial_shape
+                        e_vec(geometry.space_dimension, component_index)
+                        * data.trial_shape
                     ).jacobian(ref_symbols_list)
                 ).T
                 phi = data.test_shape
@@ -479,7 +480,8 @@ Weak formulation
                 phi_vec = (
                     projection_mat
                     * (
-                        e_vec(geometry.space_dimension, component_index) * data.test_shape
+                        e_vec(geometry.space_dimension, component_index)
+                        * data.test_shape
                     ).jacobian(ref_symbols_list)
                 ).T
 

@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand_recipe(
     use_dim,
     *,
@@ -45,7 +46,9 @@ def integrand_recipe(
     div_u = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
     div_v = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)).trace()
 
-    divdiv_scaling = sp.Rational(2, volume_geometry.dimensions) if use_dim else sp.Rational(2, 3)
+    divdiv_scaling = (
+        sp.Rational(2, volume_geometry.dimensions) if use_dim else sp.Rational(2, 3)
+    )
 
     # define specific viscosity
     eta_ref = scalars("eta_ref")
@@ -63,14 +66,18 @@ def integrand_recipe(
     x_01 = norm - radius_CMB
 
     eta_simple = simple_viscosity_profile(x_01) / eta_ref
-    
+
     T_mod = k["T"] - temperature_surface
     pos = radius_surface - norm
-    
-    exp_input = -rock_chemical_composition_parameter * T_mod + depth_dependency * pos  + additive_offset
-    
+
+    exp_input = (
+        -rock_chemical_composition_parameter * T_mod
+        + depth_dependency * pos
+        + additive_offset
+    )
+
     exp_val = exp_approx(exp_input)
-    
+
     eta = eta_simple * exp_val
 
     return eta * (
@@ -82,8 +89,10 @@ def integrand_recipe(
         - divdiv_scaling * div_u * div_v * tabulate(jac_a_abs_det) * jac_b_abs_det
     )
 
+
 def integrand(**kwargs):
     return integrand_recipe(True, **kwargs)
+
 
 def integrand_pseudo_3D(**kwargs):
     return integrand_recipe(False, **kwargs)

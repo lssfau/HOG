@@ -22,7 +22,7 @@ from hog.element_geometry import ElementGeometry
 from hog.exception import HOGException
 from hog.fem_helpers import (
     trafo_ref_to_affine,
-    trafo_ref_to_physical,    
+    trafo_ref_to_physical,
     jac_ref_to_affine,
     jac_affine_to_physical,
     hessian_shape_affine_ref_pullback,
@@ -691,7 +691,11 @@ def full_stokes(
 ) -> Form:
     newline = "\n"
     dimstring = "(2/dim)" if use_dim else "(2/3)"
-    pseudo_note = f"{newline}Note that the factor 2/3 means that for 2D this is the pseudo-3D form of the operator.{newline}" if not use_dim else ""
+    pseudo_note = (
+        f"{newline}Note that the factor 2/3 means that for 2D this is the pseudo-3D form of the operator.{newline}"
+        if not use_dim
+        else ""
+    )
     docstring = f"""
 Implements the fully coupled viscous operator of the Stokes problem.
 The latter is the extension of the Epsilon operator to the case where
@@ -722,25 +726,31 @@ where
         raise HOGException("Constant viscosity currently not supported.")
 
     from hog.recipes.integrands.volume.rotation import RotationType
-    
+
     # supported viscosities are
     #   "general" (as a FEM function coefficient)
     #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
-    FEM_functions : dict[str, FunctionSpace | None] = {}
+    FEM_functions: dict[str, FunctionSpace | None] = {}
 
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
-        FEM_functions = {"T": coefficient_function_space}    
+        FEM_functions = {"T": coefficient_function_space}
         if use_dim:
-            from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand
+            from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import (
+                integrand,
+            )
         else:
-            from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
-    else: # "general"
+            from hog.recipes.integrands.volume.full_stokes_frank_kamenetskii_type1 import (
+                integrand_pseudo_3D as integrand,
+            )
+    else:  # "general"
         FEM_functions = {"mu": coefficient_function_space}
         if use_dim:
             from hog.recipes.integrands.volume.full_stokes import integrand
         else:
-            from hog.recipes.integrands.volume.full_stokes import integrand_pseudo_3D as integrand
+            from hog.recipes.integrands.volume.full_stokes import (
+                integrand_pseudo_3D as integrand,
+            )
 
     return process_integrand(
         integrand,
@@ -776,12 +786,24 @@ def shear_heating(
     newline = "\n"
     dimstring = "1/dim" if use_dim else "1/3"
     rhostring_scaling_string = "1/rho " if include_inv_rho_scaling else ""
-    rhostring_coeff_string = f"rho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho_scaling else ""
-    pseudo_note = f"{newline}Note that the factor 1/3 means that for 2D this is the pseudo-3D form of the operator.{newline}" if not use_dim else "" 
-    cufoff_note = f"""
+    rhostring_coeff_string = (
+        f"rho: coefficient (scalar space: {density_function_space}){newline}"
+        if include_inv_rho_scaling
+        else ""
+    )
+    pseudo_note = (
+        f"{newline}Note that the factor 1/3 means that for 2D this is the pseudo-3D form of the operator.{newline}"
+        if not use_dim
+        else ""
+    )
+    cufoff_note = (
+        f"""
 This operator was designed for annulus and spherical shell use and includes a scaling factor of 0 close to the surface.
 Define the (usually nondimensional) surface radius and cutoff distance to the surface via the constructor.     
-""" if surface_cutoff else ""
+"""
+        if surface_cutoff
+        else ""
+    )
     docstring = f"""
 Implements the fully coupled viscous operator for the shear heating term.
 The latter is the extension of the Epsilon operator to the case where
@@ -819,7 +841,7 @@ Weak formulation
 {pseudo_note}{cufoff_note}    
 Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
 """
-    FEM_functions : dict[str, FunctionSpace | None] = {
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -830,32 +852,46 @@ Typical usage sets T = 1, i.e. applying the operator to a function containing on
     #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
-        FEM_functions.update({"T_extra": coefficient_function_space})  
+        FEM_functions.update({"T_extra": coefficient_function_space})
         if use_dim:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff as integrand
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import (
+                    integrand_with_cutoff as integrand,
+                )
             else:
-                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import (
+                    integrand,
+                )
         else:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff_pseudo_3D as integrand
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import (
+                    integrand_with_cutoff_pseudo_3D as integrand,
+                )
             else:
-                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
-    else: # "general"
-        FEM_functions.update({"eta": viscosity_function_space})  
+                from hog.recipes.integrands.volume.shear_heating_frank_kamenetskii_type1 import (
+                    integrand_pseudo_3D as integrand,
+                )
+    else:  # "general"
+        FEM_functions.update({"eta": viscosity_function_space})
         if use_dim:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.shear_heating import integrand_with_cutoff as integrand
+                from hog.recipes.integrands.volume.shear_heating import (
+                    integrand_with_cutoff as integrand,
+                )
             else:
                 from hog.recipes.integrands.volume.shear_heating import integrand
         else:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.shear_heating import integrand_with_cutoff_pseudo_3D as integrand
+                from hog.recipes.integrands.volume.shear_heating import (
+                    integrand_with_cutoff_pseudo_3D as integrand,
+                )
             else:
-                from hog.recipes.integrands.volume.shear_heating import integrand_pseudo_3D as integrand
+                from hog.recipes.integrands.volume.shear_heating import (
+                    integrand_pseudo_3D as integrand,
+                )
 
     if include_inv_rho_scaling:
-        FEM_functions.update({"rho": density_function_space})  
+        FEM_functions.update({"rho": density_function_space})
 
     return process_integrand(
         integrand,
@@ -868,6 +904,7 @@ Typical usage sets T = 1, i.e. applying the operator to a function containing on
         is_symmetric=trial == test,
         docstring=docstring,
     )
+
 
 def supg_shear_heating(
     trial: TrialSpace,
@@ -889,13 +926,26 @@ def supg_shear_heating(
     newline = "\n"
     dimstring = "1/dim" if use_dim else "1/3"
     rhostring_scaling_string = "1/rho " if include_inv_rho_scaling else ""
-    rhostring_coeff_string = f"rho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho_scaling else ""
-    pseudo_note = f"{newline}Note that the factor 1/3 means that for 2D this is the pseudo-3D form of the operator.{newline}" if not use_dim else "" 
-    cufoff_note = f"""
+    rhostring_coeff_string = (
+        f"rho: coefficient (scalar space: {density_function_space}){newline}"
+        if include_inv_rho_scaling
+        else ""
+    )
+    pseudo_note = (
+        f"{newline}Note that the factor 1/3 means that for 2D this is the pseudo-3D form of the operator.{newline}"
+        if not use_dim
+        else ""
+    )
+    cufoff_note = (
+        f"""
 This operator was designed for annulus and spherical shell use and includes a scaling factor of 0 close to the surface.
 Define the (usually nondimensional) surface radius and cutoff distance to the surface via the constructor.     
-""" if surface_cutoff else ""
-    deltastring = f"""
+"""
+        if surface_cutoff
+        else ""
+    )
+    deltastring = (
+        f"""
 The scaling function for the supg stabilisation is hard coded into the form.
 
 delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
@@ -908,8 +958,15 @@ with:
     u_abs as the norm of the velocity vector at the element centroid
 
 Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
-""" if not coefficient_delta else ""   
-    coefficientstring = f"    delta: coefficient (scalar space: {delta_function_space}){newline}" if coefficient_delta else "" 
+"""
+        if not coefficient_delta
+        else ""
+    )
+    coefficientstring = (
+        f"    delta: coefficient (scalar space: {delta_function_space}){newline}"
+        if coefficient_delta
+        else ""
+    )
     docstring = f"""
 Shear heating SUPG operator for the TALA
 
@@ -938,7 +995,7 @@ Weak formulation
 {pseudo_note}{cufoff_note}    
 Typical usage sets T = 1, i.e. applying the operator to a function containing only ones.
 """
-    FEM_functions : dict[str, FunctionSpace | None] = {
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -952,32 +1009,46 @@ Typical usage sets T = 1, i.e. applying the operator to a function containing on
     #   "frank_kamenetskii_type1_simple_viscosity" (see integrand for the formula)
 
     if viscosity == "frank_kamenetskii_type1_simple_viscosity":
-        FEM_functions.update({"T_extra": coefficient_function_space})  
+        FEM_functions.update({"T_extra": coefficient_function_space})
         if use_dim:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff as integrand
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import (
+                    integrand_with_cutoff as integrand,
+                )
             else:
-                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import (
+                    integrand,
+                )
         else:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand_with_cutoff_pseudo_3D as integrand
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import (
+                    integrand_with_cutoff_pseudo_3D as integrand,
+                )
             else:
-                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import integrand_pseudo_3D as integrand
-    else: # "general"
-        FEM_functions.update({"eta": viscosity_function_space})  
+                from hog.recipes.integrands.volume.supg_shear_heating_frank_kamenetskii_type1 import (
+                    integrand_pseudo_3D as integrand,
+                )
+    else:  # "general"
+        FEM_functions.update({"eta": viscosity_function_space})
         if use_dim:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.supg_shear_heating import integrand_with_cutoff as integrand
+                from hog.recipes.integrands.volume.supg_shear_heating import (
+                    integrand_with_cutoff as integrand,
+                )
             else:
                 from hog.recipes.integrands.volume.supg_shear_heating import integrand
         else:
             if surface_cutoff:
-                from hog.recipes.integrands.volume.supg_shear_heating import integrand_with_cutoff_pseudo_3D as integrand
+                from hog.recipes.integrands.volume.supg_shear_heating import (
+                    integrand_with_cutoff_pseudo_3D as integrand,
+                )
             else:
-                from hog.recipes.integrands.volume.supg_shear_heating import integrand_pseudo_3D as integrand
+                from hog.recipes.integrands.volume.supg_shear_heating import (
+                    integrand_pseudo_3D as integrand,
+                )
 
     if include_inv_rho_scaling:
-        FEM_functions.update({"rho": density_function_space})  
+        FEM_functions.update({"rho": density_function_space})
 
     return process_integrand(
         integrand,
@@ -990,6 +1061,7 @@ Typical usage sets T = 1, i.e. applying the operator to a function containing on
         is_symmetric=False,
         docstring=docstring,
     )
+
 
 def divdiv(
     trial: TrialSpace,
@@ -1071,6 +1143,7 @@ Weak formulation
         fe_coefficients={"k": coefficient_function_space},
     )
 
+
 def adiabatic_heating(
     trial: TrialSpace,
     test: TestSpace,
@@ -1116,6 +1189,7 @@ Weak formulation
         },
     )
 
+
 def supg_adiabatic_heating(
     trial: TrialSpace,
     test: TestSpace,
@@ -1127,7 +1201,8 @@ def supg_adiabatic_heating(
     coefficient_delta: bool = False,
 ) -> Form:
     newline = "\n"
-    deltastring = f"""
+    deltastring = (
+        f"""
 The scaling function for the supg stabilisation is hard coded into the form.
 
 delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
@@ -1140,8 +1215,15 @@ with:
     u_abs as the norm of the velocity vector at the element centroid
 
 Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
-""" if not coefficient_delta else ""
-    coefficientstring = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+"""
+        if not coefficient_delta
+        else ""
+    )
+    coefficientstring = (
+        f"delta: coefficient (scalar space: {coefficient_function_space}){newline}"
+        if coefficient_delta
+        else ""
+    )
     docstring = f"""
 Adiabatic heating SUPG operator for the TALA
 
@@ -1161,7 +1243,7 @@ Weak formulation
     - ∫ delta T (u · g) ( u · ∇w )
     """
 
-    FEM_functions : dict[str, FunctionSpace | None] = {
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -1181,7 +1263,7 @@ Weak formulation
         is_symmetric=False,
         docstring=docstring,
         fe_coefficients=FEM_functions,
-    )     
+    )
 
 
 def advection(
@@ -1227,6 +1309,7 @@ Weak formulation
         },
     )
 
+
 def supg_advection(
     trial: TrialSpace,
     test: TestSpace,
@@ -1238,7 +1321,8 @@ def supg_advection(
     coefficient_delta: bool = False,
 ) -> Form:
     newline = "\n"
-    deltastring = f"""
+    deltastring = (
+        f"""
 The scaling function for the supg stabilisation is hard coded into the form.
 
 delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
@@ -1251,8 +1335,15 @@ with:
     u_abs as the norm of the velocity vector at the element centroid
 
 Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
-""" if not coefficient_delta else ""
-    coefficientstring = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+"""
+        if not coefficient_delta
+        else ""
+    )
+    coefficientstring = (
+        f"delta: coefficient (scalar space: {coefficient_function_space}){newline}"
+        if coefficient_delta
+        else ""
+    )
 
     docstring = f"""
 Advection SUPG operator for the TALA
@@ -1269,14 +1360,14 @@ Weak formulation
     {coefficientstring}
     ∫ delta (u · ∇T) (u · ∇w)
 """
-    
-    FEM_functions : dict[str, FunctionSpace | None] = {
+
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
     }
     if coefficient_delta:
-        FEM_functions.update({"delta": coefficient_function_space})    
+        FEM_functions.update({"delta": coefficient_function_space})
 
     from hog.recipes.integrands.volume.supg_advection import integrand
 
@@ -1292,13 +1383,14 @@ Weak formulation
         fe_coefficients=FEM_functions,
     )
 
+
 def diffusion_inv_rho(
     trial: TrialSpace,
     test: TestSpace,
     geometry: ElementGeometry,
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
-    coefficient_function_space: Optional[FunctionSpace] = None
+    coefficient_function_space: Optional[FunctionSpace] = None,
 ) -> Form:
     docstring = f"""
     Diffusion inv rho operator for the TALA
@@ -1327,10 +1419,9 @@ def diffusion_inv_rho(
         blending=blending,
         is_symmetric=False,
         docstring=docstring,
-        fe_coefficients={
-            "rho": coefficient_function_space
-        },
+        fe_coefficients={"rho": coefficient_function_space},
     )
+
 
 def supg_diffusion(
     trial: TrialSpace,
@@ -1345,7 +1436,8 @@ def supg_diffusion(
     include_invrho: bool = True,
 ) -> Form:
     newline = "\n"
-    deltastring = f"""
+    deltastring = (
+        f"""
 We make some assumptions here:
     - k is constant
     - T is in H^2 on each element ( trivially fulfilled for polynomial elements )
@@ -1362,9 +1454,20 @@ with:
     u_abs as the norm of the velocity vector at the element centroid
 
 Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
-    """ if not coefficient_delta else ""    
-    coefficientstring_delta = f"rho: coefficient (scalar space: {density_function_space}){newline}" if include_invrho else ""
-    coefficientstring_rho = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+    """
+        if not coefficient_delta
+        else ""
+    )
+    coefficientstring_delta = (
+        f"rho: coefficient (scalar space: {density_function_space}){newline}"
+        if include_invrho
+        else ""
+    )
+    coefficientstring_rho = (
+        f"delta: coefficient (scalar space: {coefficient_function_space}){newline}"
+        if coefficient_delta
+        else ""
+    )
     weakstring_rho = f" 1/rho" if include_invrho else ""
     docstring = f"""
 SUPG diffusion operator for the TALA.
@@ -1384,7 +1487,7 @@ Weak formulation
     -∫ delta{weakstring_rho} (∇ · ∇T) (u · ∇w)
 """
 
-    FEM_functions : dict[str, FunctionSpace | None] = {
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
@@ -1392,7 +1495,7 @@ Weak formulation
     if coefficient_delta:
         FEM_functions.update({"delta": coefficient_function_space})
     if include_invrho:
-        FEM_functions.update({"rho": density_function_space})        
+        FEM_functions.update({"rho": density_function_space})
 
     from hog.recipes.integrands.volume.supg_diffusion import integrand
 
@@ -1420,7 +1523,11 @@ def grad_rho_by_rho_dot_u(
     component_index: int = 0,
 ) -> Form:
     newline = "\n"
-    coefficientstring = f"inv_rho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho else ""
+    coefficientstring = (
+        f"inv_rho: coefficient (scalar space: {density_function_space}){newline}"
+        if include_inv_rho
+        else ""
+    )
     docstring = f"""
 Operator for the frozen velocity approach.
 
@@ -1439,7 +1546,7 @@ Weak formulation
 
     from hog.recipes.integrands.volume.frozen_velocity import integrand
 
-    FEM_functions : dict[str, FunctionSpace | None] = {
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "rho": density_function_space,
     }
     if include_inv_rho:
@@ -1456,7 +1563,8 @@ Weak formulation
         is_symmetric=False,
         docstring=docstring,
         fe_coefficients=FEM_functions,
-    )   
+    )
+
 
 def grad_rho_by_rho_dot_u_divergence(
     trial: TrialSpace,
@@ -1469,7 +1577,11 @@ def grad_rho_by_rho_dot_u_divergence(
     component_index: int = 0,
 ) -> Form:
     newline = "\n"
-    coefficientstring = f"invRho: coefficient (scalar space: {density_function_space}){newline}" if include_inv_rho else ""
+    coefficientstring = (
+        f"invRho: coefficient (scalar space: {density_function_space}){newline}"
+        if include_inv_rho
+        else ""
+    )
     docstring = f"""
 Divergence + Rho stokes operator for the compressible case.
 
@@ -1490,7 +1602,7 @@ Weak formulation
 
     from hog.recipes.integrands.volume.grad_rho_rho_divergence import integrand
 
-    FEM_functions : dict[str, FunctionSpace | None] = {
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "rho": density_function_space,
     }
     if include_inv_rho:
@@ -1507,7 +1619,8 @@ Weak formulation
         is_symmetric=False,
         docstring=docstring,
         fe_coefficients=FEM_functions,
-    )   
+    )
+
 
 def supg_mass(
     trial: TrialSpace,
@@ -1520,7 +1633,8 @@ def supg_mass(
     coefficient_delta: bool = False,
 ) -> Form:
     newline = "\n"
-    deltastring = f"""
+    deltastring = (
+        f"""
 The scaling function for the supg stabilisation is hard coded into the form.
 
 delta( u_abs ) := h / ( 2 * u_abs ) * xi( Pe )
@@ -1533,8 +1647,15 @@ with:
     u_abs as the norm of the velocity vector at the element centroid
 
 Note: h is calculated from the affine element geometry. If your blending map changes the element diameter too drastically, this will no longer work.
-""" if not coefficient_delta else ""
-    coefficientstring = f"delta: coefficient (scalar space: {coefficient_function_space}){newline}" if coefficient_delta else ""
+"""
+        if not coefficient_delta
+        else ""
+    )
+    coefficientstring = (
+        f"delta: coefficient (scalar space: {coefficient_function_space}){newline}"
+        if coefficient_delta
+        else ""
+    )
 
     docstring = f"""
 SUPG mass operator for the TALA
@@ -1551,14 +1672,14 @@ Weak formulation
     {coefficientstring}
     ∫ delta T ( u · ∇w )
 """
-    
-    FEM_functions : dict[str, FunctionSpace | None] = {
+
+    FEM_functions: dict[str, FunctionSpace | None] = {
         "ux": velocity_function_space,
         "uy": velocity_function_space,
         "uz": velocity_function_space,
     }
     if coefficient_delta:
-        FEM_functions.update({"delta": coefficient_function_space})    
+        FEM_functions.update({"delta": coefficient_function_space})
 
     from hog.recipes.integrands.volume.supg_mass import integrand
 
@@ -1574,6 +1695,7 @@ Weak formulation
         fe_coefficients=FEM_functions,
     )
 
+
 def rho_g_mass(
     trial: TrialSpace,
     test: TestSpace,
@@ -1581,7 +1703,7 @@ def rho_g_mass(
     symbolizer: Symbolizer,
     blending: GeometryMap = IdentityMap(),
     density_function_space: Optional[FunctionSpace] = None,
-    component_index: int = 0
+    component_index: int = 0,
 ) -> Form:
     docstring = f"""
 Density scaled mass operator for the TALA
@@ -1620,6 +1742,7 @@ Weak formulation
         component_index=component_index,
         docstring=docstring,
     )
+
 
 def zero_form(
     trial: TrialSpace,

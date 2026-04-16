@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand(
     *,
     u,
@@ -29,13 +30,14 @@ def integrand(
     test_is_vectorial,
     **_,
 ):
-    g = -x/x.norm()
+    g = -x / x.norm()
 
     if test_is_vectorial:
-        return (
-            -k["rho"] * dot(g, v) * tabulate(u * jac_a_abs_det) * jac_b_abs_det
-        )
+        return -k["rho"] * dot(g, v) * tabulate(u * jac_a_abs_det) * jac_b_abs_det
     else:
         return (
-            -k["rho"] * g[component_index] * tabulate(u * v * jac_a_abs_det) * jac_b_abs_det
-        ) 
+            -k["rho"]
+            * g[component_index]
+            * tabulate(u * v * jac_a_abs_det)
+            * jac_b_abs_det
+        )

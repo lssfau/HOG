@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand(
     *,
     v,
@@ -29,4 +30,14 @@ def integrand(
     grad_k,
     **_,
 ):
-    return - v / k["rho"] / k["rho"] * dot(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u), jac_b_inv.T * tabulate(jac_a_inv.T) * grad_k["rho"]) * tabulate(jac_a_abs_det) * jac_b_abs_det
+    return (
+        -v
+        / k["rho"]
+        / k["rho"]
+        * dot(
+            jac_b_inv.T * tabulate(jac_a_inv.T * grad_u),
+            jac_b_inv.T * tabulate(jac_a_inv.T) * grad_k["rho"],
+        )
+        * tabulate(jac_a_abs_det)
+        * jac_b_abs_det
+    )

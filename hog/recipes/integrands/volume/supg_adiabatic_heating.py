@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand(
     *,
     u,
@@ -38,13 +39,21 @@ def integrand(
     else:
         u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
-    g = -x/x.norm()
+    g = -x / x.norm()
 
     # delta function
     # delta function
     if "delta" in k.keys():
         delta = k["delta"]
     else:
-        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)
+        delta = delta_supg(
+            x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True
+        )
 
-    return (- delta * dot(u_vec, g) * dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)) *  tabulate(u * jac_a_abs_det) * jac_b_abs_det)
+    return (
+        -delta
+        * dot(u_vec, g)
+        * dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
+        * tabulate(u * jac_a_abs_det)
+        * jac_b_abs_det
+    )

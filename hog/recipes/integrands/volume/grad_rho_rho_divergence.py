@@ -33,36 +33,30 @@ def integrand(
     component_index,
     **_,
 ):
-    inv_rho_scaling = (sp.S(1) / k["rho"] if not ("inv_rho" in k.keys()) else k["inv_rho"])
+    inv_rho_scaling = (
+        sp.S(1) / k["rho"] if not ("inv_rho" in k.keys()) else k["inv_rho"]
+    )
 
-    # the parentheses here are a deliberate choice, since otherwise the HOG throws an error 
+    # the parentheses here are a deliberate choice, since otherwise the HOG throws an error
     if trial_is_vectorial:
         return (
-            (
-                -(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
-                * tabulate(v * jac_a_abs_det)
-                * jac_b_abs_det
-            )
-            +
-            (
-                -inv_rho_scaling
-                * dot((jac_b_inv.T * jac_a_inv.T * grad_k["rho"]), u)
-                * tabulate(v * jac_a_abs_det)
-                * jac_b_abs_det
-            )
+            -(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
+            * tabulate(v * jac_a_abs_det)
+            * jac_b_abs_det
+        ) + (
+            -inv_rho_scaling
+            * dot((jac_b_inv.T * jac_a_inv.T * grad_k["rho"]), u)
+            * tabulate(v * jac_a_abs_det)
+            * jac_b_abs_det
         )
     else:
         return (
-            (
-                -(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u))[component_index]
-                * tabulate(v * jac_a_abs_det)
-                * jac_b_abs_det
-            )
-            +
-            (
-                -inv_rho_scaling
-                * (jac_b_inv.T * jac_a_inv.T * grad_k["rho"])[component_index]
-                * tabulate(u * v * jac_a_abs_det)
-                * jac_b_abs_det
-            )
+            -(jac_b_inv.T * tabulate(jac_a_inv.T * grad_u))[component_index]
+            * tabulate(v * jac_a_abs_det)
+            * jac_b_abs_det
+        ) + (
+            -inv_rho_scaling
+            * (jac_b_inv.T * jac_a_inv.T * grad_k["rho"])[component_index]
+            * tabulate(u * v * jac_a_abs_det)
+            * jac_b_abs_det
         )

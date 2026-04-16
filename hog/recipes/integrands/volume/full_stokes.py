@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand_recipe(
     use_dim,
     *,
@@ -42,7 +43,9 @@ def integrand_recipe(
     div_u = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_u)).trace()
     div_v = (jac_b_inv.T * tabulate(jac_a_inv.T * grad_v)).trace()
 
-    divdiv_scaling = sp.Rational(2, volume_geometry.dimensions) if use_dim else sp.Rational(2, 3)
+    divdiv_scaling = (
+        sp.Rational(2, volume_geometry.dimensions) if use_dim else sp.Rational(2, 3)
+    )
 
     return k["mu"] * (
         (
@@ -53,8 +56,10 @@ def integrand_recipe(
         - divdiv_scaling * div_u * div_v * tabulate(jac_a_abs_det) * jac_b_abs_det
     )
 
+
 def integrand(**kwargs):
     return integrand_recipe(True, **kwargs)
+
 
 def integrand_pseudo_3D(**kwargs):
     return integrand_recipe(False, **kwargs)

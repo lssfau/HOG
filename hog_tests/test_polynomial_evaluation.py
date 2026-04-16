@@ -37,7 +37,6 @@ from hog.quadrature import Quadrature, integrate_exact_over_reference
 
 @pytest.mark.skip(reason="test is not really meaningful, but keeping code for now")
 def test_trafos():
-
     volume_element_geometry = TriangleElement()
     symbolizer = Symbolizer()
 
@@ -123,7 +122,6 @@ def test_trafos():
 
 @pytest.mark.skip(reason="test is not really meaningful, but keeping code for now")
 def test_line_integration():
-
     symbolizer = Symbolizer()
     x, y = symbolizer.ref_coords_as_list(2)
 
