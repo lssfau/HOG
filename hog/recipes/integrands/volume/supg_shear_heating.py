@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand_recipe(
     use_dim,
     surface_cutoff,
@@ -47,9 +48,11 @@ def integrand_recipe(
     if "delta" in k.keys():
         delta = k["delta"]
     else:
-        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)
+        delta = delta_supg(
+            x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True
+        )
 
-    inv_rho_scaling = (sp.S(1) / k["rho"] if ("rho" in k.keys()) else sp.S(1))
+    inv_rho_scaling = sp.S(1) / k["rho"] if ("rho" in k.keys()) else sp.S(1)
     divdiv_scaling = sp.Rational(1, dim) if use_dim else sp.Rational(1, 3)
 
     if surface_cutoff:
@@ -57,8 +60,7 @@ def integrand_recipe(
         pos = scalars("radius_surface") - norm
 
         pos_scaling = sp.Piecewise(
-            (0.0, pos < scalars("cutoff") ),
-            (1.0, sp.sympify(True) )
+            (0.0, pos < scalars("cutoff")), (1.0, sp.sympify(True))
         )
     else:
         pos_scaling = sp.S(1)
@@ -66,13 +68,13 @@ def integrand_recipe(
     # build form
     grad_ux = jac_b_inv.T * jac_a_inv.T * grad_k["ux"]
     grad_uy = jac_b_inv.T * jac_a_inv.T * grad_k["uy"]
-    
+
     grad_u = grad_ux.row_join(grad_uy)
     if dim == 3:
         grad_uz = jac_b_inv.T * jac_a_inv.T * grad_k["uz"]
         grad_u = grad_u.row_join(grad_uz)
 
-    sym_grad_w = sp.Rational(1,2) * (grad_u + grad_u.T)
+    sym_grad_w = sp.Rational(1, 2) * (grad_u + grad_u.T)
 
     divdiv = grad_u.trace() * sp.eye(dim)
 
@@ -89,14 +91,18 @@ def integrand_recipe(
         * jac_b_abs_det
     )
 
+
 def integrand(**kwargs):
     return integrand_recipe(True, False, **kwargs)
+
 
 def integrand_pseudo_3D(**kwargs):
     return integrand_recipe(False, False, **kwargs)
 
+
 def integrand_with_cutoff(**kwargs):
     return integrand_recipe(True, True, **kwargs)
+
 
 def integrand_with_cutoff_pseudo_3D(**kwargs):
     return integrand_recipe(False, True, **kwargs)

@@ -438,7 +438,9 @@ def process_integrand(
                 function_id=name,
                 basis_eval=tabulation.register_phi_evals(
                     coefficient_function_space.shape(volume_geometry)
-                ) if isinstance(blending, IdentityMap) else "default",
+                )
+                if isinstance(blending, IdentityMap)
+                else "default",
             )
 
             if isinstance(k, sp.Matrix) and k.shape == (1, 1):
@@ -459,10 +461,16 @@ def process_integrand(
     # Affine element diameter #
     ###########################
 
-    if isinstance(volume_geometry, LineElement) or isinstance(volume_geometry, TriangleElement) or isinstance(volume_geometry, TetrahedronElement):
+    if (
+        isinstance(volume_geometry, LineElement)
+        or isinstance(volume_geometry, TriangleElement)
+        or isinstance(volume_geometry, TetrahedronElement)
+    ):
         # diameter of the affine simplex, calculated as double the circumcircle / circumsphere radius
-        affine_points = symbolizer.affine_vertices_as_vectors(volume_geometry.dimensions, volume_geometry.num_vertices)
-        s.affine_diameter = diameter(affine_points)  
+        affine_points = symbolizer.affine_vertices_as_vectors(
+            volume_geometry.dimensions, volume_geometry.num_vertices
+        )
+        s.affine_diameter = diameter(affine_points)
 
     ##############################
     # Jacobians and determinants #

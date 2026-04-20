@@ -32,7 +32,9 @@ def integrand(
     component_index,
     **_,
 ):
-    inv_rho_scaling = (sp.S(1) / k["rho"] if not ("inv_rho" in k.keys()) else k["inv_rho"])
+    inv_rho_scaling = (
+        sp.S(1) / k["rho"] if not ("inv_rho" in k.keys()) else k["inv_rho"]
+    )
 
     if trial_is_vectorial:
         return (

@@ -172,9 +172,11 @@ class Apply(KernelType):
 
         # Add and store result to destination.
         store_dst_vecs = [
-            SympyAssignment(a, a + scaling*s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
+            SympyAssignment(a, a + scaling * s)
+            for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
         ]
         return store_dst_vecs
+
 
 class AssembleDiagonal(KernelType):
     def __init__(self):
@@ -213,9 +215,11 @@ class AssembleDiagonal(KernelType):
 
         # Add and store result to destination.
         store_dst_vecs = [
-            SympyAssignment(a, a + scaling*s) for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
+            SympyAssignment(a, a + scaling * s)
+            for a, s in zip(dst_vecs_accesses[0], tmp_symbols)
         ]
         return store_dst_vecs
+
 
 class Assemble(KernelType):
     def __init__(
@@ -237,7 +241,9 @@ class Assemble(KernelType):
     ) -> List[SympyAssignment]:
         scaling = sp.Symbol("toMatrixScaling")
         return [
-            SympyAssignment(sp.Symbol(f"{self.result_prefix}{r}_{c}"), scaling*mat[r, c])
+            SympyAssignment(
+                sp.Symbol(f"{self.result_prefix}{r}_{c}"), scaling * mat[r, c]
+            )
             for r in range(mat.shape[0])
             for c in range(mat.shape[1])
         ]
@@ -487,7 +493,7 @@ class ApplyWrapper(KernelWrapperType):
         )
 
         self._applyTemplate = Template(
-            f'return applyScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ), src, dst, level, flag, updateType );\n'
+            f"return applyScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ), src, dst, level, flag, updateType );\n"
         )
 
     @property
@@ -509,7 +515,12 @@ class ApplyWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
-                    CppVariable(name="operatorScaling", type=f"{self.dst.type_descriptor.pystencils_type}", is_const=True, is_reference=True),
+                    CppVariable(
+                        name="operatorScaling",
+                        type=f"{self.dst.type_descriptor.pystencils_type}",
+                        is_const=True,
+                        is_reference=True,
+                    ),
                     CppVariable(
                         name=self.src.name,
                         type=self.src.func_type_string(),
@@ -558,7 +569,7 @@ class ApplyWrapper(KernelWrapperType):
                 return_type="void",
                 is_const=True,
                 content=self._applyTemplate.template,
-            )
+            ),
         ]
 
     def member_variables(self) -> List[CppMemberVariable]:
@@ -676,7 +687,7 @@ class AssembleDiagonalWrapper(KernelWrapperType):
         )
 
         self._diagTemplate = Template(
-            f'return computeInverseDiagonalOperatorValuesScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ) );\n'
+            f"return computeInverseDiagonalOperatorValuesScaled( static_cast< {self.dst.type_descriptor.pystencils_type} >( 1 ) );\n"
         )
 
     @property
@@ -696,7 +707,12 @@ class AssembleDiagonalWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
-                    CppVariable(name="diagScaling", type=f"{self.dst.type_descriptor.pystencils_type}", is_const=True, is_reference=True)
+                    CppVariable(
+                        name="diagScaling",
+                        type=f"{self.dst.type_descriptor.pystencils_type}",
+                        is_const=True,
+                        is_reference=True,
+                    )
                 ],
                 return_type="void",
                 content=self._template.template,
@@ -706,7 +722,7 @@ class AssembleDiagonalWrapper(KernelWrapperType):
                 arguments=[],
                 return_type="void",
                 content=self._diagTemplate.template,
-            ),            
+            ),
             CppMethod(
                 name="getInverseDiagonalValues",
                 arguments=[],
@@ -725,6 +741,8 @@ class AssembleDiagonalWrapper(KernelWrapperType):
                 )
             ),
         ]
+
+
 class AssembleWrapper(KernelWrapperType):
     def __init__(
         self,
@@ -801,8 +819,8 @@ class AssembleWrapper(KernelWrapperType):
         )
 
         self._toMatrixTemplate = Template(
-            f'return toMatrixScaled( static_cast< {type_descriptor.pystencils_type} >( 1 ), mat, src, dst, level, flag );\n'
-        )        
+            f"return toMatrixScaled( static_cast< {type_descriptor.pystencils_type} >( 1 ), mat, src, dst, level, flag );\n"
+        )
 
     @property
     def kernel_type(self) -> KernelType:
@@ -828,7 +846,12 @@ class AssembleWrapper(KernelWrapperType):
             CppMethod(
                 name=self.name,
                 arguments=[
-                    CppVariable(name="toMatrixScaling", type=f"{self.type_descriptor.pystencils_type}", is_const=True, is_reference=True),
+                    CppVariable(
+                        name="toMatrixScaling",
+                        type=f"{self.type_descriptor.pystencils_type}",
+                        is_const=True,
+                        is_reference=True,
+                    ),
                     CppVariable(
                         name="mat",
                         type="std::shared_ptr< SparseMatrixProxy >",
@@ -881,7 +904,7 @@ class AssembleWrapper(KernelWrapperType):
                 return_type="void",
                 is_const=True,
                 content=self._toMatrixTemplate.template,
-            )
+            ),
         ]
 
     def member_variables(self) -> List[CppMemberVariable]:

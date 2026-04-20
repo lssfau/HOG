@@ -16,7 +16,11 @@
 
 from hog.recipes.common import *
 from hog.blending import IdentityMap
-from hog.fem_helpers import hessian_shape_affine_ref_pullback, hessian_shape_blending_ref_pullback
+from hog.fem_helpers import (
+    hessian_shape_affine_ref_pullback,
+    hessian_shape_blending_ref_pullback,
+)
+
 
 def integrand(
     *,
@@ -40,13 +44,15 @@ def integrand(
     if volume_geometry.dimensions > 2:
         u_vec = sp.Matrix([[k["ux"]], [k["uy"]], [k["uz"]]])
     else:
-        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])    
+        u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
     # delta function
     if "delta" in k.keys():
         delta = k["delta"]
     else:
-        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)        
+        delta = delta_supg(
+            x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True
+        )
 
     # scaling with 1/rho
     if "rho" in k.keys():
@@ -57,13 +63,13 @@ def integrand(
     if isinstance(blending, IdentityMap):
         hessian_affine = hessian_shape_affine_ref_pullback(hessian_u, jac_a_inv)
 
-        laplacian = sum([hessian_affine[i, i] for i in range(volume_geometry.dimensions)])
+        laplacian = sum(
+            [hessian_affine[i, i] for i in range(volume_geometry.dimensions)]
+        )
 
         supg = dot(u_vec, tabulate(jac_a_inv.T * grad_v))
 
-        form = (
-            -delta * scaling * tabulate(laplacian) * supg * tabulate(jac_a_abs_det)
-        )
+        form = -delta * scaling * tabulate(laplacian) * supg * tabulate(jac_a_abs_det)
     else:
         hessian_blending = hessian_shape_blending_ref_pullback(
             volume_geometry,
@@ -81,7 +87,12 @@ def integrand(
         supg = dot(u_vec, jac_b_inv.T * tabulate(jac_a_inv.T * grad_v))
 
         form = (
-            -delta * scaling * laplacian * supg * tabulate(jac_a_abs_det) * jac_b_abs_det
+            -delta
+            * scaling
+            * laplacian
+            * supg
+            * tabulate(jac_a_abs_det)
+            * jac_b_abs_det
         )
-    
+
     return form

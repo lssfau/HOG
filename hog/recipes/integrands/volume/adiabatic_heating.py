@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand(
     *,
     u,
@@ -33,6 +34,6 @@ def integrand(
     else:
         u_vec = sp.Matrix([[k["ux"]], [k["uy"]]])
 
-    g = -x/x.norm()
+    g = -x / x.norm()
 
-    return (- dot(u_vec, g) *  tabulate(u * v * jac_a_abs_det) * jac_b_abs_det)
+    return -dot(u_vec, g) * tabulate(u * v * jac_a_abs_det) * jac_b_abs_det

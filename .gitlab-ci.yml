@@ -38,6 +38,7 @@ generation-of-selected-forms:
     - python3 generate_all_hyteg_forms.py --output generated_forms3.cpp --geometry embedded_triangle --filter "^p1_[lm]"
     - python3 generate_all_hyteg_forms.py --output generated_forms4.cpp --filter p1_epsilonvar_blending_q1 --geometry tetrahedron
     - python3 generate_all_hyteg_forms.py --output generated_forms5.cpp --filter p1_full_stokesvar_blending_q1 --geometry triangle
+    - python3 generate_all_hyteg_forms.py --output generated_forms6.cpp --filter p3_diffusion_affine_q4
 
 operator-generation:
   stage: integration

@@ -16,6 +16,7 @@
 
 from hog.recipes.common import *
 
+
 def integrand(
     *,
     jac_a_inv,
@@ -41,7 +42,9 @@ def integrand(
     if "delta" in k.keys():
         delta = k["delta"]
     else:
-        delta = delta_supg(x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True)
+        delta = delta_supg(
+            x_ref, u_vec, affine_diameter, scalars("thermal_conductivity"), True
+        )
 
     return (
         delta
